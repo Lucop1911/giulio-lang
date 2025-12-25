@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{ast::ast::Ident, interpreter::{builtins::BuiltinsFunctions, obj::Object}};
+use crate::{ast::ast::Ident, interpreter::obj::Object};
+use crate::interpreter::builtins::functions::BuiltinsFunctions;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Environment {

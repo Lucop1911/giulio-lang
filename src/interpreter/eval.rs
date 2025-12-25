@@ -4,8 +4,7 @@ use crate::{
     ast::ast::{Expr, Ident, Infix, Literal, Prefix, Program, Stmt},
     errors::RuntimeError,
     interpreter::{
-        env::Environment,
-        obj::{BuiltinFunction, Object},
+        builtins::methods::BuiltinMethods, env::Environment, obj::{BuiltinFunction, Object}
     },
 };
 
@@ -90,6 +89,9 @@ impl Evaluator {
             Expr::ArrayExpr(exprs) => self.eval_array(exprs),
             Expr::HashExpr(hash_exprs) => self.eval_hash(hash_exprs),
             Expr::IndexExpr { array, index } => self.eval_index(*array, *index),
+            Expr::MethodCallExpr { object, method, arguments } => {
+                self.eval_method_call(*object, method, arguments)
+            }
         }
     }
 
@@ -234,6 +236,10 @@ impl Evaluator {
         Object::Function(params, body, Rc::clone(&self.env))
     }
 
+    pub fn eval_method(&mut self, params: Vec<Ident>, body: Program) -> Object {
+        Object::Method(params, body, Rc::clone(&self.env))
+    }
+
     pub fn eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> Object {
         let fn_object = self.eval_expr(fn_expr);
         let fn_ = self.otf(fn_object);
@@ -277,6 +283,16 @@ impl Evaluator {
         let object = self.eval_blockstmt(body);
         self.env = old_env;
         self.returned(object)
+    }
+
+    pub fn eval_method_call(&mut self, object_expr: Expr, method_name: String, args_expr: Vec<Expr>) -> Object {
+        let object = self.eval_expr(object_expr);
+        let args = args_expr.into_iter().map(|e| self.eval_expr(e)).collect();
+        
+        match BuiltinMethods::call_method(object, &method_name, args) {
+            Ok(obj) => obj,
+            Err(e) => Object::Error(e),
+        }
     }
 
     fn eval_builtin_call(

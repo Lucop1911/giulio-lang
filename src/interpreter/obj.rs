@@ -20,6 +20,7 @@ pub enum Object {
     Null,
     ReturnValue(Box<Object>),
     Error(RuntimeError),
+    Method(Vec<Ident>, Program, Rc<RefCell<Environment>>)
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
@@ -70,6 +71,7 @@ impl Object {
             Object::Null => "null".to_string(),
             Object::ReturnValue(_) => "return value".to_string(),
             Object::Error(_) => "error".to_string(),
+            Object::Method(_, _, _) => "method".to_string()
         }
     }
 }
@@ -115,6 +117,7 @@ impl fmt::Display for Object {
             Object::Null => write!(f, "null"),
             Object::ReturnValue(ref o) => write!(f, "{}", *o),
             Object::Error(ref e) => write!(f, "{}", e),
+            Object::Method(_, _, _) => write!(f, "[method]"),
         }
     }
 }

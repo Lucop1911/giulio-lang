@@ -32,6 +32,11 @@ pub enum Expr {
         array: Box<Expr>,
         index: Box<Expr>,
     },
+    MethodCallExpr{
+        object: Box<Expr>,
+        method: String,
+        arguments: Vec<Expr>
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]

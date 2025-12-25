@@ -50,6 +50,7 @@ pub enum Token {
     And,
     Or,
     Not,
+    Dot,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

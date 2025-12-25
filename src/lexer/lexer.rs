@@ -64,6 +64,7 @@ syntax! {lbrace_punctuation, "{", Token::LBrace}
 syntax! {rbrace_punctuation, "}", Token::RBrace}
 syntax! {lbracket_punctuation, "[", Token::LBracket}
 syntax! {rbracket_punctuation, "]", Token::RBracket}
+syntax! {dot_punctuation, ".", Token::Dot}
 
 pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
     alt((
@@ -76,6 +77,7 @@ pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
         rbrace_punctuation,
         lbracket_punctuation,
         rbracket_punctuation,
+        dot_punctuation
     ))(input)
 }
 

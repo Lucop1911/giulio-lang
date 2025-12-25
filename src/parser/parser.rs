@@ -63,6 +63,7 @@ tag_token!(if_tag, Token::If);
 tag_token!(else_tag, Token::Else);
 tag_token!(function_tag, Token::Function);
 tag_token!(eof_tag, Token::EOF);
+tag_token!(dot_tag, Token::Dot);
 
 fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     match *t {
@@ -80,6 +81,7 @@ fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
         Token::Divide => (Precedence::PProduct, Some(Infix::Divide)),
         Token::LParen => (Precedence::PCall, None),
         Token::LBracket => (Precedence::PIndex, None),
+        Token::Dot => (Precedence::PCall, None),
         _ => (Precedence::PLowest, None),
     }
 }
@@ -233,8 +235,17 @@ fn go_parse_pratt_expr(input: Tokens, precedence: Precedence, left: Expr) -> IRe
         let p = infix_op(preview);
         match p {
             (Precedence::PCall, _) if precedence < Precedence::PCall => {
-                let (i2, left2) = parse_call_expr(input, left)?;
-                go_parse_pratt_expr(i2, precedence, left2)
+                match preview {
+                    Token::LParen => {
+                        let (i2, left2) = parse_call_expr(input, left)?;
+                        go_parse_pratt_expr(i2, precedence, left2)
+                    }
+                    Token::Dot => {
+                        let (i2, left2) = parse_method_call_expr(input, left)?;
+                        go_parse_pratt_expr(i2, precedence, left2)
+                    }
+                    _ => Ok((input, left))
+                }
             }
             (Precedence::PIndex, _) if precedence < Precedence::PIndex => {
                 let (i2, left2) = parse_index_expr(input, left)?;
@@ -329,6 +340,30 @@ fn parse_params(input: Tokens) -> IResult<Tokens, Vec<Ident>> {
         pair(parse_ident, many0(preceded(comma_tag, parse_ident))),
         |(p, ps)| [&vec![p][..], &ps[..]].concat(),
     )(input)
+}
+
+fn parse_method_call_expr(input: Tokens, object: Expr) -> IResult<Tokens, Expr> {
+    let (i1, _) = dot_tag(input)?;
+    let (i2, method_ident) = parse_ident(i1)?;
+    let Ident(method_name) = method_ident;
+    
+    let (_i3, t3) = take(1usize)(i2)?;
+    if !t3.token.is_empty() && t3.token[0] == Token::LParen {
+        map(
+            delimited(lparen_tag, alt((parse_exprs, empty_boxed_vec)), rparen_tag),
+            |args| Expr::MethodCallExpr {
+                object: Box::new(object.clone()),
+                method: method_name.clone(),
+                arguments: args,
+            },
+        )(i2)
+    } else {
+        Ok((i2, Expr::MethodCallExpr {
+            object: Box::new(object),
+            method: method_name,
+            arguments: vec![],
+        }))
+    }
 }
 
 pub struct Parser;

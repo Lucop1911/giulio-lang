@@ -9,7 +9,6 @@ fn main() {
     let mut evaluator = Evaluator::new();
 
     loop {
-        // Ensure prompt is on a new line after previous output
         print!(">> ");
         io::stdout().flush().unwrap();
 
@@ -60,8 +59,7 @@ fn main() {
             other => println!("{}", other),
         }
 
-        // Ensure next prompt starts on a new line if last output didn't end with newline
-        println!();  // Add this line to always print a newline before the next prompt
+        println!();
         io::stdout().flush().unwrap();
     }
 }
