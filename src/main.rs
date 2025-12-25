@@ -1,12 +1,37 @@
 use std::io::{self, Write};
+use std::fs;
+use std::env;
 
+use giulio_lang::run_source::run_source;
 use giulio_lang::{Evaluator, Lexer, Parser, Tokens, interpreter::obj::Object};
 
 fn main() {
+    let mut evaluator = Evaluator::new();
+    let args: Vec<String> = env::args().collect();
+    // FILE MODE
+    if args.get(1).unwrap_or(&"".to_string()) == &"run" {
+        let filename = &args[2];
+        if filename.ends_with(".giu") {
+            let source = match fs::read_to_string(filename) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Could not read file {}: {}", filename, e);
+                    return;
+                }
+            };
+
+            run_source(&source, &mut evaluator);
+            return;
+        } else {
+            println!("Not a giulio-lang file!");
+            return;
+        }
+    }
+
+
+    // REPL MODE
     println!("Giulio-lang v0.1.0");
     println!("Type 'exit' to quit\n");
-
-    let mut evaluator = Evaluator::new();
 
     loop {
         print!(">> ");

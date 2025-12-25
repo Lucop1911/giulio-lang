@@ -1,7 +1,7 @@
 use nom::branch::*;
 use nom::bytes::complete::{tag, take, is_not};
-use nom::character::complete::{alpha1, alphanumeric1, digit1, multispace0};
-use nom::combinator::{map, map_res, recognize, value};
+use nom::character::complete::{alpha1, alphanumeric1, digit1, multispace0, line_ending};
+use nom::combinator::{map, map_res, recognize, value, opt};
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded};
 use nom::*;
@@ -81,7 +81,7 @@ pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
     ))(input)
 }
 
-// String parsing - simplified and more robust
+// String parsing
 fn parse_escaped_char(input: &[u8]) -> IResult<&[u8], char> {
     preceded(
         tag("\\"),
@@ -97,7 +97,6 @@ fn parse_escaped_char(input: &[u8]) -> IResult<&[u8], char> {
 
 fn parse_string_fragment(input: &[u8]) -> IResult<&[u8], String> {
     alt((
-        // Parse escaped characters
         map(parse_escaped_char, |c| {
             match c {
                 'n' => "\n".to_string(),
@@ -106,7 +105,6 @@ fn parse_string_fragment(input: &[u8]) -> IResult<&[u8], String> {
                 other => other.to_string(),
             }
         }),
-        // Parse regular characters (anything except " and \)
         map_res(
             is_not("\"\\"),
             |bytes: &[u8]| str::from_utf8(bytes).map(|s| s.to_string())
@@ -184,8 +182,51 @@ fn lex_token(input: &[u8]) -> IResult<&[u8], Token> {
     ))(input)
 }
 
+fn skip_line_comment(input: &[u8]) -> IResult<&[u8], ()> {
+    let (input, _) = tag("//")(input)?;
+    let (input, _) = opt(is_not("\n\r"))(input)?;
+    let (input, _) = opt(line_ending)(input)?;
+    Ok((input, ()))
+}
+
+fn skip_ws_and_comments(input: &[u8]) -> IResult<&[u8], ()> {
+    let (mut input, _) = multispace0(input)?;
+    
+    loop {
+        if let Ok((remaining, _)) = skip_line_comment(input) {
+            let (remaining, _) = multispace0(remaining)?;
+            input = remaining;
+        } else {
+            break;
+        }
+    }
+    
+    Ok((input, ()))
+}
+
 fn lex_tokens(input: &[u8]) -> IResult<&[u8], Vec<Token>> {
-    many0(delimited(multispace0, lex_token, multispace0))(input)
+    let (mut input, _) = skip_ws_and_comments(input)?;
+    let mut tokens = Vec::new();
+    
+    loop {
+        // Try to lex a token
+        if input.is_empty() {
+            break;
+        }
+        
+        match lex_token(input) {
+            Ok((remaining, token)) => {
+                tokens.push(token);
+                input = remaining;
+                
+                let (remaining, _) = skip_ws_and_comments(input)?;
+                input = remaining;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    
+    Ok((input, tokens))
 }
 
 pub struct Lexer;

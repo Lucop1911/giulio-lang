@@ -27,7 +27,7 @@ pub enum Expr {
         arguments: Vec<Expr>,
     },
     ArrayExpr(Vec<Expr>),
-    HashExpr(Vec<(Literal, Expr)>),
+    HashExpr(Vec<(Expr, Expr)>),
     IndexExpr {
         array: Box<Expr>,
         index: Box<Expr>,

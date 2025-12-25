@@ -1,13 +1,5 @@
 use crate::interpreter::obj::Object;
 
-pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
-        Some(Object::String(s)) => Ok(Object::Integer(s.len() as i64)),
-        Some(Object::Array(arr)) => Ok(Object::Integer(arr.len() as i64)),
-        _ => Err("len() requires a string or array".to_string()),
-    }
-}
-
 pub fn bhead_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(arr)) => match arr.into_iter().next() {

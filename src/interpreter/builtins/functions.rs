@@ -2,7 +2,7 @@ use crate::{
     ast::ast::Ident,
     interpreter::{obj::{BuiltinFunction, Object}},
 };
-use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*};
+use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*, shared::*, hash::*};
 
 
 pub struct BuiltinsFunctions;
@@ -37,6 +37,10 @@ impl BuiltinsFunctions {
             add_builtin("abs", 1, 1, babs_fn),
             add_builtin("min", 2, 2, bmin_fn),
             add_builtin("max", 2, 2, bmax_fn),
+            // Hash
+            add_builtin("keys",1 , 1, bkeys_fn),
+            add_builtin("values", 1, 1, bvalues_fn),
+            add_builtin("has", 2, 2, bhas_fn),
         ]
     }
 }

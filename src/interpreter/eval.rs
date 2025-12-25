@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::ast::{Expr, Ident, Infix, Literal, Prefix, Program, Stmt},
@@ -116,15 +116,15 @@ impl Evaluator {
     pub fn eval_prefix(&mut self, prefix: &Prefix, expr: Expr) -> Object {
         let object = self.eval_expr(expr);
         match *prefix {
-            Prefix::Not => match self.otb(object) {
+            Prefix::Not => match self.obj_to_bool(object) {
                 Ok(b) => Object::Boolean(!b),
                 Err(err) => err,
             },
-            Prefix::PrefixPlus => match self.oti(object) {
+            Prefix::PrefixPlus => match self.obj_to_int(object) {
                 Ok(i) => Object::Integer(i),
                 Err(err) => err,
             },
-            Prefix::PrefixMinus => match self.oti(object) {
+            Prefix::PrefixMinus => match self.obj_to_int(object) {
                 Ok(i) => Object::Integer(-i),
                 Err(err) => err,
             },
@@ -138,16 +138,16 @@ impl Evaluator {
         match *infix {
             Infix::Plus => self.object_add(object1, object2),
             Infix::Minus => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(i1), Ok(i2)) => Object::Integer(i1 - i2),
                     (Err(err), _) | (_, Err(err)) => err,
                 }
             }
             Infix::Divide => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(_), Ok(0)) => Object::Error(RuntimeError::DivisionByZero),
                     (Ok(i1), Ok(i2)) => Object::Integer(i1 / i2),
@@ -155,8 +155,8 @@ impl Evaluator {
                 }
             }
             Infix::Multiply => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(i1), Ok(i2)) => Object::Integer(i1 * i2),
                     (Err(err), _) | (_, Err(err)) => err,
@@ -165,48 +165,48 @@ impl Evaluator {
             Infix::Equal => Object::Boolean(object1 == object2),
             Infix::NotEqual => Object::Boolean(object1 != object2),
             Infix::GreaterThanEqual => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(i1), Ok(i2)) => Object::Boolean(i1 >= i2),
                     (Err(err), _) | (_, Err(err)) => err,
                 }
             }
             Infix::GreaterThan => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(i1), Ok(i2)) => Object::Boolean(i1 > i2),
                     (Err(err), _) | (_, Err(err)) => err,
                 }
             }
             Infix::LessThanEqual => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(i1), Ok(i2)) => Object::Boolean(i1 <= i2),
                     (Err(err), _) | (_, Err(err)) => err,
                 }
             }
             Infix::LessThan => {
-                let i1 = self.oti(object1);
-                let i2 = self.oti(object2);
+                let i1 = self.obj_to_int(object1);
+                let i2 = self.obj_to_int(object2);
                 match (i1, i2) {
                     (Ok(i1), Ok(i2)) => Object::Boolean(i1 < i2),
                     (Err(err), _) | (_, Err(err)) => err,
                 }
             }
             Infix::And => {
-                let b1 = self.otb(object1);
-                let b2 = self.otb(object2);
+                let b1 = self.obj_to_bool(object1);
+                let b2 = self.obj_to_bool(object2);
                 match (b1, b2) {
                     (Ok(b1), Ok(b2)) => Object::Boolean(b1 && b2),
                     (Err(err), _) | (_, Err(err)) => err,
                 }
             }
             Infix::Or => {
-                let b1 = self.otb(object1);
-                let b2 = self.otb(object2);
+                let b1 = self.obj_to_bool(object1);
+                let b2 = self.obj_to_bool(object2);
                 match (b1, b2) {
                     (Ok(b1), Ok(b2)) => Object::Boolean(b1 || b2),
                     (Err(err), _) | (_, Err(err)) => err,
@@ -217,7 +217,7 @@ impl Evaluator {
 
     pub fn eval_if(&mut self, cond: Expr, conse: Program, maybe_alter: Option<Program>) -> Object {
         let object = self.eval_expr(cond);
-        match self.otb(object) {
+        match self.obj_to_bool(object) {
             Ok(b) => {
                 if b {
                     self.eval_blockstmt(conse)
@@ -242,7 +242,7 @@ impl Evaluator {
 
     pub fn eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> Object {
         let fn_object = self.eval_expr(fn_expr);
-        let fn_ = self.otf(fn_object);
+        let fn_ = self.obj_to_func(fn_object);
         match fn_ {
             Object::Function(params, body, f_env) => {
                 self.eval_fn_call(args_expr, params, body, &f_env)
@@ -339,23 +339,30 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_hash(&mut self, hs: Vec<(Literal, Expr)>) -> Object {
-        let hashmap = hs.into_iter().map(|pair| self.eval_pair(pair)).collect();
+    pub fn eval_hash(&mut self, hs: Vec<(Expr, Expr)>) -> Object {
+        let mut hashmap = HashMap::new();
+        
+        for (key_expr, val_expr) in hs {
+            let key = self.eval_expr(key_expr);
+            let val = self.eval_expr(val_expr);
+            
+            match &key {
+                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
+                    hashmap.insert(key, val);
+                }
+                Object::Error(e) => return Object::Error(e.clone()),
+                _ => return Object::Error(RuntimeError::NotHashable(key.type_name())),
+            }
+        }
+        
         Object::Hash(hashmap)
-    }
-
-    fn eval_pair(&mut self, tuple: (Literal, Expr)) -> (Object, Object) {
-        let (l, e) = tuple;
-        let hash = self.l2h(l);
-        let object = self.eval_expr(e);
-        (hash, object)
     }
 
     pub fn eval_index(&mut self, target_exp: Expr, id_exp: Expr) -> Object {
         let target = self.eval_expr(target_exp);
         let index = self.eval_expr(id_exp);
         match target {
-            Object::Array(arr) => match self.oti(index) {
+            Object::Array(arr) => match self.obj_to_int(index) {
                 Ok(index_number) => {
                     if index_number < 0 {
                         return Object::Error(RuntimeError::IndexOutOfBounds {
@@ -375,17 +382,17 @@ impl Evaluator {
                 Err(err) => err,
             },
             Object::Hash(mut hash) => {
-                let name = self.oth(index);
+                let name = self.obj_to_hash(index);
                 match name {
                     Object::Error(_) => name,
                     _ => hash.remove(&name).unwrap_or(Object::Null),
                 }
             }
-            o => Object::Error(RuntimeError::NotIndexable(o.type_name())),
+            o => Object::Error(RuntimeError::NotHashable(o.type_name())),
         }
     }
 
-    pub fn otb(&mut self, object: Object) -> Result<bool, Object> {
+    pub fn obj_to_bool(&mut self, object: Object) -> Result<bool, Object> {
         match object {
             Object::Boolean(b) => Ok(b),
             Object::Error(e) => Err(Object::Error(e)),
@@ -396,7 +403,7 @@ impl Evaluator {
         }
     }
 
-    pub fn oti(&mut self, object: Object) -> Result<i64, Object> {
+    pub fn obj_to_int(&mut self, object: Object) -> Result<i64, Object> {
         match object {
             Object::Integer(i) => Ok(i),
             Object::Error(e) => Err(Object::Error(e)),
@@ -407,7 +414,7 @@ impl Evaluator {
         }
     }
 
-    pub fn otf(&mut self, object: Object) -> Object {
+    pub fn obj_to_func(&mut self, object: Object) -> Object {
         match object {
             Object::Function(_, _, _) | Object::Builtin(_, _, _, _) => object,
             Object::Error(e) => Object::Error(e),
@@ -415,7 +422,7 @@ impl Evaluator {
         }
     }
 
-    pub fn oth(&mut self, object: Object) -> Object {
+    pub fn obj_to_hash(&mut self, object: Object) -> Object {
         match object {
             Object::Integer(i) => Object::Integer(i),
             Object::Boolean(b) => Object::Boolean(b),
@@ -425,8 +432,8 @@ impl Evaluator {
         }
     }
 
-    pub fn l2h(&mut self, literal: Literal) -> Object {
+    pub fn literal_to_hash(&mut self, literal: Literal) -> Object {
         let object = self.eval_literal(literal);
-        self.oth(object)
+        self.obj_to_hash(object)
     }
 }

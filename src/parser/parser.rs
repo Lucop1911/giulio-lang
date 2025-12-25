@@ -179,22 +179,21 @@ fn parse_array_expr(input: Tokens) -> IResult<Tokens, Expr> {
     )(input)
 }
 
-fn parse_hash_pair(input: Tokens) -> IResult<Tokens, (Literal, Expr)> {
-    separated_pair(parse_literal, colon_tag, parse_expr)(input)
+fn parse_hash_pair(input: Tokens) -> IResult<Tokens, (Expr, Expr)> {
+    separated_pair(parse_expr, colon_tag, parse_expr)(input)
 }
 
-fn parse_hash_comma_expr(input: Tokens) -> IResult<Tokens, (Literal, Expr)> {
+fn parse_hash_comma_expr(input: Tokens) -> IResult<Tokens, (Expr, Expr)> {
     preceded(comma_tag, parse_hash_pair)(input)
 }
 
-fn parse_hash_pairs(input: Tokens) -> IResult<Tokens, Vec<(Literal, Expr)>> {
+fn parse_hash_pairs(input: Tokens) -> IResult<Tokens, Vec<(Expr, Expr)>> {
     map(
         pair(parse_hash_pair, many0(parse_hash_comma_expr)),
         |(first, second)| [&vec![first][..], &second[..]].concat(),
     )(input)
 }
-
-fn empty_pairs(input: Tokens) -> IResult<Tokens, Vec<(Literal, Expr)>> {
+fn empty_pairs(input: Tokens) -> IResult<Tokens, Vec<(Expr, Expr)>> {
     Ok((input, vec![]))
 }
 

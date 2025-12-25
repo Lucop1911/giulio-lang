@@ -3,6 +3,7 @@ pub mod lexer;
 pub mod parser;
 pub mod interpreter;
 pub mod errors;
+pub mod run_source;
 
 pub use crate::lexer::lexer::Lexer;
 pub use crate::parser::parser::Parser;

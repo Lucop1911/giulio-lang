@@ -4,3 +4,5 @@ pub mod output;
 pub mod string;
 pub mod r#type;
 pub mod int;
+pub mod hash;
+pub mod shared;
