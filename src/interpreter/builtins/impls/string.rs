@@ -18,6 +18,9 @@ pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
         Some(Object::String(s)) => {
             Ok(Object::Boolean(s.is_empty()))
         }
+        Some(Object::Array(arr)) => {
+            Ok(Object::Boolean(arr.is_empty()))
+        }
         _ => Err("Invalid arguments to is_empty()".to_string())
     }
 }
