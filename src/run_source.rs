@@ -28,6 +28,6 @@ pub fn run_source(input: &str, evaluator: &mut Evaluator) {
         Object::Null => {}
         Object::Error(e) => eprintln!("{}", e),
         Object::String(s) => print!("{}", s),
-        other => println!("{}", other),
+        _ => {},
     }
 }

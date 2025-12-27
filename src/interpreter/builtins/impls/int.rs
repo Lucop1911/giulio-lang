@@ -13,12 +13,18 @@ pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
-    let mut args = args.into_iter();
-    match (args.next(), args.next()) {
-        (Some(Object::Integer(n)), Some(Object::Integer(power))) => {
-            Ok(Object::Integer(n.pow(power as u32)))
+    match (args.get(0), args.get(1)) {
+        (Some(Object::Integer(base)), Some(Object::Integer(exp))) => {
+            if *exp < 0 {
+                return Err("pow() does not support negative exponents".to_string());
+            }
+            
+            match (*base).checked_pow(*exp as u32) {
+                Some(result) => Ok(Object::Integer(result)),
+                None => Err("pow() result overflow".to_string()),
+            }
         }
-        _ => Err("Invalid arguments to pow()".to_string())
+        _ => Err("pow() expects two integers".to_string())
     }
 }
 
@@ -28,33 +34,29 @@ pub fn babs_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::Integer(x.abs()))
         }
         _ => {
-            Err("Invalid arguments to abs()".to_string())
+            Err("abs() expects an integer".to_string())
         }
     }
 }
 
 pub fn bmin_fn(args: Vec<Object>) -> Result<Object, String> {
-    let mut args = args.into_iter();
-    
-    match (args.next(), args.next()) {
+    match (args.get(0), args.get(1)) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => {
-            Ok(Object::Integer(a.min(b)))
+            Ok(Object::Integer((*a).min(*b)))
         }
         _ => {
-            Err("Invalid arguments to min()".to_string())
+            Err("min() expects two integers".to_string())
         }
     }
 }
 
 pub fn bmax_fn(args: Vec<Object>) -> Result<Object, String> {
-    let mut args = args.into_iter();
-    
-    match (args.next(), args.next()) {
+    match (args.get(0), args.get(1)) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => {
-            Ok(Object::Integer(a.max(b)))
+            Ok(Object::Integer((*a).max(*b)))
         }
         _ => {
-            Err("Invalid arguments to max()".to_string())
+            Err("max() expects two integers".to_string())
         }
     }
 }
