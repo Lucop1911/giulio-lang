@@ -13,8 +13,6 @@ pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-
-
 pub fn bstartswith_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {

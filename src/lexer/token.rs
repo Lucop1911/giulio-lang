@@ -36,6 +36,9 @@ pub enum Token {
     Function,
     Let,
     Return,
+    Struct,
+    This,
+    Import,
     // punctuations
     Comma,
     Colon,

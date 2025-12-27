@@ -5,6 +5,15 @@ pub enum Stmt {
     LetStmt(Ident, Expr),
     ReturnStmt(Expr),
     ExprStmt(Expr),
+    StructStmt {
+        name: Ident,
+        fields: Vec<(Ident, Expr)>,
+        methods: Vec<(Ident, Expr)>,
+    },
+    ImportStmt {
+        path: Vec<String>,
+        items: ImportItems,
+    },
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -36,7 +45,16 @@ pub enum Expr {
         object: Box<Expr>,
         method: String,
         arguments: Vec<Expr>
-    }
+    },
+    StructLiteral {
+        name: Ident,
+        fields: Vec<(Ident, Expr)>,
+    },
+    ThisExpr,
+    FieldAccessExpr {
+        object: Box<Expr>,
+        field: String,
+    },
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -84,4 +102,11 @@ pub enum Precedence {
     PPrefix,       // !, -, +
     PCall,         // function calls
     PIndex,        // array[index]
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum ImportItems {
+    All,
+    Specific(Vec<String>),
+    Single(String),
 }

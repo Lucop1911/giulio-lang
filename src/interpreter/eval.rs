@@ -1,27 +1,39 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::ast::{Expr, Ident, Infix, Literal, Prefix, Program, Stmt},
+    ast::ast::{Expr, Ident, ImportItems, Infix, Literal, Prefix, Program, Stmt},
     errors::RuntimeError,
     interpreter::{
-        builtins::methods::BuiltinMethods, env::Environment, obj::{BuiltinFunction, Object}
+        builtins::methods::BuiltinMethods, env::Environment, module_registry::ModuleRegistry, obj::{BuiltinFunction, Object}
     },
 };
 
 pub struct Evaluator {
-    env: Rc<RefCell<Environment>>,
+    pub(crate) env: Rc<RefCell<Environment>>,
+    module_registry: Rc<RefCell<ModuleRegistry>>,
 }
 
 impl Default for Evaluator {
     fn default() -> Self {
-        Self::new()
+        let base_path = std::env::current_dir()
+            .expect("failed to get current directory");
+
+        let registry = Rc::new(RefCell::new(
+            ModuleRegistry::new(base_path),
+        ));
+
+        Evaluator {
+            env: Rc::new(RefCell::new(Environment::new())),
+            module_registry: registry,
+        }
     }
 }
 
 impl Evaluator {
-    pub fn new() -> Self {
+    pub fn new(module_registry: Rc<RefCell<ModuleRegistry>>) -> Self {
         Evaluator {
             env: Rc::new(RefCell::new(Environment::new())),
+            module_registry,
         }
     }
 
@@ -61,6 +73,12 @@ impl Evaluator {
                 let object = self.eval_expr(expr);
                 self.register_ident(ident, object)
             }
+            Stmt::StructStmt { name, fields, methods } => {
+                self.eval_struct_def(name, fields, methods)
+            }
+            Stmt::ImportStmt { path, items } => {
+                self.eval_import(path, items)
+            }
         }
     }
 
@@ -92,6 +110,24 @@ impl Evaluator {
             Expr::MethodCallExpr { object, method, arguments } => {
                 self.eval_method_call(*object, method, arguments)
             }
+            Expr::StructLiteral { name, fields } => {
+                self.eval_struct_literal(name, fields)
+            }
+            Expr::ThisExpr => {
+                self.eval_this()
+            },
+                Expr::FieldAccessExpr { object, field } => {
+                self.eval_field_access(*object, field)
+            }
+        }
+    }
+
+    pub fn eval_this(&mut self) -> Object {
+        match self.env.borrow().get("this") {
+            Some(obj) => obj,
+            None => Object::Error(RuntimeError::InvalidOperation(
+                "'this' can only be used inside a method".to_string()
+            )),
         }
     }
 
@@ -285,14 +321,76 @@ impl Evaluator {
         self.returned(object)
     }
 
+    pub fn eval_field_access(&mut self, object_expr: Expr, field_name: String) -> Object {
+        let object = self.eval_expr(object_expr);
+        
+        match object {
+            Object::Struct { fields, .. } => {
+                match fields.get(&field_name) {
+                    Some(value) => value.clone(),
+                    None => Object::Error(RuntimeError::InvalidOperation(
+                        format!("struct has no field '{}'", field_name)
+                    )),
+                }
+            }
+            other => Object::Error(RuntimeError::InvalidOperation(
+                format!("{} does not have fields", other.type_name())
+            )),
+        }
+    }
+
     pub fn eval_method_call(&mut self, object_expr: Expr, method_name: String, args_expr: Vec<Expr>) -> Object {
         let object = self.eval_expr(object_expr);
-        let args = args_expr.into_iter().map(|e| self.eval_expr(e)).collect();
         
+        if let Object::Struct { ref methods, .. } = object {
+            if let Some(method_obj) = methods.get(&method_name) {
+                let old_env = Rc::clone(&self.env);
+                let mut new_env = Environment::new_with_outer(Rc::clone(&self.env));
+                new_env.set("this", object.clone());
+                
+                self.env = Rc::new(RefCell::new(new_env));
+                
+                let result = match method_obj {
+                    Object::Function(params, body, _) => {
+                        let args = args_expr.into_iter().map(|e| self.eval_expr(e)).collect();
+                        self.eval_fn_call_direct(args, params.clone(), body.clone())
+                    }
+                    _ => Object::Error(RuntimeError::NotCallable(method_name)),
+                };
+                
+                self.env = old_env;
+                return self.returned(result);
+            }
+        }
+        
+        // Fall back to builtin methods
+        let args = args_expr.into_iter().map(|e| self.eval_expr(e)).collect();
         match BuiltinMethods::call_method(object, &method_name, args) {
             Ok(obj) => obj,
             Err(e) => Object::Error(e),
         }
+    }
+
+    fn eval_fn_call_direct(
+        &mut self,
+        args: Vec<Object>,
+        params: Vec<Ident>,
+        body: Program,
+    ) -> Object {
+        if args.len() != params.len() {
+            return Object::Error(RuntimeError::WrongNumberOfArguments {
+                min: params.len(),
+                max: params.len(),
+                got: args.len(),
+            });
+        }
+
+        let zipped = params.into_iter().zip(args);
+        for (Ident(name), o) in zipped {
+            self.env.borrow_mut().set(&name, o);
+        }
+        
+        self.eval_blockstmt(body)
     }
 
     fn eval_builtin_call(
@@ -318,6 +416,58 @@ impl Evaluator {
         match b_fn(args) {
             Ok(obj) => obj,
             Err(e) => Object::Error(RuntimeError::InvalidArguments(e)),
+        }
+    }
+
+    pub fn eval_struct_def(&mut self, name: Ident, fields: Vec<(Ident, Expr)>, methods: Vec<(Ident, Expr)>) -> Object {
+        let Ident(struct_name) = name.clone();
+        
+        let mut default_fields = HashMap::new();
+        for (Ident(field_name), expr) in fields {
+            let value = self.eval_expr(expr);
+            default_fields.insert(field_name, value);
+        }
+        
+        let mut struct_methods = HashMap::new();
+        for (Ident(method_name), expr) in methods {
+            struct_methods.insert(method_name, expr);
+        }
+
+        let struct_obj = Object::Struct {
+            name: struct_name.clone(),
+            fields: default_fields,
+            methods: struct_methods.into_iter().map(|(k, expr)| (k, self.eval_expr(expr))).collect(),
+        };
+        
+        self.env.borrow_mut().set(&struct_name, struct_obj.clone());
+        
+        Object::Null
+    }
+
+    pub fn eval_struct_literal(&mut self, name: Ident, field_assignments: Vec<(Ident, Expr)>) -> Object {
+        let Ident(struct_name) = name;
+        
+        let struct_def = match self.env.borrow().get(&struct_name) {
+            Some(Object::Struct { fields, methods, .. }) => (fields, methods),
+            Some(_) => return Object::Error(RuntimeError::InvalidOperation(
+                format!("{} is not a struct", struct_name)
+            )),
+            None => return Object::Error(RuntimeError::UndefinedVariable(struct_name)),
+        };
+        
+        let (default_fields, methods) = struct_def;
+        
+        let mut instance_fields = default_fields.clone();
+        
+        for (Ident(field_name), expr) in field_assignments {
+            let value = self.eval_expr(expr);
+            instance_fields.insert(field_name, value);
+        }
+        
+        Object::Struct {
+            name: struct_name,
+            fields: instance_fields,
+            methods,
         }
     }
 
@@ -392,48 +542,45 @@ impl Evaluator {
         }
     }
 
-    pub fn obj_to_bool(&mut self, object: Object) -> Result<bool, Object> {
-        match object {
-            Object::Boolean(b) => Ok(b),
-            Object::Error(e) => Err(Object::Error(e)),
-            o => Err(Object::Error(RuntimeError::TypeMismatch {
-                expected: "boolean".to_string(),
-                got: o.type_name(),
-            })),
+    fn eval_import(&mut self, path: Vec<String>, items: ImportItems) -> Object {
+        // Load the module
+        let module = match self.module_registry.borrow_mut().load_module(&path) {
+            Ok(m) => m,
+            Err(e) => return Object::Error(e),
+        };
+        
+        // Import items into current environment
+        match items {
+            ImportItems::All => {
+                // Import all exports
+                for (name, obj) in module.exports {
+                    self.env.borrow_mut().set(&name, obj);
+                }
+            }
+            ImportItems::Specific(names) => {
+                // Import specific items
+                for name in names {
+                    if let Some(obj) = module.exports.get(&name) {
+                        self.env.borrow_mut().set(&name, obj.clone());
+                    } else {
+                        return Object::Error(RuntimeError::InvalidOperation(
+                            format!("Module {} has no export '{}'", module.name, name)
+                        ));
+                    }
+                }
+            }
+            ImportItems::Single(name) => {
+                // Import single item
+                if let Some(obj) = module.exports.get(&name) {
+                    self.env.borrow_mut().set(&name, obj.clone());
+                } else {
+                    return Object::Error(RuntimeError::InvalidOperation(
+                        format!("Module {} has no export '{}'", module.name, name)
+                    ));
+                }
+            }
         }
-    }
-
-    pub fn obj_to_int(&mut self, object: Object) -> Result<i64, Object> {
-        match object {
-            Object::Integer(i) => Ok(i),
-            Object::Error(e) => Err(Object::Error(e)),
-            o => Err(Object::Error(RuntimeError::TypeMismatch {
-                expected: "integer".to_string(),
-                got: o.type_name(),
-            })),
-        }
-    }
-
-    pub fn obj_to_func(&mut self, object: Object) -> Object {
-        match object {
-            Object::Function(_, _, _) | Object::Builtin(_, _, _, _) => object,
-            Object::Error(e) => Object::Error(e),
-            o => Object::Error(RuntimeError::NotCallable(o.type_name())),
-        }
-    }
-
-    pub fn obj_to_hash(&mut self, object: Object) -> Object {
-        match object {
-            Object::Integer(i) => Object::Integer(i),
-            Object::Boolean(b) => Object::Boolean(b),
-            Object::String(s) => Object::String(s),
-            Object::Error(e) => Object::Error(e),
-            x => Object::Error(RuntimeError::NotHashable(x.type_name())),
-        }
-    }
-
-    pub fn literal_to_hash(&mut self, literal: Literal) -> Object {
-        let object = self.eval_literal(literal);
-        self.obj_to_hash(object)
+        
+        Object::Null
     }
 }

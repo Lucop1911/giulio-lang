@@ -7,7 +7,7 @@ use nom::sequence::*;
 use nom::Err;
 use std::result::Result::*;
 
-use crate::ast::ast::{Expr, Ident, Infix, Literal, Precedence, Prefix, Program, Stmt};
+use crate::ast::ast::{Expr, Ident, ImportItems, Infix, Literal, Precedence, Prefix, Program, Stmt};
 use crate::lexer::token::{Token, Tokens};
 
 macro_rules! tag_token (
@@ -64,6 +64,9 @@ tag_token!(else_tag, Token::Else);
 tag_token!(function_tag, Token::Function);
 tag_token!(eof_tag, Token::EOF);
 tag_token!(dot_tag, Token::Dot);
+tag_token!(struct_tag, Token::Struct);
+tag_token!(this_tag, Token::This);
+tag_token!(import_tag, Token::Import);
 
 fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     match *t {
@@ -95,7 +98,7 @@ fn parse_expr(input: Tokens) -> IResult<Tokens, Expr> {
 }
 
 fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    alt((parse_let_stmt, parse_return_stmt, parse_expr_stmt))(input)
+    alt((parse_import_stmt,parse_let_stmt, parse_return_stmt, parse_struct_stmt, parse_expr_stmt))(input)
 }
 
 fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -131,6 +134,8 @@ fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
 fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
     alt((
         parse_lit_expr,
+        parse_this_expr,
+        parse_struct_literal,
         parse_ident_expr,
         parse_prefix_expr,
         parse_paren_expr,
@@ -140,7 +145,6 @@ fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
         parse_fn_expr,
     ))(input)
 }
-
 fn parse_paren_expr(input: Tokens) -> IResult<Tokens, Expr> {
     delimited(lparen_tag, parse_expr, rparen_tag)(input)
 }
@@ -348,6 +352,7 @@ fn parse_method_call_expr(input: Tokens, object: Expr) -> IResult<Tokens, Expr> 
     
     let (_i3, t3) = take(1usize)(i2)?;
     if !t3.token.is_empty() && t3.token[0] == Token::LParen {
+        // It's a method call
         map(
             delimited(lparen_tag, alt((parse_exprs, empty_boxed_vec)), rparen_tag),
             |args| Expr::MethodCallExpr {
@@ -357,12 +362,150 @@ fn parse_method_call_expr(input: Tokens, object: Expr) -> IResult<Tokens, Expr> 
             },
         )(i2)
     } else {
-        Ok((i2, Expr::MethodCallExpr {
+        // It's a field access
+        Ok((i2, Expr::FieldAccessExpr {
             object: Box::new(object),
-            method: method_name,
-            arguments: vec![],
+            field: method_name,
         }))
     }
+}
+
+fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((
+            struct_tag,
+            parse_ident,
+            lbrace_tag,
+            parse_struct_body,
+            rbrace_tag,
+        )),
+        |(_, name, _, (fields, methods), _)| Stmt::StructStmt {
+            name,
+            fields,
+            methods,
+        },
+    )(input)
+}
+
+fn parse_struct_body(input: Tokens) -> IResult<Tokens, (Vec<(Ident, Expr)>, Vec<(Ident, Expr)>)> {
+    let (i1, pairs) = alt((parse_struct_pairs, empty_struct_pairs))(input)?;
+    
+    let mut fields = Vec::new();
+    let mut methods = Vec::new();
+    
+    for (ident, expr) in pairs {
+        match expr {
+            Expr::FnExpr { .. } => methods.push((ident, expr)),
+            _ => fields.push((ident, expr)),
+        }
+    }
+    
+    Ok((i1, (fields, methods)))
+}
+
+fn parse_struct_pair(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
+    separated_pair(parse_ident, colon_tag, parse_expr)(input)
+}
+
+fn parse_struct_comma_pair(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
+    preceded(comma_tag, parse_struct_pair)(input)
+}
+
+fn parse_struct_pairs(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
+    map(
+        pair(parse_struct_pair, many0(parse_struct_comma_pair)),
+        |(first, second)| [&vec![first][..], &second[..]].concat(),
+    )(input)
+}
+
+fn empty_struct_pairs(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
+    Ok((input, vec![]))
+}
+
+fn parse_struct_literal(input: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((
+            parse_ident,
+            lbrace_tag,
+            alt((parse_field_assignments, empty_field_assignments)),
+            rbrace_tag,
+        )),
+        |(name, _, fields, _)| Expr::StructLiteral { name, fields },
+    )(input)
+}
+
+fn parse_field_assignment(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
+    separated_pair(parse_ident, colon_tag, parse_expr)(input)
+}
+
+fn parse_comma_field_assignment(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
+    preceded(comma_tag, parse_field_assignment)(input)
+}
+
+fn parse_field_assignments(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
+    map(
+        pair(parse_field_assignment, many0(parse_comma_field_assignment)),
+        |(first, second)| [&vec![first][..], &second[..]].concat(),
+    )(input)
+}
+
+fn empty_field_assignments(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
+    Ok((input, vec![]))
+}
+
+fn parse_this_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    map(this_tag, |_| Expr::ThisExpr)(input)
+}
+
+fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    let (i1, _) = import_tag(input)?;
+
+    let (i2, first_ident) = parse_ident(i1)?;
+    let Ident(first) = first_ident;
+    let mut path = vec![first];
+
+    let (i3, rest) = many0(preceded(dot_tag, parse_ident))(i2)?;
+    for Ident(name) in rest {
+        path.push(name);
+    }
+    
+    // Check what comes next
+    let (_i4, t4) = take(1usize)(i3)?;
+    
+    let (i5, items) = if !t4.token.is_empty() && t4.token[0] == Token::Dot {
+        // We have .{...} for specific imports
+        let (i_dot, _) = dot_tag(i3)?;
+        let (i_items, parsed_items) = parse_specific_imports_body(i_dot)?;
+        (i_items, parsed_items)
+    } else {
+        // Import everything
+        (i3, ImportItems::All)
+    };
+    
+    let (i6, _) = opt(semicolon_tag)(i5)?;
+    
+    Ok((i6, Stmt::ImportStmt { path, items }))
+}
+
+fn parse_specific_imports_body(input: Tokens) -> IResult<Tokens, ImportItems> {
+    delimited(
+        lbrace_tag,
+        map(
+            pair(
+                parse_ident,
+                many0(preceded(comma_tag, parse_ident))
+            ),
+            |(first, rest)| {
+                let Ident(first_name) = first;
+                let mut items = vec![first_name];
+                for Ident(name) in rest {
+                    items.push(name);
+                }
+                ImportItems::Specific(items)
+            }
+        ),
+        rbrace_tag,
+    )(input)
 }
 
 pub struct Parser;

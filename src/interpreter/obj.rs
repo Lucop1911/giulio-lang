@@ -17,10 +17,15 @@ pub enum Object {
     Hash(HashMap<Object, Object>),
     Function(Vec<Ident>, Program, Rc<RefCell<Environment>>),
     Builtin(String, usize, usize, BuiltinFunction),
+    Struct {
+        name: String,
+        fields: HashMap<String, Object>,
+        methods: HashMap<String, Object>,
+    },
     Null,
     ReturnValue(Box<Object>),
     Error(RuntimeError),
-    Method(Vec<Ident>, Program, Rc<RefCell<Environment>>)
+    Method(Vec<Ident>, Program, Rc<RefCell<Environment>>),
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
@@ -71,7 +76,8 @@ impl Object {
             Object::Null => "null".to_string(),
             Object::ReturnValue(_) => "return value".to_string(),
             Object::Error(_) => "error".to_string(),
-            Object::Method(_, _, _) => "method".to_string()
+            Object::Method(_, _, _) => "method".to_string(),
+            Object::Struct { name, .. } => format!("struct {}", name),
         }
     }
 }
@@ -118,6 +124,16 @@ impl fmt::Display for Object {
             Object::ReturnValue(ref o) => write!(f, "{}", *o),
             Object::Error(ref e) => write!(f, "{}", e),
             Object::Method(_, _, _) => write!(f, "[method]"),
+            Object::Struct { ref name, ref fields, .. } => {
+                write!(f, "{}{{ ", name)?;
+                for (i, (field_name, field_value)) in fields.iter().enumerate() {
+                    write!(f, "{}: {}", field_name, field_value)?;
+                    if i < fields.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, " }}")
+            }
         }
     }
 }

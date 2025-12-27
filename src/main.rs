@@ -6,7 +6,7 @@ use giulio_lang::run_source::run_source;
 use giulio_lang::{Evaluator, Lexer, Parser, Tokens, interpreter::obj::Object};
 
 fn main() {
-    let mut evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::default();
     let args: Vec<String> = env::args().collect();
     // FILE MODE
     if args.get(1).unwrap_or(&"".to_string()) == &"run" {
