@@ -6,3 +6,4 @@ pub mod r#type;
 pub mod int;
 pub mod hash;
 pub mod shared;
+pub mod struct_ops;

@@ -54,6 +54,12 @@ pub enum Token {
     Or,
     Not,
     Dot,
+    // Loops
+    While,
+    For,
+    In,
+    Break,
+    Continue,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

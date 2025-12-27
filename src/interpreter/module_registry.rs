@@ -1,4 +1,5 @@
 use crate::ast::ast::Stmt;
+use crate::std::string::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
 use std::fs;
@@ -154,35 +155,4 @@ impl ModuleRegistry {
 
 fn create_builtin(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, String>) -> Object {
     Object::Builtin(name.to_string(), min, max, func)
-}
-
-fn string_split(args: Vec<Object>) -> Result<Object, String> {
-    match (&args[0], &args[1]) {
-        (Object::String(s), Object::String(delimiter)) => {
-            let parts: Vec<Object> = s.split(delimiter.as_str())
-                .map(|part| Object::String(part.to_string()))
-                .collect();
-            Ok(Object::Array(parts))
-        }
-        _ => Err("split expects two strings".to_string()),
-    }
-}
-
-fn string_join(args: Vec<Object>) -> Result<Object, String> {
-    match (&args[0], &args[1]) {
-        (Object::Array(arr), Object::String(separator)) => {
-            let strings: Result<Vec<String>, String> = arr.iter().map(|obj| {
-                match obj {
-                    Object::String(s) => Ok(s.clone()),
-                    _ => Err("join expects an array of strings".to_string()),
-                }
-            }).collect();
-            
-            match strings {
-                Ok(strs) => Ok(Object::String(strs.join(separator))),
-                Err(e) => Err(e),
-            }
-        }
-        _ => Err("join expects an array and a string".to_string()),
-    }
 }

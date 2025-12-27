@@ -1,3 +1,4 @@
+use crate::interpreter::builtins::impls::struct_ops::bset_field_fn;
 use crate::{RuntimeError, interpreter::obj::Object};
 use crate::interpreter::builtins::impls::{string::*, array::*, int::*, hash::*, shared::*};
 
@@ -122,6 +123,13 @@ impl BuiltinMethods {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bclear_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
+
+            // Struct methods
+            (Object::Struct { name: _, fields: _, methods: _ }, "set") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                bset_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
 
             // Method not found for this type

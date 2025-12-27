@@ -124,11 +124,11 @@ fn lex_string(input: &[u8]) -> IResult<&[u8], Token> {
     )(input)
 }
 
-// Reserved or ident
 fn complete_byte_slice_str_from_utf8(c: &[u8]) -> Result<&str, Utf8Error> {
     str::from_utf8(c)
 }
 
+// Reserved or ident
 fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
     map_res(
         recognize(pair(
@@ -148,6 +148,11 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
                 "import" => Token::Import,
                 "true" => Token::BoolLiteral(true),
                 "false" => Token::BoolLiteral(false),
+                "while" => Token::While,
+                "for" => Token::For,
+                "in" => Token::In,
+                "break" => Token::Break,
+                "continue" => Token::Continue,
                 _ => Token::Ident(syntax.to_string()),
             })
         },

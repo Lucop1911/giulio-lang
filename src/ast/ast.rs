@@ -3,6 +3,7 @@ pub type Program = Vec<Stmt>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum Stmt {
     LetStmt(Ident, Expr),
+    AssignStmt(Ident, Expr),
     ReturnStmt(Expr),
     ExprStmt(Expr),
     StructStmt {
@@ -14,6 +15,8 @@ pub enum Stmt {
         path: Vec<String>,
         items: ImportItems,
     },
+    BreakStmt,
+    ContinueStmt,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -54,6 +57,15 @@ pub enum Expr {
     FieldAccessExpr {
         object: Box<Expr>,
         field: String,
+    },
+    WhileExpr {
+        cond: Box<Expr>,
+        body: Program,
+    },
+    ForExpr {
+        ident: Ident,
+        iterable: Box<Expr>,
+        body: Program,
     },
 }
 

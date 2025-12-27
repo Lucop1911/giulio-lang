@@ -16,7 +16,7 @@ macro_rules! tag_token (
             verify(take(1usize), |t: &Tokens| t.token[0] == $tag)(tokens)
         }
     )
-  );
+);
 
 fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
     let (i1, t1) = take(1usize)(input)?;
@@ -67,6 +67,11 @@ tag_token!(dot_tag, Token::Dot);
 tag_token!(struct_tag, Token::Struct);
 tag_token!(this_tag, Token::This);
 tag_token!(import_tag, Token::Import);
+tag_token!(while_tag, Token::While);
+tag_token!(for_tag, Token::For);
+tag_token!(in_tag, Token::In);
+tag_token!(break_tag, Token::Break);
+tag_token!(continue_tag, Token::Continue);
 
 fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     match *t {
@@ -98,7 +103,34 @@ fn parse_expr(input: Tokens) -> IResult<Tokens, Expr> {
 }
 
 fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    alt((parse_import_stmt,parse_let_stmt, parse_return_stmt, parse_struct_stmt, parse_expr_stmt))(input)
+    alt((
+        parse_import_stmt,
+        parse_let_stmt,
+        parse_return_stmt,
+        parse_struct_stmt,
+        parse_assign_or_expr_stmt,
+        parse_break_stmt,
+        parse_continue_stmt,
+    ))(input)
+}
+
+fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    // Try to parse as assignment first
+    if let Ok((after_ident, ident)) = parse_ident(input) {
+        if let Ok((_, next_tokens)) = take::<_, _, Error<_>>(1usize)(after_ident) {
+            // Check if the token immediately after the identifier is Assign
+            if !next_tokens.token.is_empty() && next_tokens.token[0] == Token::Assign {
+                // It's definitely an assignment: ident = expr
+                let (i1, _) = assign_tag(after_ident)?;
+                let (i2, expr) = parse_expr(i1)?;
+                let (i3, _) = opt(semicolon_tag)(i2)?;
+                return Ok((i3, Stmt::AssignStmt(ident, expr)));
+            }
+        }
+    }
+    
+    // Fall back to expression statement
+    parse_expr_stmt(input)
 }
 
 fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -143,6 +175,8 @@ fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
         parse_hash_expr,
         parse_if_expr,
         parse_fn_expr,
+        parse_while_expr,
+        parse_for_expr,
     ))(input)
 }
 fn parse_paren_expr(input: Tokens) -> IResult<Tokens, Expr> {
@@ -505,6 +539,55 @@ fn parse_specific_imports_body(input: Tokens) -> IResult<Tokens, ImportItems> {
             }
         ),
         rbrace_tag,
+    )(input)
+}
+
+fn parse_while_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((
+            while_tag,
+            lparen_tag,
+            parse_expr,
+            rparen_tag,
+            parse_block_stmt,
+        )),
+        |(_, _, cond, _, body)| Expr::WhileExpr {
+            cond: Box::new(cond),
+            body,
+        },
+    )(input)
+}
+
+fn parse_for_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((
+            for_tag,
+            lparen_tag,
+            parse_ident,
+            in_tag,
+            parse_expr,
+            rparen_tag,
+            parse_block_stmt,
+        )),
+        |(_, _, ident, _, iterable, _, body)| Expr::ForExpr {
+            ident,
+            iterable: Box::new(iterable),
+            body,
+        },
+    )(input)
+}
+
+fn parse_break_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        delimited(break_tag, opt(semicolon_tag), opt(semicolon_tag)),
+        |_| Stmt::BreakStmt,
+    )(input)
+}
+
+fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        delimited(continue_tag, opt(semicolon_tag), opt(semicolon_tag)),
+        |_| Stmt::ContinueStmt,
     )(input)
 }
 

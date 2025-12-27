@@ -26,6 +26,8 @@ pub enum Object {
     ReturnValue(Box<Object>),
     Error(RuntimeError),
     Method(Vec<Ident>, Program, Rc<RefCell<Environment>>),
+    Break,
+    Continue,
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
@@ -47,6 +49,8 @@ impl PartialEq for Object {
             (Object::Function(params_a, body_a, _), Object::Function(params_b, body_b, _)) => {
                 params_a == params_b && body_a == body_b
             }
+            (Object::Break, Object::Break) => true,
+            (Object::Continue, Object::Continue) => true,
             _ => false,
         }
     }
@@ -78,6 +82,8 @@ impl Object {
             Object::Error(_) => "error".to_string(),
             Object::Method(_, _, _) => "method".to_string(),
             Object::Struct { name, .. } => format!("struct {}", name),
+            Object::Break => "break".to_string(),
+            Object::Continue => "continue".to_string(),
         }
     }
 }
@@ -133,7 +139,9 @@ impl fmt::Display for Object {
                     }
                 }
                 write!(f, " }}")
-            }
+            },
+            Object::Break => write!(f, "break"),
+            Object::Continue => write!(f, "continue"),
         }
     }
 }

@@ -56,10 +56,9 @@ impl Evaluator {
             _ => {
                 let s = prog.remove(0);
                 let object = self.eval_statement(s);
-                if object.is_returned() {
-                    object
-                } else {
-                    self.eval_blockstmt(prog)
+                match object {
+                    Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) => object,
+                    _ => self.eval_blockstmt(prog)
                 }
             }
         }
@@ -73,16 +72,28 @@ impl Evaluator {
                 let object = self.eval_expr(expr);
                 self.register_ident(ident, object)
             }
+            Stmt::AssignStmt(ident, expr) => {
+                // Check if variable exists
+                let Ident(ref name) = ident;
+                if self.env.borrow().get(name).is_none() {
+                    return Object::Error(RuntimeError::UndefinedVariable(name.clone()));
+                }
+                // Reassign the variable
+                let object = self.eval_expr(expr);
+                self.register_ident(ident, object)
+            }
             Stmt::StructStmt { name, fields, methods } => {
                 self.eval_struct_def(name, fields, methods)
             }
             Stmt::ImportStmt { path, items } => {
                 self.eval_import(path, items)
             }
+            Stmt::BreakStmt => Object::Break,
+            Stmt::ContinueStmt => Object::Continue,
         }
     }
 
-    pub fn register_ident(&mut self, ident: Ident, object: Object) -> Object {
+        pub fn register_ident(&mut self, ident: Ident, object: Object) -> Object {
         let Ident(name) = ident;
         self.env.borrow_mut().set(&name, object.clone());
         object
@@ -115,10 +126,12 @@ impl Evaluator {
             }
             Expr::ThisExpr => {
                 self.eval_this()
-            },
-                Expr::FieldAccessExpr { object, field } => {
+            }
+            Expr::FieldAccessExpr { object, field } => {
                 self.eval_field_access(*object, field)
             }
+            Expr::WhileExpr { cond, body } => self.eval_while(cond, body),
+            Expr::ForExpr { ident, iterable, body } => self.eval_for(ident, iterable, body),
         }
     }
 
@@ -355,11 +368,23 @@ impl Evaluator {
                         let args = args_expr.into_iter().map(|e| self.eval_expr(e)).collect();
                         self.eval_fn_call_direct(args, params.clone(), body.clone())
                     }
-                    _ => Object::Error(RuntimeError::NotCallable(method_name)),
+                    _ => {
+                        self.env = old_env;
+                        return Object::Error(RuntimeError::NotCallable(method_name));
+                    }
                 };
                 
+                let modified_this = self.env.borrow().get("this").unwrap_or(object.clone());
+                
                 self.env = old_env;
-                return self.returned(result);
+                
+                let final_result = match result {
+                    Object::Null => modified_this,  // No explicit return, give back modified struct
+                    Object::ReturnValue(val) => *val,  // Explicit return
+                    other => other,  // Error or other value
+                };
+                
+                return self.returned(final_result);
             }
         }
         
@@ -370,7 +395,6 @@ impl Evaluator {
             Err(e) => Object::Error(e),
         }
     }
-
     fn eval_fn_call_direct(
         &mut self,
         args: Vec<Object>,
@@ -444,6 +468,7 @@ impl Evaluator {
         Object::Null
     }
 
+
     pub fn eval_struct_literal(&mut self, name: Ident, field_assignments: Vec<(Ident, Expr)>) -> Object {
         let Ident(struct_name) = name;
         
@@ -459,6 +484,7 @@ impl Evaluator {
         
         let mut instance_fields = default_fields.clone();
         
+        // Override with provided field assignments
         for (Ident(field_name), expr) in field_assignments {
             let value = self.eval_expr(expr);
             instance_fields.insert(field_name, value);
@@ -581,6 +607,56 @@ impl Evaluator {
             }
         }
         
+        Object::Null
+    }
+
+    fn eval_while(&mut self, cond: Box<Expr>, body: Program) -> Object {
+        loop {
+            let cond_result = self.eval_expr(*cond.clone());
+            match self.obj_to_bool(cond_result) {
+                Ok(true) => {
+                    let result = self.eval_blockstmt(body.clone());
+                    match result {
+                        Object::Break => return Object::Null,
+                        Object::Continue => continue,
+                        Object::ReturnValue(_) => return result,
+                        Object::Error(_) => return result,
+                        _ => {}
+                    }
+                }
+                Ok(false) => return Object::Null,
+                Err(e) => return e,
+            }
+        }
+    }
+
+    fn eval_for(&mut self, ident: Ident, iterable: Box<Expr>, body: Program) -> Object {
+        let iter_obj = self.eval_expr(*iterable);
+
+        let items = match iter_obj {
+            Object::Array(arr) => arr,
+            Object::String(s) => {
+                s.chars().map(|c| Object::String(c.to_string())).collect()
+            }
+            _ => {
+                return Object::Error(RuntimeError::InvalidOperation(format!("cannot iterate over {}", iter_obj.type_name())))
+            }
+        };
+
+        let Ident(var_name) = ident;
+
+        for item in items {
+            self.env.borrow_mut().set(&var_name, item);
+
+            let result = self.eval_blockstmt(body.clone());
+            match result {
+                Object::Break => return Object::Null,
+                Object::Continue => continue,
+                Object::ReturnValue(_) => return result,
+                Object::Error(_) => return  result,
+                _ => {}
+            }
+        }
         Object::Null
     }
 }
