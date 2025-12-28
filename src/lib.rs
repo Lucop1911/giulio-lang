@@ -3,7 +3,6 @@ pub mod lexer;
 pub mod parser;
 pub mod interpreter;
 pub mod errors;
-pub mod run_source;
 pub mod std;
 pub mod runners;
 

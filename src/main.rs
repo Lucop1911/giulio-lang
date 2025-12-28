@@ -2,7 +2,8 @@ use std::env;
 use std::fs;
 
 use giulio_lang::Evaluator;
-use giulio_lang::run_source::run_source;
+use giulio_lang::runners::print_help::print_help;
+use giulio_lang::runners::run_source::run_source;
 use giulio_lang::runners::run_repl_mode::repl;
 
 
@@ -11,7 +12,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1) {
-        // ---------- FLAGS ----------
         Some(flag) if flag == "--version" || flag == "--v" => {
             const VERSION: &str = env!("CARGO_PKG_VERSION");
             println!("{}", VERSION);
@@ -19,7 +19,7 @@ fn main() {
         }
 
         Some(flag) if flag == "--help" || flag == "-h" => {
-            //print_help();
+            print_help();
             return;
         }
 

@@ -49,5 +49,8 @@ pub fn repl(mut evaluator: Evaluator) {
             Object::String(s) => print!("{}", s),
             other => println!("{}", other),
         }
+        
+        println!();
+        io::stdout().flush().unwrap();
     }
 }
