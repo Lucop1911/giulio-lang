@@ -13,6 +13,7 @@ pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Method only
 pub fn bstartswith_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
@@ -23,6 +24,7 @@ pub fn bstartswith_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Method only
 pub fn bendswith_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
@@ -41,5 +43,28 @@ pub fn breplace_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::String(new_string))
         }
         _ => Err("Invalid arguments to replace(string, from, to)".to_string())
+    }
+}
+
+pub fn bsplit_fn(args: Vec<Object>) -> Result<Object, String> {
+    let mut args = args.into_iter();
+    match (args.next(), args.next()) {
+        (Some(Object::String(s)), Some(Object::String(delimiter))) => {
+            let parts: Vec<Object> = s.split(delimiter.as_str())
+                .map(|part| Object::String(part.to_string()))
+                .collect();
+            Ok(Object::Array(parts))
+        }
+        _ => Err("split expects two strings".to_string()),
+    }
+}
+
+pub fn btrim_fn(args: Vec<Object>) -> Result<Object, String> {
+    match args.get(0) {
+        Some(Object::String(s)) => {
+            let trimmed_str = s.trim().to_string();
+            Ok(Object::String(trimmed_str))
+        }
+        _ => Err("Invalid arguments for trim(). trim() expects 1 string".to_string())
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     ast::ast::Ident,
     interpreter::{builtins::impls::struct_ops::bset_field_fn, obj::{BuiltinFunction, Object}},
 };
-use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*, shared::*, hash::*};
+use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*, shared::*, hash::*, string::*};
 
 
 pub struct BuiltinsFunctions;
@@ -27,6 +27,10 @@ impl BuiltinsFunctions {
             add_builtin("input", 0, 1, binput_fn),
             // Core
             add_builtin("type", 1, 1, btype_fn),
+            // String
+            add_builtin("split", 1, 1, bsplit_fn),
+            add_builtin("replace", 1, 1, breplace_fn),
+            add_builtin("trim", 3, 3, btrim_fn),
             // Array 
             add_builtin("len", 1, 1, blen_fn),
             add_builtin("head", 1, 1, bhead_fn),

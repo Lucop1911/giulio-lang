@@ -1,17 +1,5 @@
 use crate::interpreter::obj::Object;
 
-pub fn string_split(args: Vec<Object>) -> Result<Object, String> {
-    match (&args[0], &args[1]) {
-        (Object::String(s), Object::String(delimiter)) => {
-            let parts: Vec<Object> = s.split(delimiter.as_str())
-                .map(|part| Object::String(part.to_string()))
-                .collect();
-            Ok(Object::Array(parts))
-        }
-        _ => Err("split expects two strings".to_string()),
-    }
-}
-
 pub fn string_join(args: Vec<Object>) -> Result<Object, String> {
     match (&args[0], &args[1]) {
         (Object::Array(arr), Object::String(separator)) => {

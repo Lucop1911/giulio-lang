@@ -48,6 +48,16 @@ impl BuiltinMethods {
                 all_args.extend(args);
                 breplace_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
+            (Object::String(_), "split") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                bsplit_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
+            (Object::String(_), "trim") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                btrim_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
             
             // Array methods
             (Object::Array(_), "head") => {

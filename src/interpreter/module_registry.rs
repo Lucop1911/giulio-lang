@@ -35,7 +35,6 @@ impl ModuleRegistry {
     fn load_stdlib(&mut self) {
         // String module
         let mut string_exports = HashMap::new();
-        string_exports.insert("split".to_string(), create_builtin("split", 2, 2, string_split));
         string_exports.insert("join".to_string(), create_builtin("join", 2, 2, string_join));
         
         self.stdlib.insert("std.string".to_string(), Module {
