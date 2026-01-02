@@ -12,13 +12,13 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1) {
-        Some(flag) if flag == "--version" || flag == "--v" => {
+        Some(flag) if flag == "--version" || flag == "-version" || flag == "-v" || flag == "--v" => {
             const VERSION: &str = env!("CARGO_PKG_VERSION");
             println!("{}", VERSION);
             return;
         }
 
-        Some(flag) if flag == "--help" || flag == "-h" => {
+        Some(flag) if flag == "--help" || flag == "-help" || flag == "--h" || flag == "-h" => {
             print_help();
             return;
         }
