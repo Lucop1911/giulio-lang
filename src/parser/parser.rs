@@ -67,6 +67,11 @@ tag_token!(dot_tag, Token::Dot);
 tag_token!(struct_tag, Token::Struct);
 tag_token!(this_tag, Token::This);
 tag_token!(import_tag, Token::Import);
+tag_token!(while_tag, Token::While);
+tag_token!(for_tag, Token::For);
+tag_token!(in_tag, Token::In);
+tag_token!(break_tag, Token::Break);
+tag_token!(continue_tag, Token::Continue);
 
 fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     match *t {
@@ -103,8 +108,61 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         parse_let_stmt,
         parse_return_stmt,
         parse_struct_stmt,
+        parse_while_stmt,
+        parse_for_stmt,
+        parse_break_stmt,
+        parse_continue_stmt,
         parse_assign_or_expr_stmt,
     ))(input)
+}
+
+fn parse_while_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((
+            while_tag,
+            lparen_tag,
+            parse_expr,
+            rparen_tag,
+            parse_block_stmt,
+        )),
+        |(_, _, cond, _, body)| Stmt::ExprStmt(Expr::WhileExpr {
+            cond: Box::new(cond),
+            body,
+        }),
+    )(input)
+}
+
+fn parse_for_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((
+            for_tag,
+            lparen_tag,
+            parse_ident,
+            in_tag,
+            parse_expr,
+            rparen_tag,
+            parse_block_stmt,
+        )),
+        |(_, _, ident, _, iterable, _, body)| Stmt::ExprStmt(Expr::ForExpr {
+            ident,
+            iterable: Box::new(iterable),
+            body,
+        }),
+    )(input)
+}
+
+fn parse_break_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        terminated(break_tag, semicolon_tag),
+        |_| Stmt::BreakStmt,
+    )(input)
+}
+
+fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        terminated(continue_tag, semicolon_tag),
+        |_| Stmt::ContinueStmt,
+    )(input)
 }
 
 fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -147,9 +205,22 @@ fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(terminated(parse_expr, semicolon_tag), |expr| {
-        Stmt::ExprStmt(expr)
-    })(input)
+    let (i1, expr) = parse_expr(input)?;
+    
+    // Check if this expression ends with a block (if, while, for, fn)
+    // If so, semicolon is optional
+    let needs_semicolon = !matches!(
+        expr,
+        Expr::IfExpr { .. } | Expr::WhileExpr { .. } | Expr::ForExpr { .. } | Expr::FnExpr { .. }
+    );
+    
+    if needs_semicolon {
+        let (i2, _) = semicolon_tag(i1)?;
+        Ok((i2, Stmt::ExprStmt(expr)))
+    } else {
+        let (i2, _) = opt(semicolon_tag)(i1)?;
+        Ok((i2, Stmt::ExprStmt(expr)))
+    }
 }
 
 fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
