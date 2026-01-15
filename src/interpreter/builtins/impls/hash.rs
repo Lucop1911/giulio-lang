@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::interpreter::obj::Object;
 
-// Hash methods
+// Method only
 pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
@@ -17,6 +17,7 @@ pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Method only
 pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next(), args.next()) {
@@ -33,6 +34,7 @@ pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Method only
 pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
@@ -49,6 +51,7 @@ pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Method only
 pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {

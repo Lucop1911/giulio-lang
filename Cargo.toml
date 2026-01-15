@@ -1,10 +1,12 @@
 [package]
 name = "giulio-lang"
-author = "Lucop1911"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/Lucop1911/giulio-lang"
+
+[package.metadata]
+author = "Lucop1911"
 
 [dependencies]
 nom = "7.0.0"

@@ -1,7 +1,7 @@
 use std::io::{self, Write};
-
 use crate::interpreter::obj::Object;
 
+// Function only
 pub fn binput_fn(args: Vec<Object>) -> Result<Object, String> {
     if args.len() > 1 { return Err("input() takes at most 1 argument".to_string())}
 

@@ -1,5 +1,6 @@
 use crate::interpreter::obj::Object;
 
+// Method only
 pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.get(0) {
         Some(Object::String(s)) => {

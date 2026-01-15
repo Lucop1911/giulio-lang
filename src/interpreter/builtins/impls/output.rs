@@ -1,5 +1,6 @@
 use crate::interpreter::obj::Object;
 
+// Function only
 pub fn bprint_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.get(0) {
         Some(Object::String(t)) => {
@@ -14,6 +15,7 @@ pub fn bprint_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Function only
 pub fn bprintln_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.get(0) {
         Some(Object::String(t)) => {

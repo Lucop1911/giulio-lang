@@ -2,7 +2,7 @@ use crate::{
     ast::ast::Ident,
     interpreter::{builtins::impls::struct_ops::bset_field_fn, obj::{BuiltinFunction, Object}},
 };
-use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*, shared::*, hash::*, string::*};
+use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*, shared::*, hash::*, string::*, struct_ops::*};
 
 
 pub struct BuiltinsFunctions;
@@ -20,7 +20,11 @@ impl BuiltinsFunctions {
 
     pub fn get_builtins(&self) -> Vec<(Ident, Object)> {
         vec![
+            // Struct operations
             add_builtin("set_field", 3, 3, bset_field_fn),
+            add_builtin("get_field", 2, 2, bget_field_fn),
+            add_builtin("fields", 1, 1, bstruct_fields_fn),
+            add_builtin("name", 1, 1, bstruct_name_fn),
             // I/O
             add_builtin("print", 1, 1, bprint_fn),
             add_builtin("println", 1, 1, bprintln_fn),
@@ -45,7 +49,7 @@ impl BuiltinsFunctions {
             // Hash
             add_builtin("keys",1 , 1, bkeys_fn),
             add_builtin("values", 1, 1, bvalues_fn),
-            add_builtin("has", 2, 2, bhas_fn),
+            add_builtin("clear", 1, 1, bclear_fn),
         ]
     }
 }
