@@ -167,7 +167,7 @@ fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    // Try to parse as assignment first
+    // Trying to parse as assignment first
     if let Ok((after_ident, ident)) = parse_ident(input) {
         if let Ok((_, next_tokens)) = take::<_, _, Error<_>>(1usize)(after_ident) {
             // Check if the token immediately after the identifier is Assign

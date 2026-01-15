@@ -31,6 +31,7 @@ impl BuiltinsFunctions {
             add_builtin("input", 0, 1, binput_fn),
             // Core
             add_builtin("type", 1, 1, btype_fn),
+            add_builtin("is_empty", 1, 1, bisempty_fn),
             // String
             add_builtin("split", 1, 1, bsplit_fn),
             add_builtin("replace", 1, 1, breplace_fn),
