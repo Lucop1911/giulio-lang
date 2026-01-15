@@ -93,7 +93,7 @@ impl Evaluator {
         }
     }
 
-        pub fn register_ident(&mut self, ident: Ident, object: Object) -> Object {
+    pub fn register_ident(&mut self, ident: Ident, object: Object) -> Object {
         let Ident(name) = ident;
         self.env.borrow_mut().set(&name, object.clone());
         object
@@ -159,6 +159,7 @@ impl Evaluator {
             Literal::IntLiteral(i) => Object::Integer(i),
             Literal::BoolLiteral(b) => Object::Boolean(b),
             Literal::StringLiteral(s) => Object::String(s),
+            Literal::NullLiteral => Object::Null,
         }
     }
 

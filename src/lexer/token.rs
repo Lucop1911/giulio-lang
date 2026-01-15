@@ -17,6 +17,7 @@ pub enum Token {
     StringLiteral(String),
     IntLiteral(i64),
     BoolLiteral(bool),
+    NullLiteral,
     // statements
     Assign,
     If,

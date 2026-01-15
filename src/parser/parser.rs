@@ -27,6 +27,7 @@ fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
             Token::IntLiteral(name) => Ok((i1, Literal::IntLiteral(name))),
             Token::StringLiteral(s) => Ok((i1, Literal::StringLiteral(s))),
             Token::BoolLiteral(b) => Ok((i1, Literal::BoolLiteral(b))),
+            Token::NullLiteral => Ok((i1, Literal::NullLiteral)),
             _ => Err(Err::Error(Error::new(input, ErrorKind::Tag))),
         }
     }

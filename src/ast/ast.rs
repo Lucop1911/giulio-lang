@@ -74,6 +74,7 @@ pub enum Literal {
     IntLiteral(i64),
     BoolLiteral(bool),
     StringLiteral(String),
+    NullLiteral,
 }
 
 #[derive(PartialEq, Debug, Eq, Clone)]

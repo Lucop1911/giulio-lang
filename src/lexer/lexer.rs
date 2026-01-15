@@ -148,6 +148,7 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
                 "import" => Token::Import,
                 "true" => Token::BoolLiteral(true),
                 "false" => Token::BoolLiteral(false),
+                "null" => Token::NullLiteral,
                 "while" => Token::While,
                 "for" => Token::For,
                 "in" => Token::In,
