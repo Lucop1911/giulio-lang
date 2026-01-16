@@ -35,23 +35,6 @@ pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only
-pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
-    let mut args = args.into_iter();
-    match (args.next(), args.next()) {
-        (Some(Object::Hash(mut hash)), Some(key)) => {
-            match &key {
-                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
-                    hash.remove(&key);
-                    Ok(Object::Hash(hash))
-                }
-                _ => Err(format!("{} is not hashable", key.type_name())),
-            }
-        }
-        _ => Err("Invalid arguments to remove(hash, key)".to_string()),
-    }
-}
-
-// Method only
 pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {

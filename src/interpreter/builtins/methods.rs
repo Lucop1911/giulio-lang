@@ -29,6 +29,11 @@ impl BuiltinMethods {
                 all_args.extend(args);
                 bisempty_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
+            (Object::Hash(_) | Object::Array(_), "remove") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                bremove_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
 
             // String methods
             (Object::String(_), "starts_with") => {
@@ -111,11 +116,6 @@ impl BuiltinMethods {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bset_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
-            }
-            (Object::Hash(_), "remove") => {
-                let mut all_args = vec![object];
-                all_args.extend(args);
-                bremove_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
             (Object::Hash(_), "has") => {
                 let mut all_args = vec![object];

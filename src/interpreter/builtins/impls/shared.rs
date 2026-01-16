@@ -26,3 +26,28 @@ pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
         _ => Err("len() requires a string or array".to_string()),
     }
 }
+
+// Method only
+pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
+    let mut args = args.into_iter();
+    match (args.next(), args.next()) {
+        (Some(Object::Hash(mut hash)), Some(key)) => {
+            match &key {
+                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
+                    hash.remove(&key);
+                    Ok(Object::Hash(hash))
+                }
+                _ => Err(format!("{} is not hashable", key.type_name())),
+            }
+        }
+        (Some(Object::Array(mut vec)), Some(Object::Integer(idx))) => {
+            let i = idx as isize;
+            if i < 0 || i as usize >= vec.len() {
+                return Err("Index out of bounds".to_string());
+            }
+            let _ = vec.remove(i as usize);
+            Ok(Object::Array(vec))
+        }
+        _ => Err("Invalid arguments to remove(hash, key)".to_string()),
+    }
+}
