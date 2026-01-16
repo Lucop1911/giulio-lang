@@ -475,8 +475,9 @@ fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
             lbrace_tag,
             parse_struct_body,
             rbrace_tag,
+            opt(semicolon_tag)
         )),
-        |(_, name, _, (fields, methods), _)| Stmt::StructStmt {
+        |(_, name, _, (fields, methods), _, _)| Stmt::StructStmt {
             name,
             fields,
             methods,
