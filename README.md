@@ -89,7 +89,8 @@ println(head(arr));
 
 **Control Flow:**
 ```
-if x > 10 {
+let x = input("insert a number: ").to_int();
+if (x > 10) {
     println("x is greater than 10");
 } else {
     println("x is less than or equal to 10");
@@ -102,8 +103,8 @@ struct Person {
     name: "John",
     age: 30,
     
-    greet: fn(this) {
-        println("Hello, I'm " + this.name);
+    greet: fn() {
+        println("Hello, I'm ", this.name);
     }
 }
 

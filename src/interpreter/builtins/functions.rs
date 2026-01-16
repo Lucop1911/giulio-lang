@@ -1,3 +1,5 @@
+use std::usize;
+
 use crate::{
     ast::ast::Ident,
     interpreter::{builtins::impls::struct_ops::bset_field_fn, obj::{BuiltinFunction, Object}},
@@ -26,8 +28,8 @@ impl BuiltinsFunctions {
             add_builtin("fields", 1, 1, bstruct_fields_fn),
             add_builtin("name", 1, 1, bstruct_name_fn),
             // I/O
-            add_builtin("print", 1, 1, bprint_fn),
-            add_builtin("println", 1, 1, bprintln_fn),
+            add_builtin("print", 1, usize::MAX, bprint_fn),
+            add_builtin("println", 1, usize::MAX, bprintln_fn),
             add_builtin("input", 0, 1, binput_fn),
             // Core
             add_builtin("type", 1, 1, btype_fn),
