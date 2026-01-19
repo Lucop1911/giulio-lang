@@ -13,7 +13,7 @@ pub fn print_help() {
     println!("COMMANDS:");
     println!("    (no command)       Start the REPL (Read-Eval-Print Loop)");
     println!("    run <file>         Execute a .giu file");
-    println!("    check <file>       Parse and check a .giu file for errors (coming soon)\n");
+    println!("    check <file>       Lex and Parse to check a .giu file for syntax errors\n");
     
     println!("OPTIONS:");
     println!("    -h, --help         Print this help message");
@@ -22,6 +22,7 @@ pub fn print_help() {
     println!("EXAMPLES:");
     println!("    giulio-lang                    # Start REPL mode");
     println!("    giulio-lang run script.giu     # Run a script");
+    println!("    giulio-lang check script.giu   # Check a file");
     println!("    giulio-lang --version          # Show version");
     println!("    giulio-lang --help             # Show this help\n");
     
