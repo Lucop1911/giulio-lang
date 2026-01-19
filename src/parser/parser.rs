@@ -16,7 +16,7 @@ macro_rules! tag_token (
             verify(take(1usize), |t: &Tokens| t.token[0] == $tag)(tokens)
         }
     )
-  );
+);
 
 fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
     let (i1, t1) = take(1usize)(input)?;
