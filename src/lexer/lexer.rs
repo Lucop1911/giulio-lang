@@ -5,6 +5,7 @@ use nom::combinator::{map, map_res, recognize, value, opt};
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded};
 use nom::*;
+use num_bigint::BigInt;
 
 use std::str;
 use std::str::FromStr;
@@ -28,6 +29,7 @@ syntax! {plus_operator, "+", Token::Plus}
 syntax! {minus_operator, "-", Token::Minus}
 syntax! {multiply_operator, "*", Token::Multiply}
 syntax! {divide_operator, "/", Token::Divide}
+syntax! {modulo_operator, "%", Token::Modulo}
 syntax! {not_operator, "!", Token::Not}
 syntax! {greater_operator_equal, ">=", Token::GreaterThanEqual}
 syntax! {lesser_operator_equal, "<=", Token::LessThanEqual}
@@ -45,6 +47,7 @@ pub fn lex_operator(input: &[u8]) -> IResult<&[u8], Token> {
         minus_operator,
         multiply_operator,
         divide_operator,
+        modulo_operator,
         not_operator,
         greater_operator_equal,
         lesser_operator_equal,
@@ -160,19 +163,22 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
     )(input)
 }
 
-fn complete_str_from_str<F: FromStr>(c: &str) -> Result<F, F::Err> {
-    FromStr::from_str(c)
-}
-
 // Integers parsing
 fn lex_integer(input: &[u8]) -> IResult<&[u8], Token> {
-    map(
-        map_res(
-            map_res(digit1, complete_byte_slice_str_from_utf8),
-            complete_str_from_str,
-        ),
-        Token::IntLiteral,
-    )(input)
+    let (remaining, digits) = map_res(digit1, complete_byte_slice_str_from_utf8)(input)?;
+    
+    let token = match i64::from_str(digits) {
+        Ok(n) => Token::IntLiteral(n),
+        Err(_) => {
+            // Falls back to BigInt if too large for i64
+            match BigInt::parse_bytes(digits.as_bytes(), 10) {
+                Some(big) => Token::BigIntLiteral(big),
+                None => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Digit)))
+            }
+        }
+    };
+    
+    Ok((remaining, token))
 }
 
 // Illegal tokens

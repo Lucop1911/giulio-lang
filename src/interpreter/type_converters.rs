@@ -1,3 +1,6 @@
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
+
 use crate::{Evaluator, RuntimeError, ast::ast::Literal, interpreter::obj::Object};
 
 impl Evaluator {
@@ -15,6 +18,14 @@ impl Evaluator {
     pub fn obj_to_int(&mut self, object: Object) -> Result<i64, Object> {
         match object {
             Object::Integer(i) => Ok(i),
+            Object::BigInteger(big) => {
+                match big.to_i64() {
+                    Some(i) => Ok(i),
+                    None => Err(Object::Error(RuntimeError::InvalidOperation(
+                        "Integer too large to convert to i64".to_string()
+                    )))
+                }
+            }
             Object::Error(e) => Err(Object::Error(e)),
             o => Err(Object::Error(RuntimeError::TypeMismatch {
                 expected: "integer".to_string(),
@@ -34,6 +45,7 @@ impl Evaluator {
     pub fn obj_to_hash(&mut self, object: Object) -> Object {
         match object {
             Object::Integer(i) => Object::Integer(i),
+            Object::BigInteger(big) => Object::BigInteger(big),
             Object::Boolean(b) => Object::Boolean(b),
             Object::String(s) => Object::String(s),
             Object::Error(e) => Object::Error(e),
@@ -44,5 +56,22 @@ impl Evaluator {
     pub fn literal_to_hash(&mut self, literal: Literal) -> Object {
         let object = self.eval_literal(literal);
         self.obj_to_hash(object)
+    }
+
+    // Helper to convert any integer object to BigInt
+    pub fn to_bigint(&self, obj: &Object) -> Option<BigInt> {
+        match obj {
+            Object::Integer(i) => Some(BigInt::from(*i)),
+            Object::BigInteger(big) => Some(big.clone()),
+            _ => None,
+        }
+    }
+
+    // Helper to normalize BigInt back to i64 if possible
+    pub fn normalize_int(&self, big: BigInt) -> Object {
+        match big.to_i64() {
+            Some(i) => Object::Integer(i),
+            None => Object::BigInteger(big),
+        }
     }
 }

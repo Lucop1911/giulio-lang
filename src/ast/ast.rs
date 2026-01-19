@@ -1,3 +1,5 @@
+use num_bigint::BigInt;
+
 pub type Program = Vec<Stmt>;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -72,6 +74,7 @@ pub enum Expr {
 #[derive(PartialEq, Debug, Clone)]
 pub enum Literal {
     IntLiteral(i64),
+    BigIntLiteral(BigInt),
     BoolLiteral(bool),
     StringLiteral(String),
     NullLiteral,
@@ -93,6 +96,7 @@ pub enum Infix {
     Minus,
     Divide,
     Multiply,
+    Modulo,
     Equal,
     NotEqual,
     GreaterThanEqual,
@@ -111,7 +115,7 @@ pub enum Precedence {
     PEquals,       // ==, !=
     PLessGreater,  // <, >, <=, >=
     PSum,          // +, -
-    PProduct,      // *, /
+    PProduct,      // *, /, %
     PPrefix,       // !, -, +
     PCall,         // function calls
     PIndex,        // array[index]

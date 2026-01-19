@@ -4,6 +4,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+use num_bigint::BigInt;
+
 use crate::ast::ast::{Ident, Program};
 use crate::errors::RuntimeError;
 use crate::interpreter::env::Environment;
@@ -11,6 +13,7 @@ use crate::interpreter::env::Environment;
 #[derive(Debug, Clone)]
 pub enum Object {
     Integer(i64),
+    BigInteger(BigInt),
     Boolean(bool),
     String(String),
     Array(Vec<Object>),
@@ -36,6 +39,7 @@ impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Object::Integer(a), Object::Integer(b)) => a == b,
+            (Object::BigInteger(a), Object::BigInteger(b)) => a == b,
             (Object::Boolean(a), Object::Boolean(b)) => a == b,
             (Object::String(a), Object::String(b)) => a == b,
             (Object::Array(a), Object::Array(b)) => a == b,
@@ -71,6 +75,7 @@ impl Object {
     pub fn type_name(&self) -> String {
         match self {
             Object::Integer(_) => "integer".to_string(),
+            Object::BigInteger(_) => "bigInteger".to_string(),
             Object::Boolean(_) => "boolean".to_string(),
             Object::String(_) => "string".to_string(),
             Object::Array(_) => "array".to_string(),
@@ -92,6 +97,7 @@ impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Object::Integer(ref i) => write!(f, "{}", i),
+            Object::BigInteger(ref i) => write!(f, "{}", i),
             Object::Boolean(ref b) => {
                 if *b {
                     write!(f, "true")
@@ -153,6 +159,7 @@ impl Hash for Object {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match *self {
             Object::Integer(ref i) => i.hash(state),
+            Object::BigInteger(ref i) => i.hash(state),
             Object::Boolean(ref b) => b.hash(state),
             Object::String(ref s) => s.hash(state),
             _ => "".hash(state),

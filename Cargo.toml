@@ -10,3 +10,5 @@ author = "Lucop1911"
 
 [dependencies]
 nom = "7.0.0"
+num-bigint = "0.4"
+num-traits = "0.2"

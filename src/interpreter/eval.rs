@@ -1,5 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+use num_bigint::BigInt;
+use num_traits::Zero;
+
 use crate::{
     ast::ast::{Expr, Ident, ImportItems, Infix, Literal, Prefix, Program, Stmt},
     errors::RuntimeError,
@@ -157,6 +160,7 @@ impl Evaluator {
     pub fn eval_literal(&mut self, literal: Literal) -> Object {
         match literal {
             Literal::IntLiteral(i) => Object::Integer(i),
+            Literal::BigIntLiteral(big) => Object::BigInteger(big),
             Literal::BoolLiteral(b) => Object::Boolean(b),
             Literal::StringLiteral(s) => Object::String(s),
             Literal::NullLiteral => Object::Null,
@@ -170,13 +174,31 @@ impl Evaluator {
                 Ok(b) => Object::Boolean(!b),
                 Err(err) => err,
             },
-            Prefix::PrefixPlus => match self.obj_to_int(object) {
-                Ok(i) => Object::Integer(i),
-                Err(err) => err,
+            Prefix::PrefixPlus => {
+                match object {
+                    Object::Integer(_) | Object::BigInteger(_) => object,
+                    Object::Error(e) => Object::Error(e),
+                    o => Object::Error(RuntimeError::TypeMismatch {
+                        expected: "integer".to_string(),
+                        got: o.type_name(),
+                    })
+                }
             },
-            Prefix::PrefixMinus => match self.obj_to_int(object) {
-                Ok(i) => Object::Integer(-i),
-                Err(err) => err,
+            Prefix::PrefixMinus => {
+                match object {
+                    Object::Integer(i) => {
+                        match i.checked_neg() {
+                            Some(result) => Object::Integer(result),
+                            None => Object::BigInteger(-BigInt::from(i))
+                        }
+                    }
+                    Object::BigInteger(big) => self.normalize_int(-big),
+                    Object::Error(e) => Object::Error(e),
+                    o => Object::Error(RuntimeError::TypeMismatch {
+                        expected: "integer".to_string(),
+                        got: o.type_name(),
+                    })
+                }
             },
         }
     }
@@ -188,62 +210,123 @@ impl Evaluator {
         match *infix {
             Infix::Plus => self.object_add(object1, object2),
             Infix::Minus => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(i1), Ok(i2)) => Object::Integer(i1 - i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    self.normalize_int(big1 - big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::Divide => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(_), Ok(0)) => Object::Error(RuntimeError::DivisionByZero),
-                    (Ok(i1), Ok(i2)) => Object::Integer(i1 / i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    if big2.is_zero() {
+                        return Object::Error(RuntimeError::DivisionByZero);
+                    }
+                    self.normalize_int(big1 / big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::Multiply => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(i1), Ok(i2)) => Object::Integer(i1 * i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    self.normalize_int(big1 * big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
+                }
+            }
+            Infix::Modulo => {
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    if big2.is_zero() {
+                        return Object::Error(RuntimeError::ModuloByZero);
+                    }
+                    self.normalize_int(big1 % big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::Equal => Object::Boolean(object1 == object2),
             Infix::NotEqual => Object::Boolean(object1 != object2),
             Infix::GreaterThanEqual => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(i1), Ok(i2)) => Object::Boolean(i1 >= i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    Object::Boolean(big1 >= big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::GreaterThan => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(i1), Ok(i2)) => Object::Boolean(i1 > i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    Object::Boolean(big1 > big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::LessThanEqual => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(i1), Ok(i2)) => Object::Boolean(i1 <= i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    Object::Boolean(big1 <= big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::LessThan => {
-                let i1 = self.obj_to_int(object1);
-                let i2 = self.obj_to_int(object2);
-                match (i1, i2) {
-                    (Ok(i1), Ok(i2)) => Object::Boolean(i1 < i2),
-                    (Err(err), _) | (_, Err(err)) => err,
+                if let (Some(big1), Some(big2)) = (self.to_bigint(&object1), self.to_bigint(&object2)) {
+                    Object::Boolean(big1 < big2)
+                } else {
+                    match (&object1, &object2) {
+                        (Object::Error(e), _) => Object::Error(e.clone()),
+                        (_, Object::Error(e)) => Object::Error(e.clone()),
+                        _ => Object::Error(RuntimeError::TypeMismatch {
+                            expected: "integer".to_string(),
+                            got: format!("{} and {}", object1.type_name(), object2.type_name()),
+                        })
+                    }
                 }
             }
             Infix::And => {
@@ -264,7 +347,7 @@ impl Evaluator {
             }
         }
     }
-
+    
     pub fn eval_if(&mut self, cond: Expr, conse: Program, maybe_alter: Option<Program>) -> Object {
         let object = self.eval_expr(cond);
         match self.obj_to_bool(object) {
@@ -505,7 +588,19 @@ impl Evaluator {
 
     pub fn object_add(&mut self, object1: Object, object2: Object) -> Object {
         match (object1, object2) {
-            (Object::Integer(i1), Object::Integer(i2)) => Object::Integer(i1 + i2),
+            (Object::Integer(i1), Object::Integer(i2)) => {
+                // Try to add as i64, fallback to BigInt on overflow
+                match i1.checked_add(i2) {
+                    Some(result) => Object::Integer(result),
+                    None => Object::BigInteger(BigInt::from(i1) + BigInt::from(i2))
+                }
+            }
+            (Object::BigInteger(big1), Object::BigInteger(big2)) => {
+                self.normalize_int(big1 + big2)
+            }
+            (Object::Integer(i), Object::BigInteger(big)) | (Object::BigInteger(big), Object::Integer(i)) => {
+                self.normalize_int(BigInt::from(i) + big)
+            }
             (Object::String(s1), Object::String(s2)) => Object::String(s1 + &s2),
             (Object::Error(e), _) | (_, Object::Error(e)) => Object::Error(e),
             (x, y) => Object::Error(RuntimeError::InvalidOperation(format!(

@@ -5,6 +5,7 @@ use nom::{
     Slice,
     Needed,
 };
+use num_bigint::BigInt;
 use std::iter::Enumerate;
 use std::ops::{Range, RangeFrom, RangeFull, RangeTo};
 
@@ -16,6 +17,7 @@ pub enum Token {
     Ident(String),
     StringLiteral(String),
     IntLiteral(i64),
+    BigIntLiteral(BigInt),
     BoolLiteral(bool),
     NullLiteral,
     // statements
@@ -27,6 +29,7 @@ pub enum Token {
     Minus,
     Divide,
     Multiply,
+    Modulo,
     Equal,
     NotEqual,
     GreaterThanEqual,

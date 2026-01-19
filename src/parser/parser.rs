@@ -25,6 +25,7 @@ fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
     } else {
         match t1.token[0].clone() {
             Token::IntLiteral(name) => Ok((i1, Literal::IntLiteral(name))),
+            Token::BigIntLiteral(name) => Ok((i1, Literal::BigIntLiteral(name))),
             Token::StringLiteral(s) => Ok((i1, Literal::StringLiteral(s))),
             Token::BoolLiteral(b) => Ok((i1, Literal::BoolLiteral(b))),
             Token::NullLiteral => Ok((i1, Literal::NullLiteral)),
@@ -88,6 +89,7 @@ fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
         Token::Minus => (Precedence::PSum, Some(Infix::Minus)),
         Token::Multiply => (Precedence::PProduct, Some(Infix::Multiply)),
         Token::Divide => (Precedence::PProduct, Some(Infix::Divide)),
+        Token::Modulo => (Precedence::PProduct, Some(Infix::Modulo)),
         Token::LParen => (Precedence::PCall, None),
         Token::LBracket => (Precedence::PIndex, None),
         Token::Dot => (Precedence::PCall, None),
