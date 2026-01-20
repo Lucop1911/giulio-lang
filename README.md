@@ -10,7 +10,7 @@ Giulio-lang is a lightweight, expressive language designed for simplicity and ea
 - **Functions**: First-class functions with closures
 - **Structs**: Define custom data structures with fields and methods
 - **Control Flow**: if/else conditions, while loops, for loops, and break/continue statements
-- **Built-in Types**: Integers, booleans, strings, arrays, and hash maps
+- **Built-in Types**: Integers, bigIntegers, booleans, strings, arrays, and hash maps
 - **Module System**: Import and organize code across multiple files
 - **REPL Mode**: Interactive Read-Eval-Print Loop for quick experimentation
 - **Standard Library**: Built-in functions for common operations
