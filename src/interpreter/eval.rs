@@ -478,6 +478,7 @@ impl Evaluator {
             Err(e) => Object::Error(e),
         }
     }
+
     fn eval_fn_call_direct(
         &mut self,
         args: Vec<Object>,
@@ -550,7 +551,6 @@ impl Evaluator {
         
         Object::Null
     }
-
 
     pub fn eval_struct_literal(&mut self, name: Ident, field_assignments: Vec<(Ident, Expr)>) -> Object {
         let Ident(struct_name) = name;

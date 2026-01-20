@@ -243,6 +243,7 @@ fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
         parse_fn_expr,
     ))(input)
 }
+
 fn parse_paren_expr(input: Tokens) -> IResult<Tokens, Expr> {
     delimited(lparen_tag, parse_expr, rparen_tag)(input)
 }
@@ -295,6 +296,7 @@ fn parse_hash_pairs(input: Tokens) -> IResult<Tokens, Vec<(Expr, Expr)>> {
         |(first, second)| [&vec![first][..], &second[..]].concat(),
     )(input)
 }
+
 fn empty_pairs(input: Tokens) -> IResult<Tokens, Vec<(Expr, Expr)>> {
     Ok((input, vec![]))
 }
