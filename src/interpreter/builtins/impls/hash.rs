@@ -2,22 +2,6 @@ use std::collections::HashMap;
 use crate::interpreter::obj::Object;
 
 // Method only
-pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
-    let mut args = args.into_iter();
-    match (args.next(), args.next()) {
-        (Some(Object::Hash(hash)), Some(key)) => {
-            match &key {
-                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
-                    Ok(hash.get(&key).cloned().unwrap_or(Object::Null))
-                }
-                _ => Err(format!("{} is not hashable", key.type_name())),
-            }
-        }
-        _ => Err("Invalid arguments to get(hash, key)".to_string()),
-    }
-}
-
-// Method only
 pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next(), args.next()) {

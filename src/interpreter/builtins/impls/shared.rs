@@ -1,6 +1,6 @@
 use crate::interpreter::obj::Object;
 
-// Method only
+// Method only - String, Array, Hash
 pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => {
@@ -16,6 +16,7 @@ pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
+// Method only - String, Array, Hash
 pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => Ok(Object::Integer(s.len() as i64)),
@@ -27,7 +28,7 @@ pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-// Method only
+// Method only - Hash, Array
 pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
@@ -49,5 +50,44 @@ pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::Array(vec))
         }
         _ => Err("Invalid arguments to remove(hash, key)".to_string()),
+    }
+}
+
+// Method only - String, Array, Hash
+pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
+    let mut args = args.into_iter();
+    match (args.next(), args.next()) {
+        (Some(Object::String(s)), Some(Object::Integer(idx))) => {
+            let i = idx;
+            if i < 0 {
+                return Err(format!("Index {} is negative", i));
+            }
+            let index = i as usize;
+            let chars: Vec<char> = s.chars().collect();
+            if index >= chars.len() {
+                return Err(format!("Index {} out of bounds for string of length {}", i, chars.len()));
+            }
+            Ok(Object::String(chars[index].to_string()))
+        }
+        (Some(Object::Array(vec)), Some(Object::Integer(idx))) => {
+            let i = idx;
+            if i < 0 {
+                return Err(format!("Index {} is negative", i));
+            }
+            let index = i as usize;
+            if index >= vec.len() {
+                return Err(format!("Index {} out of bounds for array of length {}", i, vec.len()));
+            }
+            Ok(vec[index].clone())
+        }
+        (Some(Object::Hash(hash)), Some(key)) => {
+            match &key {
+                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
+                    Ok(hash.get(&key).cloned().unwrap_or(Object::Null))
+                }
+                _ => Err(format!("{} is not hashable", key.type_name())),
+            }
+        }
+        _ => Err("get() requires (hash, key), (array, index), or (string, index)".to_string()),
     }
 }
