@@ -2,7 +2,7 @@ use crate::interpreter::obj::Object;
 
 // Method only
 pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::Integer(n)) => {
             Ok(Object::String(n.to_string()))
         }
@@ -13,7 +13,7 @@ pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
-    match (args.get(0), args.get(1)) {
+    match (args.first(), args.get(1)) {
         (Some(Object::Integer(base)), Some(Object::Integer(exp))) => {
             if *exp < 0 {
                 return Err("pow() does not support negative exponents".to_string());
@@ -29,7 +29,7 @@ pub fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn babs_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::Integer(x)) => {
             Ok(Object::Integer(x.abs()))
         }
@@ -40,7 +40,7 @@ pub fn babs_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bmin_fn(args: Vec<Object>) -> Result<Object, String> {
-    match (args.get(0), args.get(1)) {
+    match (args.first(), args.get(1)) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => {
             Ok(Object::Integer((*a).min(*b)))
         }
@@ -51,7 +51,7 @@ pub fn bmin_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bmax_fn(args: Vec<Object>) -> Result<Object, String> {
-    match (args.get(0), args.get(1)) {
+    match (args.first(), args.get(1)) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => {
             Ok(Object::Integer((*a).max(*b)))
         }

@@ -51,7 +51,7 @@ pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::Hash(hash)) => {
             let keys: Vec<Object> = hash.keys().cloned().collect();
             Ok(Object::Array(keys))
@@ -61,7 +61,7 @@ pub fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::Hash(hash)) => {
             let values: Vec<Object> = hash.values().cloned().collect();
             Ok(Object::Array(values))
@@ -71,7 +71,7 @@ pub fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn bclear_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::Hash(_)) => {
             Ok(Object::Hash(HashMap::new()))
         }

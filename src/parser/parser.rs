@@ -170,8 +170,8 @@ fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 
 fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     // Trying to parse as assignment first
-    if let Ok((after_ident, ident)) = parse_ident(input) {
-        if let Ok((_, next_tokens)) = take::<_, _, Error<_>>(1usize)(after_ident) {
+    if let Ok((after_ident, ident)) = parse_ident(input) 
+        && let Ok((_, next_tokens)) = take::<_, _, Error<_>>(1usize)(after_ident) {
             // Check if the token immediately after the identifier is Assign
             if !next_tokens.token.is_empty() && next_tokens.token[0] == Token::Assign {
                 // It's definitely an assignment: ident = expr
@@ -180,7 +180,6 @@ fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                 let (i3, _) = (semicolon_tag)(i2)?;
                 return Ok((i3, Stmt::AssignStmt(ident, expr)));
             }
-        }
     }
     
     // Fall back to expression statement

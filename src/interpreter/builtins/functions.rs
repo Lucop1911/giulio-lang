@@ -1,5 +1,3 @@
-use std::usize;
-
 use crate::{
     ast::ast::Ident,
     interpreter::{builtins::impls::struct_ops::bset_field_fn, obj::{BuiltinFunction, Object}},

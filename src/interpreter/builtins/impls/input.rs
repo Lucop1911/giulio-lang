@@ -5,7 +5,7 @@ use crate::interpreter::obj::Object;
 pub fn binput_fn(args: Vec<Object>) -> Result<Object, String> {
     if args.len() > 1 { return Err("input() takes at most 1 argument".to_string())}
 
-    match args.get(0) {
+    match args.first() {
         Some(Object::String(s)) => { 
             print!("{}", s);
             io::stdout().flush().map_err(|e| e.to_string())?;

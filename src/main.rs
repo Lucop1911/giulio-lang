@@ -16,12 +16,10 @@ fn main() {
         Some(flag) if flag == "--version" || flag == "-version" || flag == "-v" || flag == "--v" => {
             const VERSION: &str = env!("CARGO_PKG_VERSION");
             println!("{}", VERSION);
-            return;
         }
 
         Some(flag) if flag == "--help" || flag == "-help" || flag == "--h" || flag == "-h" => {
             print_help();
-            return;
         }
 
         Some(flag) if flag == "check" => {
@@ -34,7 +32,6 @@ fn main() {
                     }
                 };
                 run_check(&source);
-                return;
             }
         }
 
@@ -49,14 +46,12 @@ fn main() {
                 };
 
             run_source(&source, &mut evaluator);
-            return;
             }
         }
 
         Some(arg) => {
             eprintln!("Unknown argument: {}", arg);
             eprintln!("Use --help for usage.");
-            return;
         }
 
         None => repl(evaluator),

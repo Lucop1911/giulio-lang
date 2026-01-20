@@ -100,8 +100,8 @@ if (x > 10) {
 **Structs:**
 ```
 struct Person {
-    name: "John",
-    age: 30,
+    name: null,
+    age: null,
     
     greet: fn() {
         println("Hello, I'm ", this.name);

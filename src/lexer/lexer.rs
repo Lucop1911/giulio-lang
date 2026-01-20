@@ -207,13 +207,9 @@ fn skip_line_comment(input: &[u8]) -> IResult<&[u8], ()> {
 fn skip_ws_and_comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (mut input, _) = multispace0(input)?;
     
-    loop {
-        if let Ok((remaining, _)) = skip_line_comment(input) {
-            let (remaining, _) = multispace0(remaining)?;
-            input = remaining;
-        } else {
-            break;
-        }
+    while let Ok((remaining, _)) = skip_line_comment(input) {
+        let (remaining, _) = multispace0(remaining)?;
+        input = remaining;
     }
     
     Ok((input, ()))

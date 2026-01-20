@@ -2,7 +2,7 @@ use crate::interpreter::obj::Object;
 
 // Method only
 pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::String(s)) => {
             Ok(Object::Boolean(s.is_empty()))
         }
@@ -17,7 +17,7 @@ pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::String(s)) => Ok(Object::Integer(s.len() as i64)),
         Some(Object::Array(arr)) => Ok(Object::Integer(arr.len() as i64)),
         Some(Object::Hash(hash)) => {

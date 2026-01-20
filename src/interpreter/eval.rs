@@ -409,7 +409,7 @@ impl Evaluator {
         let old_env = Rc::clone(&self.env);
         let mut new_env = Environment::new_with_outer(Rc::clone(f_env));
         let zipped = params.into_iter().zip(args);
-        for (_, (Ident(name), o)) in zipped.enumerate() {
+        for (Ident(name), o) in zipped {
             new_env.set(&name, o);
         }
         self.env = Rc::new(RefCell::new(new_env));
@@ -439,8 +439,8 @@ impl Evaluator {
     pub fn eval_method_call(&mut self, object_expr: Expr, method_name: String, args_expr: Vec<Expr>) -> Object {
         let object = self.eval_expr(object_expr);
         
-        if let Object::Struct { ref methods, .. } = object {
-            if let Some(method_obj) = methods.get(&method_name) {
+        if let Object::Struct { ref methods, .. } = object
+            && let Some(method_obj) = methods.get(&method_name) {
                 let old_env = Rc::clone(&self.env);
                 let mut new_env = Environment::new_with_outer(Rc::clone(&self.env));
                 new_env.set("this", object.clone());
@@ -469,7 +469,6 @@ impl Evaluator {
                 };
                 
                 return self.returned(final_result);
-            }
         }
         
         // Fall back to builtin methods

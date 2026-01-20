@@ -2,7 +2,7 @@ use crate::interpreter::obj::Object;
 
 // Method only
 pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::String(s)) => {
             match s.trim().parse::<i64>() {
                 Ok(n) => Ok(Object::Integer(n)),
@@ -60,7 +60,7 @@ pub fn bsplit_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 pub fn btrim_fn(args: Vec<Object>) -> Result<Object, String> {
-    match args.get(0) {
+    match args.first() {
         Some(Object::String(s)) => {
             let trimmed_str = s.trim().to_string();
             Ok(Object::String(trimmed_str))
