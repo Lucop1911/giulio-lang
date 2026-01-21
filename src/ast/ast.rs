@@ -75,6 +75,7 @@ pub enum Expr {
 pub enum Literal {
     IntLiteral(i64),
     BigIntLiteral(BigInt),
+    FloatLitera(f64),
     BoolLiteral(bool),
     StringLiteral(String),
     NullLiteral,

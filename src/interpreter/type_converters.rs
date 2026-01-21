@@ -34,6 +34,21 @@ impl Evaluator {
         }
     }
 
+    pub fn obj_to_float(&mut self, object: Object) -> Result<f64, Object> {
+        match object {
+            Object::Float(f) => Ok(f),
+            Object::Integer(i) => Ok(i as f64),
+            Object::BigInteger(big) => big.to_f64().ok_or_else(|| {
+                Object::Error(RuntimeError::InvalidOperation("BigInt too large for float".into()))
+            }),
+            Object::Error(e) => Err(Object::Error(e)),
+            o => Err(Object::Error(RuntimeError::TypeMismatch {
+                expected: "numeric".into(),
+                got: o.type_name(),
+            })),
+        }
+}
+
     pub fn obj_to_func(&mut self, object: Object) -> Object {
         match object {
             Object::Function(_, _, _) | Object::Builtin(_, _, _, _) => object,

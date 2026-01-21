@@ -26,6 +26,7 @@ fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
         match t1.token[0].clone() {
             Token::IntLiteral(name) => Ok((i1, Literal::IntLiteral(name))),
             Token::BigIntLiteral(name) => Ok((i1, Literal::BigIntLiteral(name))),
+            Token::FloatLiteral(name) => Ok((i1, Literal::FloatLitera(name))),
             Token::StringLiteral(s) => Ok((i1, Literal::StringLiteral(s))),
             Token::BoolLiteral(b) => Ok((i1, Literal::BoolLiteral(b))),
             Token::NullLiteral => Ok((i1, Literal::NullLiteral)),

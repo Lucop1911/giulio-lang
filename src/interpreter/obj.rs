@@ -14,6 +14,7 @@ use crate::interpreter::env::Environment;
 pub enum Object {
     Integer(i64),
     BigInteger(BigInt),
+    Float(f64),
     Boolean(bool),
     String(String),
     Array(Vec<Object>),
@@ -40,6 +41,7 @@ impl PartialEq for Object {
         match (self, other) {
             (Object::Integer(a), Object::Integer(b)) => a == b,
             (Object::BigInteger(a), Object::BigInteger(b)) => a == b,
+            (Object::Float(a), Object::Float(b)) => a == b,
             (Object::Boolean(a), Object::Boolean(b)) => a == b,
             (Object::String(a), Object::String(b)) => a == b,
             (Object::Array(a), Object::Array(b)) => a == b,
@@ -76,6 +78,7 @@ impl Object {
         match self {
             Object::Integer(_) => "integer".to_string(),
             Object::BigInteger(_) => "bigInteger".to_string(),
+            Object::Float(_) => "float".to_string(),
             Object::Boolean(_) => "boolean".to_string(),
             Object::String(_) => "string".to_string(),
             Object::Array(_) => "array".to_string(),
@@ -98,6 +101,7 @@ impl fmt::Display for Object {
         match *self {
             Object::Integer(ref i) => write!(f, "{}", i),
             Object::BigInteger(ref i) => write!(f, "{}", i),
+            Object::Float(ref i) => write!(f, "{}", i),
             Object::Boolean(ref b) => {
                 if *b {
                     write!(f, "true")

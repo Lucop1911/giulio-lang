@@ -1,4 +1,5 @@
 use crate::ast::ast::Stmt;
+use crate::std::math::*;
 use crate::std::string::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
@@ -33,13 +34,25 @@ impl ModuleRegistry {
     }
     
     fn load_stdlib(&mut self) {
-        // String module
+        // String modules
         let mut string_exports = HashMap::new();
+        
         string_exports.insert("join".to_string(), create_builtin("join", 2, 2, string_join));
         
         self.stdlib.insert("std.string".to_string(), Module {
             name: "std.string".to_string(),
             exports: string_exports,
+        });
+
+        // Math modules
+        let mut math_exports = HashMap::new();
+        
+        math_exports.insert("clamp".to_string(), create_builtin("clamp", 3, 3, math_clamp));
+        math_exports.insert("random".to_string(), create_builtin("random", 0, 2, math_random));
+
+        self.stdlib.insert("std.math".to_string(), Module {
+            name: "std.math".to_string(),
+            exports: math_exports,
         });
     }
     

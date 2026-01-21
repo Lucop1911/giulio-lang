@@ -4,3 +4,4 @@ pub mod obj;
 pub mod builtins;
 pub mod type_converters;
 pub mod module_registry;
+pub mod helpers;

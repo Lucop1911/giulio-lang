@@ -163,10 +163,26 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
     )(input)
 }
 
-// Integers parsing
-fn lex_integer(input: &[u8]) -> IResult<&[u8], Token> {
+// Numbers parsing
+fn lex_number(input: &[u8]) -> IResult<&[u8], Token, nom::error::Error<&[u8]>> {
     let (remaining, digits) = map_res(digit1, complete_byte_slice_str_from_utf8)(input)?;
     
+    // Check if there's a decimal point
+    if let Ok((after_dot, _)) = tag::<_, _, nom::error::Error<&[u8]>>(".")(remaining) {
+        // Check if the next character is a digit (to avoid matching method calls like "123.to_string()")
+        if let Ok((after_decimals, decimal_digits)) = map_res::<_, _, _, nom::error::Error<&[u8]>, _, _, _>(
+            digit1, 
+            complete_byte_slice_str_from_utf8
+        )(after_dot) {
+            let float_str = format!("{}.{}", digits, decimal_digits);
+            match f64::from_str(&float_str) {
+                Ok(f) => return Ok((after_decimals, Token::FloatLiteral(f))),
+                Err(_) => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Digit))),
+            }
+        }
+    }
+    
+    // It's an integer (or BigInt)
     let token = match i64::from_str(digits) {
         Ok(n) => Token::IntLiteral(n),
         Err(_) => {
@@ -192,7 +208,7 @@ fn lex_token(input: &[u8]) -> IResult<&[u8], Token> {
         lex_operator,
         lex_punctuations,
         lex_reserved_ident,
-        lex_integer,
+        lex_number,
         lex_illegal,
     ))(input)
 }
