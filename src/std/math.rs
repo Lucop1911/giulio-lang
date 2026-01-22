@@ -31,6 +31,6 @@ pub fn math_random(args: Vec<Object>) -> Result<Object, String> {
             }
             Ok(Object::Integer(rng.random_range(*min..=*max)))
         }
-        _ => Err("random_int() takes 0, 1, or 2 integer arguments".to_string()),
+        _ => Err("random() takes 0, 1, or 2 integer arguments".to_string()),
     }
 }
