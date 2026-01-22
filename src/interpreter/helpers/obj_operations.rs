@@ -53,15 +53,15 @@ macro_rules! gen_compare_op {
 }
 
 impl Evaluator {
-    gen_numeric_op!(object_subtract, -, false);
-    gen_numeric_op!(object_multiply, *, false);
-    gen_numeric_op!(object_divide,   /, true);
-    gen_numeric_op!(object_modulo,   %, true);
+    gen_numeric_op! {object_subtract, -, false}
+    gen_numeric_op! {object_multiply, *, false}
+    gen_numeric_op! {object_divide,   /, true}
+    gen_numeric_op! {object_modulo,   %, true}
 
-    gen_compare_op!(object_compare_gt,  >);
-    gen_compare_op!(object_compare_gte, >=);
-    gen_compare_op!(object_compare_lt,  <);
-    gen_compare_op!(object_compare_lte, <=);
+    gen_compare_op! {object_compare_gt,  >}
+    gen_compare_op! {object_compare_gte, >=}
+    gen_compare_op! {object_compare_lt,  <}
+    gen_compare_op! {object_compare_lte, <=}
 
     fn type_mismatch_error(&self, expected: &str, obj1: Object, obj2: Object) -> Object {
         Object::Error(RuntimeError::TypeMismatch {

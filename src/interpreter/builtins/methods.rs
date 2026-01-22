@@ -12,7 +12,7 @@ impl BuiltinMethods {
                 all_args.extend(args);
                 btostring_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (Object::String(_), "to_int") => {
+            (Object::String(_) | Object::Float(_), "to_int") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 btoint_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))

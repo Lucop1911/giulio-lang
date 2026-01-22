@@ -1,3 +1,6 @@
+use num_bigint::ToBigInt;
+use num_traits::ToPrimitive;
+
 use crate::interpreter::obj::Object;
 
 // Method only
@@ -7,6 +10,17 @@ pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
             match s.trim().parse::<i64>() {
                 Ok(n) => Ok(Object::Integer(n)),
                 Err(_) => Err("Cannot convert string to int".to_string()),
+            }
+        }
+        Some(Object::Float(n)) => {
+            match n.to_i64() {
+                Some(n) => Ok(Object::Integer(n)),
+                None => {
+                    match n.to_bigint() {
+                        Some(big) => Ok(Object::BigInteger(big)),
+                        None => Err("Unable to convert this float exactly to integer".to_string()),
+                    }
+                }
             }
         }
         _ => Err("to_int expects a string".to_string()),
