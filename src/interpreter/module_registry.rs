@@ -1,6 +1,7 @@
 use crate::ast::ast::Stmt;
 use crate::std::math::*;
 use crate::std::string::*;
+use crate::std::time::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
 use std::fs;
@@ -54,6 +55,17 @@ impl ModuleRegistry {
         self.stdlib.insert("std.math".to_string(), Module {
             name: "std.math".to_string(),
             exports: math_exports,
+        });
+
+        // Time modules
+        let mut time_exports = HashMap::new();
+
+        time_exports.insert("now".to_string(), create_builtin("now", 0, 0, time_now));
+        time_exports.insert("sleep".to_string(), create_builtin("sleep", 1, 1, time_sleep));
+
+        self.stdlib.insert("std.time".to_string(), Module {
+            name: "std.time".to_string(),
+            exports: time_exports,
         });
     }
     
