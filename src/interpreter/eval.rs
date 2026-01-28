@@ -176,7 +176,7 @@ impl Evaluator {
             },
             Prefix::PrefixPlus => {
                 match object {
-                    Object::Integer(_) | Object::BigInteger(_) => object,
+                    Object::Integer(_) | Object::BigInteger(_) | Object::Float(_) => object,
                     Object::Error(e) => Object::Error(e),
                     o => Object::Error(RuntimeError::TypeMismatch {
                         expected: "integer".to_string(),
@@ -193,6 +193,7 @@ impl Evaluator {
                         }
                     }
                     Object::BigInteger(big) => self.normalize_int(-big),
+                    Object::Float(f) => Object::Float(-f),
                     Object::Error(e) => Object::Error(e),
                     o => Object::Error(RuntimeError::TypeMismatch {
                         expected: "integer".to_string(),

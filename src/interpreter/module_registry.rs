@@ -49,6 +49,7 @@ impl ModuleRegistry {
         
         math_exports.insert("clamp".to_string(), create_builtin("clamp", 3, 3, math_clamp));
         math_exports.insert("random".to_string(), create_builtin("random", 0, 2, math_random));
+        math_exports.insert("round".to_string(), create_builtin("round", 1, 1, math_round));
 
         self.stdlib.insert("std.math".to_string(), Module {
             name: "std.math".to_string(),

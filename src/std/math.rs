@@ -34,3 +34,12 @@ pub fn math_random(args: Vec<Object>) -> Result<Object, String> {
         _ => Err("random() takes 0, 1, or 2 integer arguments".to_string()),
     }
 }
+
+pub fn math_round(args: Vec<Object>) -> Result<Object, String> {
+    match args.first() {
+        Some(Object::Float(n)) => {
+            Ok(Object::Float(n.round()))
+        }
+        _ => Err("round() expects a float".to_string())
+    }
+}
