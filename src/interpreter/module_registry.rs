@@ -2,6 +2,7 @@ use crate::ast::ast::Stmt;
 use crate::std::math::*;
 use crate::std::string::*;
 use crate::std::time::*;
+use crate::std::io::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
 use std::fs;
@@ -66,6 +67,25 @@ impl ModuleRegistry {
         self.stdlib.insert("std.time".to_string(), Module {
             name: "std.time".to_string(),
             exports: time_exports,
+        });
+
+        // IO modules
+        let mut io_exports = HashMap::new();
+        
+        io_exports.insert("read_file".to_string(), create_builtin("read_file", 1, 1, io_read_file));
+        io_exports.insert("write_file".to_string(), create_builtin("write_file", 2, 2, io_write_file));
+        io_exports.insert("append_file".to_string(), create_builtin("append_file", 2, 2, io_append_file));
+
+        io_exports.insert("exists".to_string(), create_builtin("exists", 1, 1, io_exists));
+        io_exports.insert("is_file".to_string(), create_builtin("is_file", 1, 1, io_is_file));
+
+        io_exports.insert("is_dir".to_string(), create_builtin("is_dir", 1, 1, io_is_dir));
+
+        io_exports.insert("list_dir".to_string(), create_builtin("list_dir", 1, 1, io_list_dir));
+
+        self.stdlib.insert("std.io".to_string(), Module {
+            name: "std.io".to_string(),
+            exports: io_exports,
         });
     }
     
