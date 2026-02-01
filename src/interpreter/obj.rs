@@ -21,6 +21,7 @@ pub enum Object {
     Hash(HashMap<Object, Object>),
     Function(Vec<Ident>, Program, Rc<RefCell<Environment>>),
     Builtin(String, usize, usize, BuiltinFunction),
+    BuiltinStd(String, usize, usize, StdFunction),
     Struct {
         name: String,
         fields: HashMap<String, Object>,
@@ -35,6 +36,7 @@ pub enum Object {
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
+pub type StdFunction = fn(Vec<Object>) -> Result<Object, RuntimeError>;
 
 impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
@@ -50,6 +52,9 @@ impl PartialEq for Object {
             (Object::ReturnValue(a), Object::ReturnValue(b)) => a == b,
             (Object::Error(a), Object::Error(b)) => a == b,
             (Object::Builtin(name_a, params_a, params_a1, _), Object::Builtin(name_b, params_b, params_b1, _)) => {
+                name_a == name_b && params_a == params_b && params_a1 == params_b1
+            }
+            (Object::BuiltinStd(name_a, params_a, params_a1, _), Object::BuiltinStd(name_b, params_b, params_b1, _)) => {
                 name_a == name_b && params_a == params_b && params_a1 == params_b1
             }
             (Object::Function(params_a, body_a, _), Object::Function(params_b, body_b, _)) => {
@@ -85,6 +90,7 @@ impl Object {
             Object::Hash(_) => "hash".to_string(),
             Object::Function(_, _, _) => "function".to_string(),
             Object::Builtin(_, _, _, _) => "builtin function".to_string(),
+            Object::BuiltinStd(_, _, _, _) => "builtin function".to_string(),
             Object::Null => "null".to_string(),
             Object::ReturnValue(_) => "return value".to_string(),
             Object::Error(_) => "error".to_string(),
@@ -136,6 +142,7 @@ impl fmt::Display for Object {
             }
             Object::Function(_, _, _) => write!(f, "[function]"),
             Object::Builtin(ref name,_, _, _) => write!(f, "[built-in function: {}]", *name),
+            Object::BuiltinStd(ref name,_, _, _) => write!(f, "[built-in function: {}]", *name),
             Object::Null => write!(f, "null"),
             Object::ReturnValue(ref o) => write!(f, "{}", *o),
             Object::Error(ref e) => write!(f, "{}", e),

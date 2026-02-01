@@ -3,6 +3,7 @@ use crate::std::math::*;
 use crate::std::string::*;
 use crate::std::time::*;
 use crate::std::io::*;
+use crate::std::json::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
 use std::fs;
@@ -86,6 +87,17 @@ impl ModuleRegistry {
         self.stdlib.insert("std.io".to_string(), Module {
             name: "std.io".to_string(),
             exports: io_exports,
+        });
+
+        // JSON modules
+        let mut json_exports = HashMap::new();
+        
+        json_exports.insert("serialize".to_string(), create_builtin("serialize", 1, 1, json_serialize));
+        json_exports.insert("deserialize".to_string(), create_builtin("deserialize", 1, 1, json_deserialize));
+
+        self.stdlib.insert("std.json".to_string(), Module {
+            name: "std.json".to_string(),
+            exports: json_exports,
         });
     }
     
@@ -198,6 +210,6 @@ impl ModuleRegistry {
     }
 }
 
-fn create_builtin(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, String>) -> Object {
-    Object::Builtin(name.to_string(), min, max, func)
+fn create_builtin(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, RuntimeError>) -> Object {
+    Object::BuiltinStd(name.to_string(), min, max, func)
 }

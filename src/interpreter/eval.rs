@@ -6,7 +6,7 @@ use crate::{
     ast::ast::{Expr, Ident, ImportItems, Infix, Literal, Prefix, Program, Stmt},
     errors::RuntimeError,
     interpreter::{
-        builtins::methods::BuiltinMethods, env::Environment, module_registry::ModuleRegistry, obj::{BuiltinFunction, Object}
+        builtins::methods::BuiltinMethods, env::Environment, module_registry::ModuleRegistry, obj::{BuiltinFunction, StdFunction, Object}
     },
 };
 
@@ -274,6 +274,9 @@ impl Evaluator {
             Object::Builtin(_, min_params, max_params, b_fn) => {
                 self.eval_builtin_call(args_expr, min_params, max_params, b_fn)
             }
+            Object::BuiltinStd(_, min_params, max_params, s_fn) => {
+                self.eval_std_call(args_expr, min_params, max_params, s_fn)
+            }
             o_err => o_err,
         }
     }
@@ -415,6 +418,32 @@ impl Evaluator {
         match b_fn(args) {
             Ok(obj) => obj,
             Err(e) => Object::Error(RuntimeError::InvalidArguments(e)),
+        }
+    }
+
+    fn eval_std_call(
+        &mut self,
+        args_expr: Vec<Expr>,
+        min_params: usize,
+        max_params: usize,
+        s_fn: StdFunction,
+    ) -> Object {
+        if args_expr.len() < min_params || args_expr.len() > max_params {
+            return Object::Error(RuntimeError::WrongNumberOfArguments {
+                min: min_params,
+                max: max_params,
+                got: args_expr.len(),
+            });
+        }
+
+        let args = args_expr
+            .into_iter()
+            .map(|e| self.eval_expr(e))
+            .collect::<Vec<_>>();
+        
+        match s_fn(args) {
+            Ok(obj) => obj,
+            Err(e) => Object::Error(e),
         }
     }
 

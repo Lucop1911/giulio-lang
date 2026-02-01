@@ -1,12 +1,13 @@
 use crate::interpreter::obj::Object;
+use crate::errors::RuntimeError;
 
-pub fn string_join(args: Vec<Object>) -> Result<Object, String> {
+pub fn string_join(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match (&args[0], &args[1]) {
         (Object::Array(arr), Object::String(separator)) => {
-            let strings: Result<Vec<String>, String> = arr.iter().map(|obj| {
+            let strings: Result<Vec<String>, RuntimeError> = arr.iter().map(|obj| {
                 match obj {
                     Object::String(s) => Ok(s.clone()),
-                    _ => Err("join expects an array of strings".to_string()),
+                    o => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
                 }
             }).collect();
             
@@ -15,6 +16,6 @@ pub fn string_join(args: Vec<Object>) -> Result<Object, String> {
                 Err(e) => Err(e),
             }
         }
-        _ => Err("join expects an array and a string".to_string()),
+        _ => Err(RuntimeError::TypeMismatch { expected: "array, string".to_string(), got: "invalid arguments".to_string() }),
     }
 }

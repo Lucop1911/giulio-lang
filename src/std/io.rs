@@ -1,44 +1,40 @@
-/* 
-list_dir(path)
-*/
-
 use std::fs::{read_to_string, write, OpenOptions, read_dir};
 use std::io::Write;
 use std::path::Path;
 
 use crate::interpreter::obj::Object;
+use crate::errors::RuntimeError;
 
-pub fn io_read_file(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_read_file(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(path)) => {
             match read_to_string(path) {
                 Ok(text) => Ok(Object::String(text)),
-                Err(e) => Err(format!("Could not read from file: {}", e))
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not read from file: {}", e)))
             }
         }
-        _ => {
-            Err("read_file() expects a string (path)".to_string())
-        }
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
     }
 }
 
-pub fn io_write_file(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_write_file(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let mut args = args.into_iter();
 
     match (args.next(), args.next()) {
         (Some(Object::String(path)), Some(Object::String(content))) => {
             match write(path, content) {
                 Ok(_) => Ok(Object::Null),
-                Err(e) => Err(format!("Could not write to file: {}", e))
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not write to file: {}", e)))
             }
         }
-        _ => {
-            Err("write_file() expects exactly two strings (path, content)".to_string())
-        }
+        (Some(Object::String(_)), Some(o)) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        (Some(o), _) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        _ => Err(RuntimeError::WrongNumberOfArguments { min: 2, max: 2, got: 0 }),
     }
 }
 
-pub fn io_append_file(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_append_file(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let mut args = args.into_iter();
     
     match (args.next(), args.next()) {
@@ -51,56 +47,61 @@ pub fn io_append_file(args: Vec<Object>) -> Result<Object, String> {
 
             match result {
                 Ok(_) => Ok(Object::Null),
-                Err(e) => Err(format!("Could not append to file: {}", e))
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not append to file: {}", e)))
             }
         }
-        _ => Err("append_file() expects two strings (path, content)".to_string())
+        (Some(Object::String(_)), Some(o)) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        (Some(o), _) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        _ => Err(RuntimeError::WrongNumberOfArguments { min: 2, max: 2, got: 0 }),
     }
 }
 
-pub fn io_exists(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_exists(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(path)) => {
             let path = Path::new(path);
             Ok(Object::Boolean(path.exists()))
         }
-        _ => Err("exists() expects a string (path)".to_string())
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
     }
 }
 
-pub fn io_is_file(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_is_file(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(path)) => {
             let path = Path::new(path);
             Ok(Object::Boolean(path.is_file()))
         }
-        _ => Err("is_file() expects a string (path)".to_string())
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
     }
 }
 
-pub fn io_is_dir(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_is_dir(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(path)) => {
             let path = Path::new(path);
             Ok(Object::Boolean(path.is_dir()))
         }
-        _ => Err("is_dir() expects a string (path)".to_string())
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
     }
 }
 
-pub fn io_list_dir(args: Vec<Object>) -> Result<Object, String> {
+pub fn io_list_dir(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(path)) => {
             let path = Path::new(path);
 
             if !path.is_dir() {
-                return Err("list_dir() expects a directory path".to_string());
+                return Err(RuntimeError::InvalidOperation(format!("'{}' is not a directory", path.display())));
             }
 
             let mut items: Vec<Object> = Vec::new();
 
-            for entry in read_dir(path).map_err(|e| e.to_string())? {
-                let entry = entry.map_err(|e| e.to_string())?;
+            for entry in read_dir(path).map_err(|e| RuntimeError::InvalidOperation(e.to_string()))? {
+                let entry = entry.map_err(|e| RuntimeError::InvalidOperation(e.to_string()))?;
                 if let Some(name) = entry.file_name().to_str() {
                     items.push(Object::String(name.to_string()));
                 }
@@ -108,6 +109,7 @@ pub fn io_list_dir(args: Vec<Object>) -> Result<Object, String> {
 
             Ok(Object::Array(items))
         }
-        _ => Err("list_dir() expects a string (path)".to_string()),
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
     }
 }
