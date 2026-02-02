@@ -49,8 +49,8 @@ fn object_to_json(obj: &Object) -> Result<Value, RuntimeError> {
         Object::Array(arr) => {
             let mut json_arr = Vec::with_capacity(arr.len());
             for (_idx, item) in arr.iter().enumerate() {
-                // We just propagate the error, adding context might be nice but RuntimeError structure is fixed
-                // for now we just propagate
+                // I just propagate the error, adding context might be nice but RuntimeError structure is fixed
+                // for now i just propagate
                 json_arr.push(object_to_json(item)?);
             }
             Ok(Value::Array(json_arr))

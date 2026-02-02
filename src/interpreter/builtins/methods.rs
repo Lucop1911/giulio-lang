@@ -1,5 +1,5 @@
 use crate::{RuntimeError, interpreter::obj::Object};
-use crate::interpreter::builtins::impls::{string::*, array::*, int::*, hash::*, shared::*, struct_ops::*};
+use crate::interpreter::builtins::impls::{string::*, array::*, int::*, hash::*, shared::*, struct_ops::*, float::*};
 
 pub struct BuiltinMethods;
 
@@ -16,6 +16,11 @@ impl BuiltinMethods {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 btoint_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
+            (Object::Integer(_) | Object::BigInteger(_) | Object::String(_), "to_float") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                btofloat_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
 
             // Shared methods

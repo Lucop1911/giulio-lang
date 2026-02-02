@@ -1,5 +1,5 @@
 use crate::{Evaluator, RuntimeError, interpreter::obj::Object};
-use num_traits:: Zero;
+use num_traits::Zero;
 
 macro_rules! gen_numeric_op {
     ($name:ident, $operator:tt, $is_div:expr) => {
