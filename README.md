@@ -147,7 +147,7 @@ USAGE:
 COMMANDS:
     (no command)       Start the REPL (Read-Eval-Print Loop)
     run <file>         Execute a .giu file
-    check <file>       Parse and check a .giu file for errors (coming soon)
+    check <file>       Parse and check a .giu file for errors
 
 OPTIONS:
     -h, --help         Print this help message
