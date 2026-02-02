@@ -137,21 +137,111 @@ fn parse_while_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_for_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    let (i1, _) = for_tag(input)?;
+    let (i2, _) = lparen_tag(i1)?;
+
+    // Has "let" -> c style
+    // Ident followed by "in" -> for-in
+    // Ident followed by "=" -> c style
+    
+    let (_lookahead, first_token) = take(1usize)(i2)?;
+    
+    if !first_token.token.is_empty() {
+        match &first_token.token[0] {
+            Token::Let => {
+                return parse_c_style_for(i2);
+            }
+            Token::Ident(_) => {
+                if let Ok((after_ident, _)) = parse_ident(i2) {
+                    if let Ok((_, next_token)) = take::<_, _, nom::error::Error<_>>(1usize)(after_ident) {
+                        if !next_token.token.is_empty() {
+                            match &next_token.token[0] {
+                                Token::In => {
+                                    // for-in loop: for (fruit in fruits)
+                                    // wont use parse_c_style_for, parse directly
+                                }
+                                Token::Assign => {
+                                    // c style loop
+                                    return parse_c_style_for(i2);
+                                }
+                                _ => {
+                                    // Unknown, try for-in as fallback
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {
+                // Something else, probably an error but try for-in
+            }
+        }
+    }
+    
+    // Parse as for-in loop
+    let (i3, ident) = parse_ident(i2)?;
+    let (i4, _) = in_tag(i3)?;
+    let (i5, iterable) = parse_expr(i4)?;
+    let (i6, _) = rparen_tag(i5)?;
+    let (i7, body) = parse_block_stmt(i6)?;
+    
+    Ok((i7, Stmt::ExprStmt(Expr::ForExpr {
+        ident,
+        iterable: Box::new(iterable),
+        body,
+    })))
+}
+
+fn parse_c_style_for(input: Tokens) -> IResult<Tokens, Stmt> {
+    // Parse init (optional let statement or assignment)
+    let (i1, init) = opt(alt((
+        map(parse_let_stmt_no_semicolon, |stmt| Box::new(stmt)),
+        map(parse_assign_stmt_no_semicolon, |stmt| Box::new(stmt)),
+    )))(input)?;
+    
+    let (i2, _) = semicolon_tag(i1)?;
+    
+    // Parse condition (optional expression)
+    let (i3, cond) = opt(map(parse_expr, |expr| Box::new(expr)))(i2)?;
+    
+    let (i4, _) = semicolon_tag(i3)?;
+    
+    // Parse update (optional assignment)
+    let (i5, update) = opt(map(parse_assign_stmt_no_semicolon, |stmt| Box::new(stmt)))(i4)?;
+    
+    let (i6, _) = rparen_tag(i5)?;
+    let (i7, body) = parse_block_stmt(i6)?;
+    
+    Ok((i7, Stmt::ExprStmt(Expr::CStyleForExpr {
+        init,
+        cond,
+        update,
+        body,
+    })))
+}
+
+// Helper to parse let statement without semicolon
+fn parse_let_stmt_no_semicolon(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
         tuple((
-            for_tag,
-            lparen_tag,
+            let_tag,
             parse_ident,
-            in_tag,
+            assign_tag,
             parse_expr,
-            rparen_tag,
-            parse_block_stmt,
         )),
-        |(_, _, ident, _, iterable, _, body)| Stmt::ExprStmt(Expr::ForExpr {
-            ident,
-            iterable: Box::new(iterable),
-            body,
-        }),
+        |(_, ident, _, expr)| Stmt::LetStmt(ident, expr),
+    )(input)
+}
+
+// Helper to parse assignment without semicolon
+fn parse_assign_stmt_no_semicolon(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((
+            parse_ident,
+            assign_tag,
+            parse_expr,
+        )),
+        |(ident, _, expr)| Stmt::AssignStmt(ident, expr),
     )(input)
 }
 
@@ -214,7 +304,7 @@ fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     // If so, semicolon is optional
     let needs_semicolon = !matches!(
         expr,
-        Expr::IfExpr { .. } | Expr::WhileExpr { .. } | Expr::ForExpr { .. } | Expr::FnExpr { .. }
+        Expr::IfExpr { .. } | Expr::WhileExpr { .. } | Expr::ForExpr { .. } | Expr::CStyleForExpr { .. } | Expr::FnExpr { .. }
     );
     
     if needs_semicolon {

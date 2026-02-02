@@ -69,6 +69,12 @@ pub enum Expr {
         iterable: Box<Expr>,
         body: Program,
     },
+    CStyleForExpr {
+        init: Option<Box<Stmt>>,
+        cond: Option<Box<Expr>>,
+        update: Option<Box<Stmt>>,
+        body: Program,
+    },
 }
 
 #[derive(PartialEq, Debug, Clone)]

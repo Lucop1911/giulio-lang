@@ -97,6 +97,32 @@ if (x > 10) {
 }
 ```
 
+**While Loop:**
+```
+let counter = 0;
+while (counter < 5) {
+    println("Counter: ", counter);
+    counter = counter + 1;
+}
+```
+
+**For Loop (Iterator-style):**
+```
+let fruits = ["apple", "banana", "cherry"];
+for (fruit in fruits) {
+    println("I like ", fruit);
+}
+```
+
+**For Loop (C-style):**
+```
+for (let i = 0; i < 10; i = i + 1) {
+    if (i % 2 == 0) {
+        println(i, " is even");
+    }
+}
+```
+
 **Structs:**
 ```
 struct Person {

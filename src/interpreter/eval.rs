@@ -134,6 +134,9 @@ impl Evaluator {
             }
             Expr::WhileExpr { cond, body } => self.eval_while(cond, body),
             Expr::ForExpr { ident, iterable, body } => self.eval_for(ident, iterable, body),
+            Expr::CStyleForExpr { init, cond, update, body } => {
+                self.eval_c_style_for(init, cond, update, body)
+            }
         }
     }
 
@@ -647,6 +650,62 @@ impl Evaluator {
                 _ => {}
             }
         }
+        Object::Null
+    }
+
+    fn eval_c_style_for(
+        &mut self,
+        init: Option<Box<Stmt>>,
+        cond: Option<Box<Expr>>,
+        update: Option<Box<Stmt>>,
+        body: Program,
+    ) -> Object {
+        // Execute initialization statement if present
+        if let Some(init_stmt) = init {
+            let result = self.eval_statement(*init_stmt);
+            if let Object::Error(_) = result {
+                return result;
+            }
+        }
+        
+        loop {
+            // Check condition (if no condition, loop forever like C)
+            let should_continue = if let Some(ref cond_expr) = cond {
+                match self.eval_expr(cond_expr.as_ref().clone()) {
+                    Object::Boolean(b) => b,
+                    Object::Error(e) => return Object::Error(e),
+                    _ => return Object::Error(RuntimeError::TypeMismatch {
+                        expected: "boolean".to_string(),
+                        got: "non-boolean".to_string(),
+                    }),
+                }
+            } else {
+                true // No condition means infinite loop
+            };
+            
+            if !should_continue {
+                break;
+            }
+            
+            // Execute body
+            let result = self.eval_blockstmt(body.clone());
+            match result {
+                Object::Break => return Object::Null,
+                Object::Continue => {},
+                Object::ReturnValue(_) => return result,
+                Object::Error(_) => return result,
+                _ => {}
+            }
+            
+            // Execute update statement if present
+            if let Some(ref update_stmt) = update {
+                let result = self.eval_statement(update_stmt.as_ref().clone());
+                if let Object::Error(_) = result {
+                    return result;
+                }
+            }
+        }
+        
         Object::Null
     }
 }
