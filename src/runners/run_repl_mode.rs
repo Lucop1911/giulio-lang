@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
 use crate::{Evaluator, Lexer, Parser, Tokens, interpreter::obj::Object};
+use crate::parser_errors::{convert_nom_error, show_error_context};
 
 pub fn repl(mut evaluator: Evaluator) {
     println!("Giulio-lang v0.1.0");
@@ -28,7 +29,7 @@ pub fn repl(mut evaluator: Evaluator) {
         let token_vec = match Lexer::lex_tokens(input.as_bytes()) {
             Ok((_, t)) => t,
             Err(e) => {
-                eprintln!("Lex error: {:?}", e);
+                eprintln!("Lexer Error: {:?}", e);
                 continue;
             }
         };
@@ -38,7 +39,14 @@ pub fn repl(mut evaluator: Evaluator) {
         let program = match Parser::parse_tokens(tokens) {
             Ok((_, program)) => program,
             Err(e) => {
-                eprintln!("Parse error: {:?}", e);
+                // Extract better error information
+                if let nom::Err::Error(err) | nom::Err::Failure(err) = &e {
+                    let parser_error = convert_nom_error(&e, "");
+                    eprintln!("Parser Error: {}", parser_error);
+                    eprintln!("{}", show_error_context(&err.input, 3));
+                } else {
+                    eprintln!("Parser Error: Unexpected end of input");
+                }
                 continue;
             }
         };

@@ -1,0 +1,380 @@
+use crate::lexer::token::{Token, Tokens};
+use crate::errors::ParserError;
+use nom::error::{Error, ErrorKind};
+use nom::Err;
+
+pub fn convert_nom_error<'a>(err: &Err<Error<Tokens<'a>>>, context: &str) -> ParserError {
+    match err {
+        Err::Error(e) | Err::Failure(e) => {
+            let tokens = &e.input;
+            
+            if tokens.token.is_empty() {
+                return ParserError::UnexpectedEOF;
+            }
+            
+            let current_token = &tokens.token[0];
+            let token_description = describe_token(current_token);
+            
+            // Check if this looks like an incomplete statement
+            // This happens when we're at a statement keyword but parsing failed
+            let looks_incomplete = is_incomplete_statement(tokens);
+            
+            if looks_incomplete {
+                return detect_incomplete_error(tokens);
+            }
+            
+            // Special case: if we're at EOF with Verify error, likely missing semicolon
+            if current_token == &Token::EOF && e.code == ErrorKind::Verify {
+                return ParserError::ExpectedToken {
+                    expected: "';' after statement".to_string(),
+                    found: "end of file".to_string(),
+                };
+            }
+            
+            // Try to provide context-specific error messages
+            match e.code {
+                ErrorKind::Tag | ErrorKind::Verify => {
+                    create_contextual_error(context, current_token, &token_description)
+                }
+                _ => ParserError::UnexpectedToken(token_description),
+            }
+        }
+        Err::Incomplete(_) => ParserError::UnexpectedEOF,
+    }
+}
+
+fn is_incomplete_statement(tokens: &Tokens) -> bool {
+    if tokens.token.is_empty() {
+        return false;
+    }
+    
+    // If we start with a statement keyword, this might be incomplete
+    matches!(
+        tokens.token[0],
+        Token::Let | Token::For | Token::While | Token::If | 
+        Token::Return | Token::Struct | Token::Function
+    )
+}
+
+fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
+    if tokens.token.is_empty() {
+        return ParserError::UnexpectedEOF;
+    }
+    
+    let statement_type = &tokens.token[0];
+    
+    // Scan through the tokens to find if we have EOF
+    let mut has_eof = false;
+    
+    for token in tokens.token.iter() {
+        if token == &Token::EOF {
+            has_eof = true;
+            break;
+        }
+    }
+    
+    // If we hit EOF, determine what's missing
+    if has_eof {
+        match statement_type {
+            Token::Let => {
+                // Check what we have in the let statement
+                if tokens.token.len() > 1 {
+                    match &tokens.token[1] {
+                        Token::Assign | Token::Colon => {
+                            // "let =" or "let :" - missing variable name
+                            return ParserError::ExpectedToken {
+                                expected: "variable name after 'let'".to_string(),
+                                found: describe_token(&tokens.token[1]),
+                            };
+                        }
+                        Token::Ident(_) => {
+                            // We have "let x ..."
+                            if let Some(pos) = find_token_position(tokens, &Token::Assign) {
+                                // Check if there's an unexpected token before EOF
+                                if let Some(colon_pos) = find_token_position(tokens, &Token::Colon) {
+                                    if colon_pos > pos {
+                                        // "let a = 10:" - colon instead of semicolon
+                                        return ParserError::ExpectedToken {
+                                            expected: "';' after statement".to_string(),
+                                            found: "':'".to_string(),
+                                        };
+                                    }
+                                }
+                                // We have "let x =", check if we have a value
+                                if pos + 2 >= tokens.token.len() || tokens.token[pos + 1] == Token::EOF {
+                                    return ParserError::ExpectedToken {
+                                        expected: "expression after '='".to_string(),
+                                        found: "end of input".to_string(),
+                                    };
+                                } else {
+                                    return ParserError::ExpectedToken {
+                                        expected: "';' after statement".to_string(),
+                                        found: "end of input".to_string(),
+                                    };
+                                }
+                            } else {
+                                return ParserError::ExpectedToken {
+                                    expected: "'=' after variable name".to_string(),
+                                    found: describe_token(tokens.token.get(2).unwrap_or(&Token::EOF)),
+                                };
+                            }
+                        }
+                        _ => {
+                            return ParserError::ExpectedToken {
+                                expected: "variable name after 'let'".to_string(),
+                                found: describe_token(&tokens.token[1]),
+                            };
+                        }
+                    }
+                } else {
+                    return ParserError::ExpectedToken {
+                        expected: "variable name after 'let'".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+            }
+            Token::For => {
+                if !has_matching_paren(tokens) {
+                    return ParserError::ExpectedToken {
+                        expected: "')' to close for loop condition".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+                if !has_matching_brace(tokens) {
+                    return ParserError::ExpectedToken {
+                        expected: "'{' for loop body or '}' to close loop body".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+                return ParserError::InvalidExpression("incomplete for loop".to_string());
+            }
+            Token::While => {
+                if !has_matching_paren(tokens) {
+                    return ParserError::ExpectedToken {
+                        expected: "')' to close while condition".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+                if !has_matching_brace(tokens) {
+                    return ParserError::ExpectedToken {
+                        expected: "'{' for loop body or '}' to close loop body".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+                return ParserError::InvalidExpression("incomplete while loop".to_string());
+            }
+            Token::If => {
+                if !has_matching_paren(tokens) {
+                    return ParserError::ExpectedToken {
+                        expected: "')' to close if condition".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+                if !has_matching_brace(tokens) {
+                    return ParserError::ExpectedToken {
+                        expected: "'}' to close if body".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
+                return ParserError::InvalidExpression("incomplete if statement".to_string());
+            }
+            _ => {}
+        }
+    }
+    
+    // Fallback
+    ParserError::UnexpectedToken(describe_token(statement_type))
+}
+
+fn find_token_position(tokens: &Tokens, target: &Token) -> Option<usize> {
+    tokens.token.iter().position(|t| t == target)
+}
+
+fn has_matching_paren(tokens: &Tokens) -> bool {
+    let mut depth = 0;
+    for token in tokens.token.iter() {
+        match token {
+            Token::LParen => depth += 1,
+            Token::RParen => depth -= 1,
+            Token::EOF => break,
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
+fn has_matching_brace(tokens: &Tokens) -> bool {
+    let mut depth = 0;
+    for token in tokens.token.iter() {
+        match token {
+            Token::LBrace => depth += 1,
+            Token::RBrace => depth -= 1,
+            Token::EOF => break,
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
+fn create_contextual_error(context: &str, _: &Token, token_desc: &str) -> ParserError {
+    match context {
+        "let_stmt" => ParserError::ExpectedToken {
+            expected: "identifier after 'let'".to_string(),
+            found: token_desc.to_string(),
+        },
+        "assign_stmt" => ParserError::ExpectedToken {
+            expected: "'=' for assignment".to_string(),
+            found: token_desc.to_string(),
+        },
+        "if_expr_lparen" => ParserError::ExpectedToken {
+            expected: "'(' after 'if'".to_string(),
+            found: token_desc.to_string(),
+        },
+        "if_expr_rparen" => ParserError::ExpectedToken {
+            expected: "')' after condition".to_string(),
+            found: token_desc.to_string(),
+        },
+        "while_lparen" => ParserError::ExpectedToken {
+            expected: "'(' after 'while'".to_string(),
+            found: token_desc.to_string(),
+        },
+        "while_rparen" => ParserError::ExpectedToken {
+            expected: "')' after while condition".to_string(),
+            found: token_desc.to_string(),
+        },
+        "for_lparen" => ParserError::ExpectedToken {
+            expected: "'(' after 'for'".to_string(),
+            found: token_desc.to_string(),
+        },
+        "for_rparen" => ParserError::ExpectedToken {
+            expected: "')' after for declaration".to_string(),
+            found: token_desc.to_string(),
+        },
+        "block_lbrace" => ParserError::ExpectedToken {
+            expected: "'{'".to_string(),
+            found: token_desc.to_string(),
+        },
+        "block_rbrace" => ParserError::ExpectedToken {
+            expected: "'}'".to_string(),
+            found: token_desc.to_string(),
+        },
+        "semicolon" => ParserError::ExpectedToken {
+            expected: "';' after statement".to_string(),
+            found: token_desc.to_string(),
+        },
+        "fn_params" => ParserError::ExpectedToken {
+            expected: "parameter list".to_string(),
+            found: token_desc.to_string(),
+        },
+        "struct_name" => ParserError::ExpectedToken {
+            expected: "struct name".to_string(),
+            found: token_desc.to_string(),
+        },
+        "array_close" => ParserError::ExpectedToken {
+            expected: "']' to close array".to_string(),
+            found: token_desc.to_string(),
+        },
+        "call_close" => ParserError::ExpectedToken {
+            expected: "')' to close function call".to_string(),
+            found: token_desc.to_string(),
+        },
+        "hash_close" => ParserError::ExpectedToken {
+            expected: "'}' to close hash".to_string(),
+            found: token_desc.to_string(),
+        },
+        "expression" => ParserError::InvalidExpression(format!(
+            "unexpected token: {}",
+            token_desc
+        )),
+        _ => ParserError::UnexpectedToken(token_desc.to_string()),
+    }
+}
+
+pub fn describe_token(token: &Token) -> String {
+    match token {
+        Token::Illegal => "illegal token".to_string(),
+        Token::EOF => "end of file".to_string(),
+        Token::Ident(name) => format!("identifier '{}'", name),
+        Token::StringLiteral(s) => {
+            if s.len() > 20 {
+                format!("string \"{}...\"", &s[..20])
+            } else {
+                format!("string \"{}\"", s)
+            }
+        }
+        Token::IntLiteral(n) => format!("integer {}", n),
+        Token::BigIntLiteral(n) => format!("big integer {}", n),
+        Token::FloatLiteral(f) => format!("float {}", f),
+        Token::BoolLiteral(b) => format!("boolean {}", b),
+        Token::NullLiteral => "null".to_string(),
+        Token::Assign => "'='".to_string(),
+        Token::If => "'if'".to_string(),
+        Token::Else => "'else'".to_string(),
+        Token::Plus => "'+'".to_string(),
+        Token::Minus => "'-'".to_string(),
+        Token::Divide => "'/'".to_string(),
+        Token::Multiply => "'*'".to_string(),
+        Token::Modulo => "'%'".to_string(),
+        Token::Equal => "'=='".to_string(),
+        Token::NotEqual => "'!='".to_string(),
+        Token::GreaterThanEqual => "'>='".to_string(),
+        Token::LessThanEqual => "'<='".to_string(),
+        Token::GreaterThan => "'>'".to_string(),
+        Token::LessThan => "'<'".to_string(),
+        Token::Function => "'fn'".to_string(),
+        Token::Let => "'let'".to_string(),
+        Token::Return => "'return'".to_string(),
+        Token::Struct => "'struct'".to_string(),
+        Token::This => "'this'".to_string(),
+        Token::Import => "'import'".to_string(),
+        Token::Comma => "','".to_string(),
+        Token::Colon => "':'".to_string(),
+        Token::SemiColon => "';'".to_string(),
+        Token::LParen => "'('".to_string(),
+        Token::RParen => "')'".to_string(),
+        Token::LBrace => "'{'".to_string(),
+        Token::RBrace => "'}'".to_string(),
+        Token::LBracket => "'['".to_string(),
+        Token::RBracket => "']'".to_string(),
+        Token::And => "'&&'".to_string(),
+        Token::Or => "'||'".to_string(),
+        Token::Not => "'!'".to_string(),
+        Token::Dot => "'.'".to_string(),
+        Token::While => "'while'".to_string(),
+        Token::For => "'for'".to_string(),
+        Token::In => "'in'".to_string(),
+        Token::Break => "'break'".to_string(),
+        Token::Continue => "'continue'".to_string(),
+    }
+}
+
+pub fn show_error_context(tokens: &Tokens, num_context_tokens: usize) -> String {
+    let start = tokens.start;
+    let mut result = String::new();
+    
+    result.push_str("Near: ");
+    
+    // Show a few tokens before the error
+    let context_start = start.saturating_sub(num_context_tokens);
+    for i in context_start..start {
+        if i < tokens.token.len() {
+            result.push_str(&describe_token(&tokens.token[i]));
+            result.push(' ');
+        }
+    }
+    
+    // Show the problematic token
+    if start < tokens.token.len() {
+        result.push_str(">>> ");
+        result.push_str(&describe_token(&tokens.token[start]));
+        result.push_str(" <<<");
+    }
+    
+    // Show a few tokens after
+    for i in (start + 1)..std::cmp::min(start + num_context_tokens + 1, tokens.token.len()) {
+        result.push(' ');
+        result.push_str(&describe_token(&tokens.token[i]));
+    }
+    
+    result
+}
