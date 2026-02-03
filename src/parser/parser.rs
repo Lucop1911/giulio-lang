@@ -509,7 +509,13 @@ fn parse_if_expr(input: Tokens) -> IResult<Tokens, Expr> {
 }
 
 fn parse_else_expr(input: Tokens) -> IResult<Tokens, Option<Program>> {
-    opt(preceded(else_tag, parse_block_stmt))(input)
+    opt(preceded(
+        else_tag,
+        alt((
+            parse_block_stmt,
+            map(parse_if_expr, |expr| vec![Stmt::ExprStmt(expr)]),
+        )),
+    ))(input)
 }
 
 fn empty_params(input: Tokens) -> IResult<Tokens, Vec<Ident>> {
