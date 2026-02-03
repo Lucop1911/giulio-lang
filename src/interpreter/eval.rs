@@ -66,6 +66,7 @@ impl Evaluator {
         }
     }
 
+    // Add this match arm to eval_statement function:
     pub fn eval_statement(&mut self, stmt: Stmt) -> Object {
         match stmt {
             Stmt::ExprStmt(expr) => self.eval_expr(expr),
@@ -73,6 +74,11 @@ impl Evaluator {
             Stmt::LetStmt(ident, expr) => {
                 let object = self.eval_expr(expr);
                 self.register_ident(ident, object)
+            }
+            // NEW: Add this case for function declarations
+            Stmt::FnStmt { name, params, body } => {
+                let fn_obj = Object::Function(params, body, Rc::clone(&self.env));
+                self.register_ident(name, fn_obj)
             }
             Stmt::AssignStmt(ident, expr) => {
                 // Check if variable exists

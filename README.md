@@ -76,7 +76,7 @@ println(sum);
 
 **Functions:**
 ```
-let add = fn(a, b) { a + b };
+fn add(a, b) { a + b };
 println(add(5, 3));
 ```
 

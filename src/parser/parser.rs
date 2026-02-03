@@ -110,6 +110,7 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     alt((
         parse_import_stmt,
         parse_let_stmt,
+        parse_fn_stmt,
         parse_return_stmt,
         parse_struct_stmt,
         parse_while_stmt,
@@ -287,6 +288,25 @@ fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
             (semicolon_tag),
         )),
         |(_, ident, _, expr, _)| Stmt::LetStmt(ident, expr),
+    )(input)
+}
+
+fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((
+            function_tag,
+            parse_ident,
+            lparen_tag,
+            alt((parse_params, empty_params)),
+            rparen_tag,
+            parse_block_stmt,
+            opt(semicolon_tag)
+        )),
+        |(_, name, _, params, _, body, _)| Stmt::FnStmt {
+            name,
+            params,
+            body,
+        },
     )(input)
 }
 

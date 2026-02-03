@@ -8,6 +8,11 @@ pub enum Stmt {
     AssignStmt(Ident, Expr),
     ReturnStmt(Expr),
     ExprStmt(Expr),
+    FnStmt {
+        name: Ident,
+        params: Vec<Ident>,
+        body: Program,
+    },
     StructStmt {
         name: Ident,
         fields: Vec<(Ident, Expr)>,
