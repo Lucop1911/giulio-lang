@@ -163,15 +163,6 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_this(&mut self) -> Object {
-        match self.env.borrow().get("this") {
-            Some(obj) => obj,
-            None => Object::Error(RuntimeError::InvalidOperation(
-                "'this' can only be used inside a method".to_string()
-            )),
-        }
-    }
-
     pub fn eval_ident(&mut self, ident: Ident) -> Object {
         let Ident(name) = ident;
         let borrow_env = self.env.borrow();
@@ -526,6 +517,15 @@ impl Evaluator {
         }
     }
 
+    pub fn eval_this(&mut self) -> Object {
+        match self.env.borrow().get("this") {
+            Some(obj) => obj,
+            None => Object::Error(RuntimeError::InvalidOperation(
+                "'this' can only be used inside a method".to_string()
+            )),
+        }
+    }
+    
     pub fn eval_array(&mut self, exprs: Vec<Expr>) -> Object {
         let new_vec = exprs.into_iter().map(|e| self.eval_expr(e)).collect();
         Object::Array(new_vec)
