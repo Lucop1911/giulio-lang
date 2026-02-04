@@ -324,23 +324,14 @@ fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     // If so, semicolon is optional
     let needs_semicolon = !matches!(
         expr,
-        Expr::IfExpr { .. } | Expr::WhileExpr { .. } | 
-        Expr::ForExpr { .. } | Expr::CStyleForExpr { .. } | 
-        Expr::FnExpr { .. }
+        Expr::IfExpr { .. } | Expr::WhileExpr { .. } | Expr::ForExpr { .. } | Expr::CStyleForExpr { .. } | Expr::FnExpr { .. }
     );
     
     if needs_semicolon {
-        // Try to parse semicolon
-        if let Ok((i2, _)) = semicolon_tag(i1) {
-            // Has semicolon - it's a statement
-            Ok((i2, Stmt::ExprStmt(expr)))
-        } else {
-            // No semicolon - it's an implicit return value
-            Ok((i1, Stmt::ExprValueStmt(expr)))
-        }
-    } else {
-        // Block expressions - semicolon is optional, doesn't affect return
         let (i2, _) = semicolon_tag(i1)?;
+        Ok((i2, Stmt::ExprStmt(expr)))
+    } else {
+        let (i2, _) = opt(semicolon_tag)(i1)?;
         Ok((i2, Stmt::ExprStmt(expr)))
     }
 }
