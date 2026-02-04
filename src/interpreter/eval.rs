@@ -75,12 +75,15 @@ impl Evaluator {
         }
     }
 
-    // Add this match arm to eval_statement function:
     pub fn eval_statement(&mut self, stmt: Stmt) -> Object {
         match stmt {
             Stmt::ExprStmt(expr) => {
-                self.eval_expr(expr);
-                Object::Null
+                let result = self.eval_expr(expr);
+                // Propagate control flow objects (return, break, continue, error)
+                match result {
+                    Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) => result,
+                    _ => Object::Null  // Expression statements don't produce values in normal flow
+                }
             }
             Stmt::ExprValueStmt(expr) => {
                 self.eval_expr(expr)
@@ -90,7 +93,6 @@ impl Evaluator {
                 let object = self.eval_expr(expr);
                 self.register_ident(ident, object)
             }
-            // NEW: Add this case for function declarations
             Stmt::FnStmt { name, params, body } => {
                 let fn_obj = Object::Function(params, body, Rc::clone(&self.env));
                 self.register_ident(name, fn_obj)

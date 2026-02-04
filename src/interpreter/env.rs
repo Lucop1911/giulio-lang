@@ -1,5 +1,4 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
 use crate::{ast::ast::Ident, interpreter::obj::Object};
 use crate::interpreter::builtins::functions::BuiltinsFunctions;
 
@@ -43,6 +42,22 @@ impl Environment {
     }
 
     pub fn set(&mut self, name: &str, val: Object) {
+        // Check if variable exists in current scope
+        if self.store.contains_key(name) {
+            self.store.insert(name.to_string(), val);
+            return;
+        }
+        
+        // Check if variable exists in parent scope
+        if let Some(ref parent_env) = self.parent {
+            if parent_env.borrow().get(name).is_some() {
+                // Variable exists in parent, update it there
+                parent_env.borrow_mut().set(name, val);
+                return;
+            }
+        }
+        
+        // Variable doesn't exist anywhere, create it in current scope
         self.store.insert(name.to_string(), val);
     }
 
