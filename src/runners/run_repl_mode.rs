@@ -4,7 +4,8 @@ use crate::{Evaluator, Lexer, Parser, Tokens, interpreter::obj::Object};
 use crate::parser_errors::{convert_nom_error, show_error_context};
 
 pub fn repl(mut evaluator: Evaluator) {
-    println!("Giulio-lang v0.1.0");
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    println!("Giulio-lang v{}", VERSION);
     println!("Type 'exit' or 'quit' to quit\n");
 
     loop {

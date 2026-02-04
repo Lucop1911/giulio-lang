@@ -8,6 +8,7 @@ pub enum Stmt {
     AssignStmt(Ident, Expr),
     ReturnStmt(Expr),
     ExprStmt(Expr),
+    ExprValueStmt(Expr),
     FnStmt {
         name: Ident,
         params: Vec<Ident>,

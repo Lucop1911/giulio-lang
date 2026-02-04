@@ -54,7 +54,16 @@ impl Evaluator {
     pub fn eval_blockstmt(&mut self, mut prog: Program) -> Object {
         match prog.len() {
             0 => Object::Null,
-            1 => self.eval_statement(prog.remove(0)),
+            1 => {
+                let stmt = prog.remove(0);
+                let result = self.eval_statement(stmt);
+                // Only unwrap return values at function level, not at block level
+                match result {
+                    Object::ReturnValue(_) | Object::Break | 
+                    Object::Continue | Object::Error(_) => result,
+                    other => other  // Last statement's value (or Null) is returned
+                }
+            }
             _ => {
                 let s = prog.remove(0);
                 let object = self.eval_statement(s);
@@ -69,7 +78,13 @@ impl Evaluator {
     // Add this match arm to eval_statement function:
     pub fn eval_statement(&mut self, stmt: Stmt) -> Object {
         match stmt {
-            Stmt::ExprStmt(expr) => self.eval_expr(expr),
+            Stmt::ExprStmt(expr) => {
+                self.eval_expr(expr);
+                Object::Null
+            }
+            Stmt::ExprValueStmt(expr) => {
+                self.eval_expr(expr)
+            }
             Stmt::ReturnStmt(expr) => Object::ReturnValue(Box::new(self.eval_expr(expr))),
             Stmt::LetStmt(ident, expr) => {
                 let object = self.eval_expr(expr);
