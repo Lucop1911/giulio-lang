@@ -6,6 +6,11 @@ pub type Program = Vec<Stmt>;
 pub enum Stmt {
     LetStmt(Ident, Expr),
     AssignStmt(Ident, Expr),
+    FieldAssignStmt {
+        object: Box<Expr>,
+        field: String,
+        value: Box<Expr>,
+    },
     ReturnStmt(Expr),
     ExprStmt(Expr),
     ExprValueStmt(Expr),

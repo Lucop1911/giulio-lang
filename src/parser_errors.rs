@@ -52,7 +52,7 @@ fn is_incomplete_statement(tokens: &Tokens) -> bool {
     matches!(
         tokens.token[0],
         Token::Let | Token::For | Token::While | Token::If | 
-        Token::Return | Token::Struct | Token::Function
+        Token::Return | Token::Function | Token::Struct
     )
 }
 
@@ -177,6 +177,34 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
                     };
                 }
                 return ParserError::InvalidExpression("incomplete if statement".to_string());
+            }
+            Token::Struct => {
+                // Check if we have a name after 'struct'
+                if tokens.token.len() > 1 {
+                    match &tokens.token[1] {
+                        Token::Ident(_) => {
+                            // We have "struct Name ..."
+                            if !has_matching_brace(tokens) {
+                                return ParserError::ExpectedToken {
+                                    expected: "'}' to close struct definition".to_string(),
+                                    found: "end of input".to_string(),
+                                };
+                            }
+                            return ParserError::InvalidExpression("incomplete struct definition".to_string());
+                        }
+                        _ => {
+                            return ParserError::ExpectedToken {
+                                expected: "struct name after 'struct'".to_string(),
+                                found: describe_token(&tokens.token[1]),
+                            };
+                        }
+                    }
+                } else {
+                    return ParserError::ExpectedToken {
+                        expected: "struct name after 'struct'".to_string(),
+                        found: "end of input".to_string(),
+                    };
+                }
             }
             _ => {}
         }

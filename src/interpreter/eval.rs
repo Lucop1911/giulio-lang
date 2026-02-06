@@ -107,6 +107,9 @@ impl Evaluator {
                 let object = self.eval_expr(expr);
                 self.register_ident(ident, object)
             }
+            Stmt::FieldAssignStmt { object, field, value } => {
+                self.eval_field_assign(*object, field, *value)
+            }
             Stmt::StructStmt { name, fields, methods } => {
                 self.eval_struct_def(name, fields, methods)
             }
@@ -160,6 +163,15 @@ impl Evaluator {
             Expr::CStyleForExpr { init, cond, update, body } => {
                 self.eval_c_style_for(init, cond, update, body)
             }
+        }
+    }
+
+    pub fn eval_this(&mut self) -> Object {
+        match self.env.borrow().get("this") {
+            Some(obj) => obj,
+            None => Object::Error(RuntimeError::InvalidOperation(
+                "'this' can only be used inside a method".to_string()
+            )),
         }
     }
 
@@ -347,6 +359,40 @@ impl Evaluator {
         }
     }
 
+    pub fn eval_field_assign(&mut self, object_expr: Expr, field_name: String, value_expr: Expr) -> Object {
+        let value = self.eval_expr(value_expr);
+        
+        // 'this' object is found -> update the env
+        if let Expr::ThisExpr = object_expr {
+            let current_this = self.env.borrow().get("this");
+            match current_this {
+                Some(Object::Struct { name, mut fields, methods }) => {
+                    fields.insert(field_name, value.clone());
+                    let updated_struct = Object::Struct { name, fields, methods };
+                    self.env.borrow_mut().set("this", updated_struct);
+                    return value;
+                }
+                Some(other) => {
+                    return Object::Error(RuntimeError::InvalidOperation(
+                        format!("{} does not have fields", other.type_name())
+                    ));
+                }
+                None => {
+                    return Object::Error(RuntimeError::InvalidOperation(
+                        "'this' is not defined in current scope".to_string()
+                    ));
+                }
+            }
+        }
+
+        // For now, i only support 'this.field = value'
+        // Supporting 'obj.field = value' where obj is a variable would require
+        // tracking which variable the expression refers to
+        Object::Error(RuntimeError::InvalidOperation(
+            "Can only assign to 'this.field', not other object fields".to_string()
+        ))
+    }
+
     pub fn eval_method_call(&mut self, object_expr: Expr, method_name: String, args_expr: Vec<Expr>) -> Object {
         let object = self.eval_expr(object_expr);
         
@@ -517,15 +563,6 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_this(&mut self) -> Object {
-        match self.env.borrow().get("this") {
-            Some(obj) => obj,
-            None => Object::Error(RuntimeError::InvalidOperation(
-                "'this' can only be used inside a method".to_string()
-            )),
-        }
-    }
-    
     pub fn eval_array(&mut self, exprs: Vec<Expr>) -> Object {
         let new_vec = exprs.into_iter().map(|e| self.eval_expr(e)).collect();
         Object::Array(new_vec)

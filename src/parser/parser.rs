@@ -161,12 +161,10 @@ fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    // Trying to parse as assignment first
+    // Try to parse as identifier assignment: ident = expr
     if let Ok((after_ident, ident)) = parse_ident(input) 
         && let Ok((_, next_tokens)) = take::<_, _, Error<_>>(1usize)(after_ident) {
-            // Check if the token immediately after the identifier is Assign
             if !next_tokens.token.is_empty() && next_tokens.token[0] == Token::Assign {
-                // It's definitely an assignment: ident = expr
                 let (i1, _) = assign_tag(after_ident)?;
                 let (i2, expr) = parse_expr(i1)?;
                 let (i3, _) = (semicolon_tag)(i2)?;
@@ -174,7 +172,34 @@ fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
             }
     }
     
-    // Fall back to expression statement
+    // Attempt parsing as field assignment: expr.field = expr
+    // This handles: this.(ident) = value, obj.(field) = value, etc.
+    if let Ok((after_expr, object_expr)) = parse_atom_expr(input) 
+        && let Ok((_, next_token)) = take::<_, _, Error<_>>(1usize)(after_expr) {
+            if !next_token.token.is_empty() && next_token.token[0] == Token::Dot {
+                // We got object.something - check if it's a field assignment
+                let (after_dot, _) = dot_tag(after_expr)?;
+                if let Ok((after_field, field_ident)) = parse_ident(after_dot) {
+                    let Ident(field_name) = field_ident;
+                    // Check if next token is =
+                    if let Ok((_, assign_token)) = take::<_, _, Error<_>>(1usize)(after_field) {
+                        if !assign_token.token.is_empty() && assign_token.token[0] == Token::Assign {
+                            // It's a field assignment!
+                            let (i1, _) = assign_tag(after_field)?;
+                            let (i2, value_expr) = parse_expr(i1)?;
+                            let (i3, _) = semicolon_tag(i2)?;
+                            return Ok((i3, Stmt::FieldAssignStmt {
+                                object: Box::new(object_expr),
+                                field: field_name,
+                                value: Box::new(value_expr),
+                            }));
+                        }
+                    }
+                }
+            }
+    }
+    
+    // Fallback to expression statement
     parse_expr_stmt(input)
 }
 
@@ -517,7 +542,6 @@ fn parse_struct_body(input: Tokens) -> IResult<Tokens, (Vec<(Ident, Expr)>, Vec<
             _ => fields.push((ident, expr)),
         }
     }
-    
     Ok((i1, (fields, methods)))
 }
 
