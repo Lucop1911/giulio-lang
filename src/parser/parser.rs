@@ -264,8 +264,7 @@ fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     let (i1, expr) = parse_expr(input)?;
     
-    // Check if this expression ends with a block (if, while, for, fn)
-    // If so, semicolon is optional
+    // Semicolon not needed in: if, while, for, break, continue
     let needs_semicolon = !matches!(
         expr,
         Expr::IfExpr { .. } | Expr::WhileExpr { .. } | Expr::ForExpr { .. } | Expr::CStyleForExpr { .. } | Expr::FnExpr { .. }

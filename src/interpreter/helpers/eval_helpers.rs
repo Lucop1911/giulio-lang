@@ -282,7 +282,7 @@ impl EvalHelper for Evaluator {
                 
                 self.env = old_env;
                 
-                // If the call was on a variable, update it in the environment with the modified struct.
+                // Update env with modified struct if needed
                 if let Some(var_name) = var_name_if_ident {
                     self.env.borrow_mut().set(&var_name, modified_this.clone());
                 }
