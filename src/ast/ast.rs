@@ -11,6 +11,11 @@ pub enum Stmt {
         field: String,
         value: Box<Expr>,
     },
+    IndexAssignStmt {
+        target: Box<Expr>,
+        index: Box<Expr>,
+        value: Box<Expr>,
+    },
     ReturnStmt(Expr),
     ExprStmt(Expr),
     ExprValueStmt(Expr),

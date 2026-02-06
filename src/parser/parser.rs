@@ -172,12 +172,12 @@ fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
             }
     }
     
-    // Attempt parsing as field assignment: expr.field = expr
-    // This handles: this.(ident) = value, obj.(field) = value, etc.
+    // Try to parse as field assignment: expr.field = expr
+    // This handles: this.width = 100, obj.field = 200, etc.
     if let Ok((after_expr, object_expr)) = parse_atom_expr(input) 
         && let Ok((_, next_token)) = take::<_, _, Error<_>>(1usize)(after_expr) {
             if !next_token.token.is_empty() && next_token.token[0] == Token::Dot {
-                // We got object.something - check if it's a field assignment
+                // We have object.something - check if it's a field assignment
                 let (after_dot, _) = dot_tag(after_expr)?;
                 if let Ok((after_field, field_ident)) = parse_ident(after_dot) {
                     let Ident(field_name) = field_ident;
@@ -194,6 +194,25 @@ fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                                 value: Box::new(value_expr),
                             }));
                         }
+                    }
+                }
+            } else if !next_token.token.is_empty() && next_token.token[0] == Token::LBracket {
+                // We have object[...] - check if it's an index assignment
+                let (after_lbracket, _) = lbracket_tag(after_expr)?;
+                let (after_index, index_expr) = parse_expr(after_lbracket)?;
+                let (after_rbracket, _) = rbracket_tag(after_index)?;
+                
+                // Check if next token is "=" (index assignment)
+                if let Ok((_, assign_token)) = take::<_, _, Error<_>>(1usize)(after_rbracket) {
+                    if !assign_token.token.is_empty() && assign_token.token[0] == Token::Assign {
+                        let (i1, _) = assign_tag(after_rbracket)?;
+                        let (i2, value_expr) = parse_expr(i1)?;
+                        let (i3, _) = semicolon_tag(i2)?;
+                        return Ok((i3, Stmt::IndexAssignStmt {
+                            target: Box::new(object_expr),
+                            index: Box::new(index_expr),
+                            value: Box::new(value_expr),
+                        }));
                     }
                 }
             }
@@ -256,13 +275,25 @@ fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         let (i2, _) = semicolon_tag(i1)?;
         Ok((i2, Stmt::ExprStmt(expr)))
     } else {
-        let (i2, _) = opt(semicolon_tag)(i1)?;
-        Ok((i2, Stmt::ExprStmt(expr)))
+        if let Ok((i2, _)) = semicolon_tag(i1) {
+            Ok((i2, Stmt::ExprStmt(expr)))
+        } else {
+            Ok((i1, Stmt::ExprValueStmt(expr)))
+        }
     }
 }
 
 fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
-    delimited(lbrace_tag, many0(parse_stmt), rbrace_tag)(input)
+    let (input, _) = lbrace_tag(input)?;
+    let (input, mut stmts) = many0(parse_stmt)(input)?;
+    
+    let (input, maybe_expr) = opt(parse_expr)(input)?;
+    if let Some(expr) = maybe_expr {
+        stmts.push(Stmt::ExprValueStmt(expr));
+    }
+    
+    let (input, _) = rbrace_tag(input)?;
+    Ok((input, stmts))
 }
 
 fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
@@ -471,12 +502,13 @@ fn parse_fn_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(
         tuple((
             function_tag,
+            opt(parse_ident),
             lparen_tag,
             alt((parse_params, empty_params)),
             rparen_tag,
             parse_block_stmt,
         )),
-        |(_, _, p, _, b)| Expr::FnExpr { params: p, body: b },
+        |(_, _, _, p, _, b)| Expr::FnExpr { params: p, body: b },
     )(input)
 }
 
