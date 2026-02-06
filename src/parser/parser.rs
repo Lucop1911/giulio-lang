@@ -173,18 +173,16 @@ fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     }
     
     // Try to parse as field assignment: expr.field = expr
-    // This handles: this.width = 100, obj.field = 200, etc.
     if let Ok((after_expr, object_expr)) = parse_atom_expr(input) 
         && let Ok((_, next_token)) = take::<_, _, Error<_>>(1usize)(after_expr) {
             if !next_token.token.is_empty() && next_token.token[0] == Token::Dot {
-                // We have object.something - check if it's a field assignment
+                // We have object.something -> check if it's a field assignment
                 let (after_dot, _) = dot_tag(after_expr)?;
                 if let Ok((after_field, field_ident)) = parse_ident(after_dot) {
                     let Ident(field_name) = field_ident;
                     // Check if next token is =
                     if let Ok((_, assign_token)) = take::<_, _, Error<_>>(1usize)(after_field) {
                         if !assign_token.token.is_empty() && assign_token.token[0] == Token::Assign {
-                            // It's a field assignment!
                             let (i1, _) = assign_tag(after_field)?;
                             let (i2, value_expr) = parse_expr(i1)?;
                             let (i3, _) = semicolon_tag(i2)?;
@@ -197,7 +195,6 @@ fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                     }
                 }
             } else if !next_token.token.is_empty() && next_token.token[0] == Token::LBracket {
-                // We have object[...] - check if it's an index assignment
                 let (after_lbracket, _) = lbracket_tag(after_expr)?;
                 let (after_index, index_expr) = parse_expr(after_lbracket)?;
                 let (after_rbracket, _) = rbracket_tag(after_index)?;
