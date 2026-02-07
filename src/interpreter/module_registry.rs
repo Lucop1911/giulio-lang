@@ -200,6 +200,14 @@ impl ModuleRegistry {
                         exports.insert(var_name, obj);
                     }
                 }
+                Stmt::FnStmt { name, params: _, body: _ } => {
+                    evaluator.eval_statement(stmt);
+                    let Ident(fn_name) = name;
+
+                    if let Some(obj) = evaluator.env.borrow().get(&fn_name) {
+                        exports.insert(fn_name, obj);
+                    }
+                }
                 _ => {
                     evaluator.eval_statement(stmt);
                 }
