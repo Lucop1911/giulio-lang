@@ -1,4 +1,4 @@
-use std::fs::{read_to_string, write, OpenOptions, read_dir};
+use std::fs::{create_dir_all, read_dir, read_to_string, remove_dir_all, remove_file, write, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
@@ -11,6 +11,45 @@ pub fn io_read_file(args: Vec<Object>) -> Result<Object, RuntimeError> {
             match read_to_string(path) {
                 Ok(text) => Ok(Object::String(text)),
                 Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not read from file: {}", e)))
+            }
+        }
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
+    }
+}
+
+pub fn io_create_dir(args: Vec<Object>) -> Result<Object, RuntimeError> {
+    match args.first() {
+        Some(Object::String(path)) => {
+            match create_dir_all(path) {
+                Ok(_) => Ok(Object::Null),
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not create directory: {}", e)))
+            }
+        }
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
+    }
+}
+
+pub fn io_delete_file(args: Vec<Object>) -> Result<Object, RuntimeError> {
+    match args.first() {
+        Some(Object::String(path)) => {
+            match remove_file(path) {
+                Ok(_) => Ok(Object::Null),
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not delete file: {}", e)))
+            }
+        }
+        Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
+        None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
+    }
+}
+
+pub fn io_delete_dir(args: Vec<Object>) -> Result<Object, RuntimeError> {
+    match args.first() {
+        Some(Object::String(path)) => {
+            match remove_dir_all(path) {
+                Ok(_) => Ok(Object::Null),
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Could not delete directory: {}", e)))
             }
         }
         Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),

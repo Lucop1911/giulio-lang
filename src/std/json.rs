@@ -178,3 +178,41 @@ pub fn json_deserialize(args: Vec<Object>) -> Result<Object, RuntimeError> {
         o => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() })
     }
 }
+
+pub fn json_prettify(args: Vec<Object>) -> Result<Object, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::WrongNumberOfArguments {
+            min: 1,
+            max: 1,
+            got: args.len(),
+        });
+    }
+
+    match &args[0] {
+        Object::String(s) => {
+            match serde_json::from_str::<Value>(s) {
+                Ok(val) => {
+                    match serde_json::to_string_pretty(&val) {
+                        Ok(pretty_s) => Ok(Object::String(pretty_s)),
+                        Err(e) => Err(RuntimeError::InvalidOperation(format!("JSON prettify error: {}", e)))
+                    }
+                },
+                Err(e) => Err(RuntimeError::InvalidArguments(format!("JSON parse error: {}", e)))
+            }
+        },
+        o => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() })
+    }
+}
+
+pub fn json_validate(args: Vec<Object>) -> Result<Object, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: args.len() });
+    }
+
+    match &args[0] {
+        Object::String(s) => {
+            Ok(Object::Boolean(serde_json::from_str::<Value>(s).is_ok()))
+        },
+        o => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() })
+    }
+}
