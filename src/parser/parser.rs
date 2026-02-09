@@ -1,4 +1,4 @@
-use nom::{IResult, branch::*, error_position};
+use nom::{IResult, branch::*};
 use nom::bytes::complete::take;
 use nom::combinator::{map, opt, verify};
 use nom::error::{Error, ErrorKind};
@@ -9,43 +9,56 @@ use std::result::Result::*;
 
 use crate::ast::ast::{Expr, Ident, ImportItems, Infix, Literal, Precedence, Prefix, Program, Stmt};
 use crate::lexer::token::{Token, Tokens};
+use crate::parser::parser_helpers::*;
 
-macro_rules! tag_token (
-    ($func_name:ident, $tag: expr) => (
-        fn $func_name(tokens: Tokens) -> IResult<Tokens, Tokens> {
-            verify(take(1usize), |t: &Tokens| t.token[0] == $tag)(tokens)
+// TOKEN TAG MACRO
+
+macro_rules! tag_token {
+    ($func_name:ident, $tag:expr) => {
+        #[inline]
+        pub fn $func_name(tokens: Tokens) -> IResult<Tokens, Tokens> {
+            verify(take(1usize), |t: &Tokens| {
+                !t.token.is_empty() && t.token[0] == $tag
+            })(tokens)
         }
-    )
-);
+    };
+}
+
+// LITERAL/IDENTIFIER PARSING
 
 fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
     let (i1, t1) = take(1usize)(input)?;
+    
     if t1.token.is_empty() {
-        Err(Err::Error(Error::new(input, ErrorKind::Tag)))
-    } else {
-        match t1.token[0].clone() {
-            Token::IntLiteral(name) => Ok((i1, Literal::IntLiteral(name))),
-            Token::BigIntLiteral(name) => Ok((i1, Literal::BigIntLiteral(name))),
-            Token::FloatLiteral(name) => Ok((i1, Literal::FloatLitera(name))),
-            Token::StringLiteral(s) => Ok((i1, Literal::StringLiteral(s))),
-            Token::BoolLiteral(b) => Ok((i1, Literal::BoolLiteral(b))),
-            Token::NullLiteral => Ok((i1, Literal::NullLiteral)),
-            _ => Err(Err::Error(Error::new(input, ErrorKind::Tag))),
-        }
+        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
+    }
+    
+    // Pattern matching to know when i need to clone and when i don't
+    match &t1.token[0] {
+        Token::IntLiteral(n) => Ok((i1, Literal::IntLiteral(*n))),
+        Token::BigIntLiteral(n) => Ok((i1, Literal::BigIntLiteral(n.clone()))),
+        Token::FloatLiteral(f) => Ok((i1, Literal::FloatLitera(*f))),
+        Token::StringLiteral(s) => Ok((i1, Literal::StringLiteral(s.clone()))),
+        Token::BoolLiteral(b) => Ok((i1, Literal::BoolLiteral(*b))),
+        Token::NullLiteral => Ok((i1, Literal::NullLiteral)),
+        _ => Err(Err::Error(Error::new(input, ErrorKind::Tag))),
     }
 }
 
 fn parse_ident(input: Tokens) -> IResult<Tokens, Ident> {
     let (i1, t1) = take(1usize)(input)?;
+    
     if t1.token.is_empty() {
-        Err(Err::Error(Error::new(input, ErrorKind::Tag)))
-    } else {
-        match t1.token[0].clone() {
-            Token::Ident(name) => Ok((i1, Ident(name))),
-            _ => Err(Err::Error(Error::new(input, ErrorKind::Tag))),
-        }
+        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
+    }
+    
+    match &t1.token[0] {
+        Token::Ident(name) => Ok((i1, Ident(name.clone()))),
+        _ => Err(Err::Error(Error::new(input, ErrorKind::Tag))),
     }
 }
+
+// TOKEN TAGS
 
 tag_token!(let_tag, Token::Let);
 tag_token!(assign_tag, Token::Assign);
@@ -76,6 +89,8 @@ tag_token!(in_tag, Token::In);
 tag_token!(break_tag, Token::Break);
 tag_token!(continue_tag, Token::Continue);
 
+// OPERATOR PRECEDENCE
+
 fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     match *t {
         Token::Or => (Precedence::POr, Some(Infix::Or)),
@@ -97,6 +112,8 @@ fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
         _ => (Precedence::PLowest, None),
     }
 }
+
+// PROGRAM AND STATEMENTS
 
 fn parse_program(input: Tokens) -> IResult<Tokens, Program> {
     terminated(many0(parse_stmt), eof_tag)(input)
@@ -121,115 +138,132 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     ))(input)
 }
 
-// Helper to parse let statement without semicolon
+// ASSIGNMENT/EXPRESSION PARSING
+
+fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    // Fast path: simple identifier assignment
+    if matches!(peek_token(input), Some(Token::Ident(_))) {
+        if let Ok((after_ident, ident)) = parse_ident(input) {
+            if peek_matches(after_ident, Token::Assign) {
+                let (i1, _) = assign_tag(after_ident)?;
+                let (i2, expr) = parse_expr(i1)?;
+                let (i3, _) = semicolon_tag(i2)?;
+                return Ok((i3, Stmt::AssignStmt(ident, expr)));
+            }
+        }
+    }
+    
+    // Try complex assignments
+    if let Ok((after_lhs, lhs)) = parse_atom_expr(input) {
+        match peek_token(after_lhs) {
+            Some(Token::Dot) => {
+                if let Ok(res) = try_parse_field_assignment(after_lhs, lhs.clone()) {
+                    return Ok(res);
+                }
+            }
+            Some(Token::LBracket) => {
+                if let Ok(res) = try_parse_index_assignment(after_lhs, lhs.clone()) {
+                    return Ok(res);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    // Fallback
+    parse_expr_stmt(input)
+}
+
+fn try_parse_field_assignment(input: Tokens, object: Expr) -> IResult<Tokens, Stmt> {
+    let (i1, _) = dot_tag(input)?;
+    let (i2, Ident(field_name)) = parse_ident(i1)?;
+    
+    if !peek_matches(i2, Token::Assign) {
+        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
+    }
+    
+    let (i3, _) = assign_tag(i2)?;
+    let (i4, value) = parse_expr(i3)?;
+    let (i5, _) = semicolon_tag(i4)?;
+    
+    Ok((i5, Stmt::FieldAssignStmt {
+        object: Box::new(object),
+        field: field_name,
+        value: Box::new(value),
+    }))
+}
+
+fn try_parse_index_assignment(input: Tokens, target: Expr) -> IResult<Tokens, Stmt> {
+    let (i1, _) = lbracket_tag(input)?;
+    let (i2, index) = parse_expr(i1)?;
+    let (i3, _) = rbracket_tag(i2)?;
+    
+    if !peek_matches(i3, Token::Assign) {
+        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
+    }
+    
+    let (i4, _) = assign_tag(i3)?;
+    let (i5, value) = parse_expr(i4)?;
+    let (i6, _) = semicolon_tag(i5)?;
+    
+    Ok((i6, Stmt::IndexAssignStmt {
+        target: Box::new(target),
+        index: Box::new(index),
+        value: Box::new(value),
+    }))
+}
+
+// STATEMENT PARSERS
+
 fn parse_let_stmt_no_semicolon(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
-        tuple((
-            let_tag,
-            parse_ident,
-            assign_tag,
-            parse_expr,
-        )),
+        tuple((let_tag, parse_ident, assign_tag, parse_expr)),
         |(_, ident, _, expr)| Stmt::LetStmt(ident, expr),
     )(input)
 }
 
-// Helper to parse assignment without semicolon
 fn parse_assign_stmt_no_semicolon(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
-        tuple((
-            parse_ident,
-            assign_tag,
-            parse_expr,
-        )),
+        tuple((parse_ident, assign_tag, parse_expr)),
         |(ident, _, expr)| Stmt::AssignStmt(ident, expr),
     )(input)
 }
 
 fn parse_break_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        terminated(break_tag, semicolon_tag),
-        |_| Stmt::BreakStmt,
-    )(input)
+    map(terminated(break_tag, semicolon_tag), |_| Stmt::BreakStmt)(input)
 }
 
 fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        terminated(continue_tag, semicolon_tag),
-        |_| Stmt::ContinueStmt,
-    )(input)
-}
-
-fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    // Try to parse as identifier assignment: ident = expr
-    if let Ok((after_ident, ident)) = parse_ident(input) 
-        && let Ok((_, next_tokens)) = take::<_, _, Error<_>>(1usize)(after_ident) {
-            if !next_tokens.token.is_empty() && next_tokens.token[0] == Token::Assign {
-                let (i1, _) = assign_tag(after_ident)?;
-                let (i2, expr) = parse_expr(i1)?;
-                let (i3, _) = (semicolon_tag)(i2)?;
-                return Ok((i3, Stmt::AssignStmt(ident, expr)));
-            }
-    }
-    
-    // Try to parse as field assignment: expr.field = expr
-    if let Ok((after_expr, object_expr)) = parse_atom_expr(input) 
-        && let Ok((_, next_token)) = take::<_, _, Error<_>>(1usize)(after_expr) {
-            if !next_token.token.is_empty() && next_token.token[0] == Token::Dot {
-                // We have object.something -> check if it's a field assignment
-                let (after_dot, _) = dot_tag(after_expr)?;
-                if let Ok((after_field, field_ident)) = parse_ident(after_dot) {
-                    let Ident(field_name) = field_ident;
-                    // Check if next token is =
-                    if let Ok((_, assign_token)) = take::<_, _, Error<_>>(1usize)(after_field) {
-                        if !assign_token.token.is_empty() && assign_token.token[0] == Token::Assign {
-                            let (i1, _) = assign_tag(after_field)?;
-                            let (i2, value_expr) = parse_expr(i1)?;
-                            let (i3, _) = semicolon_tag(i2)?;
-                            return Ok((i3, Stmt::FieldAssignStmt {
-                                object: Box::new(object_expr),
-                                field: field_name,
-                                value: Box::new(value_expr),
-                            }));
-                        }
-                    }
-                }
-            } else if !next_token.token.is_empty() && next_token.token[0] == Token::LBracket {
-                let (after_lbracket, _) = lbracket_tag(after_expr)?;
-                let (after_index, index_expr) = parse_expr(after_lbracket)?;
-                let (after_rbracket, _) = rbracket_tag(after_index)?;
-                
-                // Check if next token is "=" (index assignment)
-                if let Ok((_, assign_token)) = take::<_, _, Error<_>>(1usize)(after_rbracket) {
-                    if !assign_token.token.is_empty() && assign_token.token[0] == Token::Assign {
-                        let (i1, _) = assign_tag(after_rbracket)?;
-                        let (i2, value_expr) = parse_expr(i1)?;
-                        let (i3, _) = semicolon_tag(i2)?;
-                        return Ok((i3, Stmt::IndexAssignStmt {
-                            target: Box::new(object_expr),
-                            index: Box::new(index_expr),
-                            value: Box::new(value_expr),
-                        }));
-                    }
-                }
-            }
-    }
-    
-    // Fallback to expression statement
-    parse_expr_stmt(input)
+    map(terminated(continue_tag, semicolon_tag), |_| Stmt::ContinueStmt)(input)
 }
 
 fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
-        tuple((
-            let_tag,
-            parse_ident,
-            assign_tag,
-            parse_expr,
-            (semicolon_tag),
-        )),
+        tuple((let_tag, parse_ident, assign_tag, parse_expr, semicolon_tag)),
         |(_, ident, _, expr, _)| Stmt::LetStmt(ident, expr),
     )(input)
+}
+
+fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((return_tag, parse_expr, semicolon_tag)),
+        |(_, expr, _)| Stmt::ReturnStmt(expr),
+    )(input)
+}
+
+fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    let (after_expr, expr) = parse_expr(input)?;
+    
+    if peek_matches(after_expr, Token::SemiColon) {
+        let (i1, _) = semicolon_tag(after_expr)?;
+        Ok((i1, Stmt::ExprStmt(expr)))
+    } else {
+        Ok((after_expr, Stmt::ExprValueStmt(expr)))
+    }
+}
+
+fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
+    braced(many0(parse_stmt))(input)
 }
 
 fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -237,406 +271,200 @@ fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         tuple((
             function_tag,
             parse_ident,
-            lparen_tag,
-            alt((parse_params, empty_params)),
-            rparen_tag,
+            parens(comma_separated0(parse_ident)),
             parse_block_stmt,
-            opt(semicolon_tag)
         )),
-        |(_, name, _, params, _, body, _)| Stmt::FnStmt {
-            name,
-            params,
-            body,
-        },
+        |(_, name, params, body)| Stmt::FnStmt { name, params, body },
     )(input)
 }
 
-fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        delimited(return_tag, parse_expr, opt(semicolon_tag)),
-        Stmt::ReturnStmt,
-    )(input)
-}
-
-fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    let (i1, expr) = parse_expr(input)?;
-    
-    // Semicolon not needed in: if, while, for, break, continue
-    let needs_semicolon = !matches!(
-        expr,
-        Expr::IfExpr { .. } | Expr::WhileExpr { .. } | Expr::ForExpr { .. } | Expr::CStyleForExpr { .. } | Expr::FnExpr { .. }
-    );
-    
-    if needs_semicolon {
-        let (i2, _) = semicolon_tag(i1)?;
-        Ok((i2, Stmt::ExprStmt(expr)))
-    } else {
-        if let Ok((i2, _)) = semicolon_tag(i1) {
-            Ok((i2, Stmt::ExprStmt(expr)))
-        } else {
-            Ok((i1, Stmt::ExprValueStmt(expr)))
-        }
-    }
-}
-
-fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
-    let (input, _) = lbrace_tag(input)?;
-    let (input, mut stmts) = many0(parse_stmt)(input)?;
-    
-    let (input, maybe_expr) = opt(parse_expr)(input)?;
-    if let Some(expr) = maybe_expr {
-        stmts.push(Stmt::ExprValueStmt(expr));
-    }
-    
-    let (input, _) = rbrace_tag(input)?;
-    Ok((input, stmts))
-}
+// EXPRESSION PARSING
 
 fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
     alt((
-        parse_lit_expr,
+        parse_literal_expr,
+        parse_ident_or_struct_literal,
+        parse_fn_expr,
+        parse_if_expr,
         parse_this_expr,
-        parse_struct_literal,
-        parse_ident_expr,
-        parse_prefix_expr,
-        parse_paren_expr,
         parse_array_expr,
         parse_hash_expr,
-        parse_if_expr,
-        parse_fn_expr,
+        parse_prefix_expr,
+        parens(parse_expr),
     ))(input)
 }
 
-fn parse_paren_expr(input: Tokens) -> IResult<Tokens, Expr> {
-    delimited(lparen_tag, parse_expr, rparen_tag)(input)
+fn parse_pratt_expr(input: Tokens, precedence: Precedence) -> IResult<Tokens, Expr> {
+    let (mut i, mut left) = parse_atom_expr(input)?;
+
+    loop {
+        let Some(curr_token) = peek_token(i) else { break };
+        let (peek_precedence, _) = infix_op(curr_token);
+
+        if precedence >= peek_precedence || peek_precedence == Precedence::PLowest {
+            break;
+        }
+
+        match curr_token {
+            Token::LParen => {
+                let (i2, args) = parens(comma_separated0(parse_expr))(i)?;
+                left = Expr::CallExpr {
+                    function: Box::new(left),
+                    arguments: args,
+                };
+                i = i2;
+            }
+            Token::LBracket => {
+                let (i2, index) = bracketed(parse_expr)(i)?;
+                left = Expr::IndexExpr {
+                    array: Box::new(left),
+                    index: Box::new(index),
+                };
+                i = i2;
+            }
+            Token::Dot => {
+                let (i1, _) = dot_tag(i)?;
+                let (i2, Ident(field_name)) = parse_ident(i1)?;
+
+                if peek_matches(i2, Token::LParen) {
+                    let (i3, args) = parens(comma_separated0(parse_expr))(i2)?;
+                    left = Expr::MethodCallExpr {
+                        object: Box::new(left),
+                        method: field_name,
+                        arguments: args,
+                    };
+                    i = i3;
+                } else {
+                    left = Expr::FieldAccessExpr {
+                        object: Box::new(left),
+                        field: field_name,
+                    };
+                    i = i2;
+                }
+            }
+            _ => {
+                let (_, infix_op_opt) = infix_op(curr_token);
+                if let Some(infix) = infix_op_opt {
+                    let (i1, _) = take(1usize)(i)?;
+                    let (i2, right) = parse_pratt_expr(i1, peek_precedence)?;
+                    left = Expr::InfixExpr(infix, Box::new(left), Box::new(right));
+                    i = i2;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok((i, left))
 }
 
-fn parse_lit_expr(input: Tokens) -> IResult<Tokens, Expr> {
+fn parse_literal_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(parse_literal, Expr::LitExpr)(input)
 }
 
-fn parse_ident_expr(input: Tokens) -> IResult<Tokens, Expr> {
-    map(parse_ident, Expr::IdentExpr)(input)
-}
-
-fn parse_comma_exprs(input: Tokens) -> IResult<Tokens, Expr> {
-    preceded(comma_tag, parse_expr)(input)
-}
-
-fn parse_exprs(input: Tokens) -> IResult<Tokens, Vec<Expr>> {
-    map(
-        pair(parse_expr, many0(parse_comma_exprs)),
-        |(first, second)| [&vec![first][..], &second[..]].concat(),
-    )(input)
-}
-
-fn empty_boxed_vec(input: Tokens) -> IResult<Tokens, Vec<Expr>> {
-    Ok((input, vec![]))
-}
-
-fn parse_array_expr(input: Tokens) -> IResult<Tokens, Expr> {
-    map(
-        delimited(
-            lbracket_tag,
-            alt((parse_exprs, empty_boxed_vec)),
-            rbracket_tag,
-        ),
-        Expr::ArrayExpr,
-    )(input)
-}
-
-fn parse_hash_pair(input: Tokens) -> IResult<Tokens, (Expr, Expr)> {
-    separated_pair(parse_expr, colon_tag, parse_expr)(input)
-}
-
-fn parse_hash_comma_expr(input: Tokens) -> IResult<Tokens, (Expr, Expr)> {
-    preceded(comma_tag, parse_hash_pair)(input)
-}
-
-fn parse_hash_pairs(input: Tokens) -> IResult<Tokens, Vec<(Expr, Expr)>> {
-    map(
-        pair(parse_hash_pair, many0(parse_hash_comma_expr)),
-        |(first, second)| [&vec![first][..], &second[..]].concat(),
-    )(input)
-}
-
-fn empty_pairs(input: Tokens) -> IResult<Tokens, Vec<(Expr, Expr)>> {
-    Ok((input, vec![]))
-}
-
-fn parse_hash_expr(input: Tokens) -> IResult<Tokens, Expr> {
-    map(
-        delimited(lbrace_tag, alt((parse_hash_pairs, empty_pairs)), rbrace_tag),
-        Expr::HashExpr,
-    )(input)
+fn parse_ident_or_struct_literal(input: Tokens) -> IResult<Tokens, Expr> {
+    let (after_ident, ident) = parse_ident(input)?;
+    
+    if peek_matches(after_ident, Token::LBrace) {
+        let (i1, fields) = braced(comma_separated0(separated_pair(
+            parse_ident,
+            colon_tag,
+            parse_expr,
+        )))(after_ident)?;
+        Ok((i1, Expr::StructLiteral { name: ident, fields }))
+    } else {
+        Ok((after_ident, Expr::IdentExpr(ident)))
+    }
 }
 
 fn parse_prefix_expr(input: Tokens) -> IResult<Tokens, Expr> {
-    let (i1, t1) = alt((plus_tag, minus_tag, not_tag))(input)?;
-    if t1.token.is_empty() {
-        Err(Err::Error(error_position!(input, ErrorKind::Tag)))
-    } else {
-        let (i2, e) = parse_atom_expr(i1)?;
-        match t1.token[0].clone() {
-            Token::Plus => Ok((i2, Expr::PrefixExpr(Prefix::PrefixPlus, Box::new(e)))),
-            Token::Minus => Ok((i2, Expr::PrefixExpr(Prefix::PrefixMinus, Box::new(e)))),
-            Token::Not => Ok((i2, Expr::PrefixExpr(Prefix::Not, Box::new(e)))),
-            _ => Err(Err::Error(error_position!(input, ErrorKind::Tag))),
-        }
-    }
-}
-
-fn parse_pratt_expr(input: Tokens, precedence: Precedence) -> IResult<Tokens, Expr> {
-    let (i1, left) = parse_atom_expr(input)?;
-    go_parse_pratt_expr(i1, precedence, left)
-}
-
-fn go_parse_pratt_expr(input: Tokens, precedence: Precedence, left: Expr) -> IResult<Tokens, Expr> {
     let (i1, t1) = take(1usize)(input)?;
-
+    
     if t1.token.is_empty() {
-        Ok((i1, left))
-    } else {
-        let preview = &t1.token[0];
-        let p = infix_op(preview);
-        match p {
-            (Precedence::PCall, _) if precedence < Precedence::PCall => {
-                match preview {
-                    Token::LParen => {
-                        let (i2, left2) = parse_call_expr(input, left)?;
-                        go_parse_pratt_expr(i2, precedence, left2)
-                    }
-                    Token::Dot => {
-                        let (i2, left2) = parse_method_call_expr(input, left)?;
-                        go_parse_pratt_expr(i2, precedence, left2)
-                    }
-                    _ => Ok((input, left))
-                }
-            }
-            (Precedence::PIndex, _) if precedence < Precedence::PIndex => {
-                let (i2, left2) = parse_index_expr(input, left)?;
-                go_parse_pratt_expr(i2, precedence, left2)
-            }
-            (ref peek_precedence, _) if precedence < *peek_precedence => {
-                let (i2, left2) = parse_infix_expr(input, left)?;
-                go_parse_pratt_expr(i2, precedence, left2)
-            }
-            _ => Ok((input, left)),
-        }
+        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
     }
-}
 
-fn parse_infix_expr(input: Tokens, left: Expr) -> IResult<Tokens, Expr> {
-    let (i1, t1) = take(1usize)(input)?;
-    if t1.token.is_empty() {
-        Err(Err::Error(error_position!(input, ErrorKind::Tag)))
-    } else {
-        let next = &t1.token[0];
-        let (precedence, maybe_op) = infix_op(next);
-        match maybe_op {
-            None => Err(Err::Error(error_position!(input, ErrorKind::Tag))),
-            Some(op) => {
-                let (i2, right) = parse_pratt_expr(i1, precedence)?;
-                Ok((i2, Expr::InfixExpr(op, Box::new(left), Box::new(right))))
-            }
-        }
-    }
-}
+    let prefix = match t1.token[0] {
+        Token::Not => Prefix::Not,
+        Token::Plus => Prefix::PrefixPlus,
+        Token::Minus => Prefix::PrefixMinus,
+        _ => return Err(Err::Error(Error::new(input, ErrorKind::Tag))),
+    };
 
-fn parse_call_expr(input: Tokens, fn_handle: Expr) -> IResult<Tokens, Expr> {
-    map(
-        delimited(lparen_tag, alt((parse_exprs, empty_boxed_vec)), rparen_tag),
-        |e| Expr::CallExpr {
-            function: Box::new(fn_handle.clone()),
-            arguments: e,
-        },
-    )(input)
-}
-
-fn parse_index_expr(input: Tokens, arr: Expr) -> IResult<Tokens, Expr> {
-    map(delimited(lbracket_tag, parse_expr, rbracket_tag), |idx| {
-        Expr::IndexExpr {
-            array: Box::new(arr.clone()),
-            index: Box::new(idx),
-        }
-    })(input)
+    let (i2, expr) = parse_pratt_expr(i1, Precedence::PPrefix)?;
+    Ok((i2, Expr::PrefixExpr(prefix, Box::new(expr))))
 }
 
 fn parse_if_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(
         tuple((
             if_tag,
-            lparen_tag,
-            parse_expr,
-            rparen_tag,
+            parens(parse_expr),
             parse_block_stmt,
-            parse_else_expr,
+            opt(preceded(else_tag, parse_block_stmt)),
         )),
-        |(_, _, expr, _, c, a)| Expr::IfExpr {
-            cond: Box::new(expr),
-            consequence: c,
-            alternative: a,
+        |(_, cond, consequence, alternative)| Expr::IfExpr {
+            cond: Box::new(cond),
+            consequence,
+            alternative,
         },
     )(input)
-}
-
-fn parse_else_expr(input: Tokens) -> IResult<Tokens, Option<Program>> {
-    opt(preceded(
-        else_tag,
-        alt((
-            parse_block_stmt,
-            map(parse_if_expr, |expr| vec![Stmt::ExprStmt(expr)]),
-        )),
-    ))(input)
-}
-
-fn empty_params(input: Tokens) -> IResult<Tokens, Vec<Ident>> {
-    Ok((input, vec![]))
 }
 
 fn parse_fn_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(
-        tuple((
-            function_tag,
-            opt(parse_ident),
-            lparen_tag,
-            alt((parse_params, empty_params)),
-            rparen_tag,
-            parse_block_stmt,
-        )),
-        |(_, _, _, p, _, b)| Expr::FnExpr { params: p, body: b },
+        tuple((function_tag, parens(comma_separated0(parse_ident)), parse_block_stmt)),
+        |(_, params, body)| Expr::FnExpr { params, body },
     )(input)
 }
 
-fn parse_params(input: Tokens) -> IResult<Tokens, Vec<Ident>> {
+fn parse_array_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    map(bracketed(comma_separated0(parse_expr)), Expr::ArrayExpr)(input)
+}
+
+fn parse_hash_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(
-        pair(parse_ident, many0(preceded(comma_tag, parse_ident))),
-        |(p, ps)| [&vec![p][..], &ps[..]].concat(),
+        braced(comma_separated0(separated_pair(parse_expr, colon_tag, parse_expr))),
+        Expr::HashExpr,
     )(input)
-}
-
-fn parse_method_call_expr(input: Tokens, object: Expr) -> IResult<Tokens, Expr> {
-    let (i1, _) = dot_tag(input)?;
-    let (i2, method_ident) = parse_ident(i1)?;
-    let Ident(method_name) = method_ident;
-    
-    let (_i3, t3) = take(1usize)(i2)?;
-    if !t3.token.is_empty() && t3.token[0] == Token::LParen {
-        // It's a method call
-        map(
-            delimited(lparen_tag, alt((parse_exprs, empty_boxed_vec)), rparen_tag),
-            |args| Expr::MethodCallExpr {
-                object: Box::new(object.clone()),
-                method: method_name.clone(),
-                arguments: args,
-            },
-        )(i2)
-    } else {
-        // It's a field access
-        Ok((i2, Expr::FieldAccessExpr {
-            object: Box::new(object),
-            field: method_name,
-        }))
-    }
-}
-
-fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        tuple((
-            struct_tag,
-            parse_ident,
-            lbrace_tag,
-            parse_struct_body,
-            rbrace_tag,
-            opt(semicolon_tag)
-        )),
-        |(_, name, _, (fields, methods), _, _)| Stmt::StructStmt {
-            name,
-            fields,
-            methods,
-        },
-    )(input)
-}
-
-fn parse_struct_body(input: Tokens) -> IResult<Tokens, (Vec<(Ident, Expr)>, Vec<(Ident, Expr)>)> {
-    let (i1, pairs) = alt((parse_struct_pairs, empty_struct_pairs))(input)?;
-    
-    let mut fields = Vec::new();
-    let mut methods = Vec::new();
-    
-    for (ident, expr) in pairs {
-        match expr {
-            Expr::FnExpr { .. } => methods.push((ident, expr)),
-            _ => fields.push((ident, expr)),
-        }
-    }
-    Ok((i1, (fields, methods)))
-}
-
-fn parse_struct_pair(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
-    separated_pair(parse_ident, colon_tag, parse_expr)(input)
-}
-
-fn parse_struct_comma_pair(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
-    preceded(comma_tag, parse_struct_pair)(input)
-}
-
-fn parse_struct_pairs(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
-    map(
-        pair(parse_struct_pair, many0(parse_struct_comma_pair)),
-        |(first, second)| [&vec![first][..], &second[..]].concat(),
-    )(input)
-}
-
-fn empty_struct_pairs(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
-    Ok((input, vec![]))
-}
-
-fn parse_struct_literal(input: Tokens) -> IResult<Tokens, Expr> {
-    map(
-        tuple((
-            parse_ident,
-            lbrace_tag,
-            alt((parse_field_assignments, empty_field_assignments)),
-            rbrace_tag,
-        )),
-        |(name, _, fields, _)| Expr::StructLiteral { name, fields },
-    )(input)
-}
-
-fn parse_field_assignment(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
-    separated_pair(parse_ident, colon_tag, parse_expr)(input)
-}
-
-fn parse_comma_field_assignment(input: Tokens) -> IResult<Tokens, (Ident, Expr)> {
-    preceded(comma_tag, parse_field_assignment)(input)
-}
-
-fn parse_field_assignments(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
-    map(
-        pair(parse_field_assignment, many0(parse_comma_field_assignment)),
-        |(first, second)| [&vec![first][..], &second[..]].concat(),
-    )(input)
-}
-
-fn empty_field_assignments(input: Tokens) -> IResult<Tokens, Vec<(Ident, Expr)>> {
-    Ok((input, vec![]))
 }
 
 fn parse_this_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(this_tag, |_| Expr::ThisExpr)(input)
 }
 
-fn parse_while_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+// STRUCT PARSING
+
+fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
         tuple((
-            while_tag,
-            lparen_tag,
-            parse_expr,
-            rparen_tag,
-            parse_block_stmt,
+            struct_tag,
+            parse_ident,
+            braced(comma_separated0(separated_pair(parse_ident, colon_tag, parse_expr))),
         )),
-        |(_, _, cond, _, body)| Stmt::ExprStmt(Expr::WhileExpr {
+        |(_, name, pairs)| {
+            let mut fields = Vec::new();
+            let mut methods = Vec::new();
+            
+            for (ident, expr) in pairs {
+                match expr {
+                    Expr::FnExpr { .. } => methods.push((ident, expr)),
+                    _ => fields.push((ident, expr)),
+                }
+            }
+            
+            Stmt::StructStmt { name, fields, methods }
+        },
+    )(input)
+}
+
+// LOOP STATEMENTS
+
+fn parse_while_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((while_tag, parens(parse_expr), parse_block_stmt)),
+        |(_, cond, body)| Stmt::ExprStmt(Expr::WhileExpr {
             cond: Box::new(cond),
             body,
         }),
@@ -647,52 +475,31 @@ fn parse_for_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     let (i1, _) = for_tag(input)?;
     let (i2, _) = lparen_tag(i1)?;
 
-    // Has "let" -> c style
-    // Ident followed by "in" -> for-in
-    // Ident followed by "=" -> c style
-    
-    let (_lookahead, first_token) = take(1usize)(i2)?;
-    
-    if !first_token.token.is_empty() {
-        match &first_token.token[0] {
-            Token::Let => {
-                return parse_c_style_for(i2);
-            }
-            Token::Ident(_) => {
-                if let Ok((after_ident, _)) = parse_ident(i2) {
-                    if let Ok((_, next_token)) = take::<_, _, nom::error::Error<_>>(1usize)(after_ident) {
-                        if !next_token.token.is_empty() {
-                            match &next_token.token[0] {
-                                Token::In => {
-                                    // for-in loop: for (fruit in fruits)
-                                    // wont use parse_c_style_for, parse directly
-                                }
-                                Token::Assign => {
-                                    // c style loop
-                                    return parse_c_style_for(i2);
-                                }
-                                _ => {
-                                    // Unknown, try for-in as fallback
-                                }
-                            }
-                        }
-                    }
+    match peek_token(i2) {
+        Some(Token::Let) => parse_c_style_for(i2),
+        Some(Token::Ident(_)) => {
+            if let Ok((after_ident, _)) = parse_ident(i2) {
+                if peek_matches(after_ident, Token::In) {
+                    parse_for_in_loop(i2)
+                } else {
+                    parse_c_style_for(i2)
                 }
-            }
-            _ => {
-                // Something else, probably an error but try for-in
+            } else {
+                parse_c_style_for(i2)
             }
         }
+        _ => parse_c_style_for(i2),
     }
+}
+
+fn parse_for_in_loop(input: Tokens) -> IResult<Tokens, Stmt> {
+    let (i1, ident) = parse_ident(input)?;
+    let (i2, _) = in_tag(i1)?;
+    let (i3, iterable) = parse_expr(i2)?;
+    let (i4, _) = rparen_tag(i3)?;
+    let (i5, body) = parse_block_stmt(i4)?;
     
-    // Parse as for-in loop
-    let (i3, ident) = parse_ident(i2)?;
-    let (i4, _) = in_tag(i3)?;
-    let (i5, iterable) = parse_expr(i4)?;
-    let (i6, _) = rparen_tag(i5)?;
-    let (i7, body) = parse_block_stmt(i6)?;
-    
-    Ok((i7, Stmt::ExprStmt(Expr::ForExpr {
+    Ok((i5, Stmt::ExprStmt(Expr::ForExpr {
         ident,
         iterable: Box::new(iterable),
         body,
@@ -700,22 +507,15 @@ fn parse_for_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_c_style_for(input: Tokens) -> IResult<Tokens, Stmt> {
-    // Parse init (optional let statement or assignment)
     let (i1, init) = opt(alt((
-        map(parse_let_stmt_no_semicolon, |stmt| Box::new(stmt)),
-        map(parse_assign_stmt_no_semicolon, |stmt| Box::new(stmt)),
+        map(parse_let_stmt_no_semicolon, Box::new),
+        map(parse_assign_stmt_no_semicolon, Box::new),
     )))(input)?;
     
     let (i2, _) = semicolon_tag(i1)?;
-    
-    // Parse condition (optional expression)
-    let (i3, cond) = opt(map(parse_expr, |expr| Box::new(expr)))(i2)?;
-    
+    let (i3, cond) = opt(map(parse_expr, Box::new))(i2)?;
     let (i4, _) = semicolon_tag(i3)?;
-    
-    // Parse update (optional assignment)
-    let (i5, update) = opt(map(parse_assign_stmt_no_semicolon, |stmt| Box::new(stmt)))(i4)?;
-    
+    let (i5, update) = opt(map(parse_assign_stmt_no_semicolon, Box::new))(i4)?;
     let (i6, _) = rparen_tag(i5)?;
     let (i7, body) = parse_block_stmt(i6)?;
     
@@ -727,11 +527,11 @@ fn parse_c_style_for(input: Tokens) -> IResult<Tokens, Stmt> {
     })))
 }
 
+// IMPORT STATEMENT
+
 fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     let (i1, _) = import_tag(input)?;
-
-    let (i2, first_ident) = parse_ident(i1)?;
-    let Ident(first) = first_ident;
+    let (i2, Ident(first)) = parse_ident(i1)?;
     let mut path = vec![first];
 
     let (i3, rest) = many0(preceded(dot_tag, parse_ident))(i2)?;
@@ -739,43 +539,17 @@ fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         path.push(name);
     }
     
-    // Check what comes next
-    let (_i4, t4) = take(1usize)(i3)?;
-    
-    let (i5, items) = if !t4.token.is_empty() && t4.token[0] == Token::Dot {
-        // We have .{...} for specific imports
+    let (i4, items) = if peek_matches(i3, Token::Dot) {
         let (i_dot, _) = dot_tag(i3)?;
-        let (i_items, parsed_items) = parse_specific_imports_body(i_dot)?;
-        (i_items, parsed_items)
+        let (i_items, idents) = braced(comma_separated1(parse_ident))(i_dot)?;
+        let names = idents.into_iter().map(|Ident(n)| n).collect();
+        (i_items, ImportItems::Specific(names))
     } else {
-        // Import everything
         (i3, ImportItems::All)
     };
     
-    let (i6, _) = semicolon_tag(i5)?;
-    
-    Ok((i6, Stmt::ImportStmt { path, items }))
-}
-
-fn parse_specific_imports_body(input: Tokens) -> IResult<Tokens, ImportItems> {
-    delimited(
-        lbrace_tag,
-        map(
-            pair(
-                parse_ident,
-                many0(preceded(comma_tag, parse_ident))
-            ),
-            |(first, rest)| {
-                let Ident(first_name) = first;
-                let mut items = vec![first_name];
-                for Ident(name) in rest {
-                    items.push(name);
-                }
-                ImportItems::Specific(items)
-            }
-        ),
-        rbrace_tag,
-    )(input)
+    let (i5, _) = semicolon_tag(i4)?;
+    Ok((i5, Stmt::ImportStmt { path, items }))
 }
 
 pub struct Parser;
