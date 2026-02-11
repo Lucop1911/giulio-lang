@@ -189,7 +189,7 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                     | Expr::ForExpr { .. }
                     | Expr::CStyleForExpr { .. }
             );
-            let is_implicit_return = peek_matches(after_expr, Token::RBrace);
+            let is_implicit_return = peek_matches(after_expr, Token::RBrace) || peek_matches(after_expr, Token::EOF);
 
             if is_block_expr || is_implicit_return {
                 Ok((after_expr, Stmt::ExprValueStmt(expr)))
