@@ -422,8 +422,9 @@ fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
             struct_tag,
             parse_ident,
             braced(comma_separated0(separated_pair(parse_ident, colon_tag, parse_expr))),
+            opt(semicolon_tag)
         )),
-        |(_, name, pairs)| {
+        |(_, name, pairs, _)| {
             let mut fields = Vec::new();
             let mut methods = Vec::new();
             
