@@ -3,7 +3,7 @@ use nom::bytes::complete::{tag, take, is_not};
 use nom::character::complete::{alpha1, alphanumeric1, digit1, multispace0, line_ending};
 use nom::combinator::{map, map_res, recognize, value, opt};
 use nom::multi::many0;
-use nom::sequence::{delimited, pair, preceded};
+use nom::sequence::{pair, preceded};
 use nom::*;
 use num_bigint::BigInt;
 
@@ -121,10 +121,14 @@ fn parse_string_contents(input: &[u8]) -> IResult<&[u8], String> {
 }
 
 fn lex_string(input: &[u8]) -> IResult<&[u8], Token> {
-    map(
-        delimited(tag("\""), parse_string_contents, tag("\"")),
-        Token::StringLiteral
-    )(input)
+    let (input, _) = tag("\"")(input)?;
+
+    let (input, contents) = parse_string_contents(input)?;
+
+    let (input, _) = tag("\"")(input)
+        .map_err(|_: nom::Err<nom::error::Error<&[u8]>>| nom::Err::Failure(nom::error::Error::new(input, nom::error::ErrorKind::Tag)))?;
+
+    Ok((input, Token::StringLiteral(contents)))
 }
 
 fn complete_byte_slice_str_from_utf8(c: &[u8]) -> Result<&str, Utf8Error> {

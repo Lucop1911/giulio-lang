@@ -4,7 +4,6 @@ use nom::{IResult, branch::alt, multi::many0};
 use nom::sequence::*;
 use std::result::Result::*;
 
-
 // Peek at the next token without consuming it
 #[inline]
 pub fn peek_token(input: Tokens<'_>) -> Option<&'_ Token> {

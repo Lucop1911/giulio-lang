@@ -1,6 +1,6 @@
 use nom::{IResult, branch::*};
 use nom::bytes::complete::take;
-use nom::combinator::{map, opt, verify};
+use nom::combinator::{cut, map, opt, verify};
 use nom::error::{Error, ErrorKind};
 use nom::multi::many0;
 use nom::sequence::*;
@@ -134,84 +134,74 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         parse_for_stmt,
         parse_break_stmt,
         parse_continue_stmt,
-        parse_assign_or_expr_stmt,
+        parse_expr_or_assign_stmt,
     ))(input)
 }
 
 // ASSIGNMENT/EXPRESSION PARSING
 
-fn parse_assign_or_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    // Fast path: simple identifier assignment
-    if matches!(peek_token(input), Some(Token::Ident(_))) {
-        if let Ok((after_ident, ident)) = parse_ident(input) {
-            if peek_matches(after_ident, Token::Assign) {
-                let (i1, _) = assign_tag(after_ident)?;
-                let (i2, expr) = parse_expr(i1)?;
-                let (i3, _) = semicolon_tag(i2)?;
-                return Ok((i3, Stmt::AssignStmt(ident, expr)));
+fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    let (i1, lhs_expr) = parse_expr(input)?;
+
+    if peek_matches(i1, Token::Assign) {
+        // This is an assignment statement
+        let (i2, _) = assign_tag(i1)?;
+        let (i3, rhs_expr) = parse_expr(i2)?;
+        let (i4, _) = semicolon_tag(i3)?;
+
+        match lhs_expr {
+            Expr::IdentExpr(ident) => Ok((i4, Stmt::AssignStmt(ident, rhs_expr))),
+            Expr::FieldAccessExpr { object, field } => Ok((
+                i4,
+                Stmt::FieldAssignStmt {
+                    object,
+                    field,
+                    value: Box::new(rhs_expr),
+                },
+            )),
+            Expr::IndexExpr { array, index } => Ok((
+                i4,
+                Stmt::IndexAssignStmt {
+                    target: array,
+                    index,
+                    value: Box::new(rhs_expr),
+                },
+            )),
+            _ => {
+                // Invalid l-value for assignment
+                Err(Err::Error(Error::new(input, ErrorKind::Verify)))
+            }
+        }
+    } else {
+        // This is an expression statement
+        let after_expr = i1;
+        let expr = lhs_expr;
+
+        if peek_matches(after_expr, Token::SemiColon) {
+            let (i_final, _) = semicolon_tag(after_expr)?;
+            Ok((i_final, Stmt::ExprStmt(expr)))
+        } else {
+            let is_block_expr = matches!(
+                &expr,
+                Expr::IfExpr { .. }
+                    | Expr::FnExpr { .. }
+                    | Expr::WhileExpr { .. }
+                    | Expr::ForExpr { .. }
+                    | Expr::CStyleForExpr { .. }
+            );
+            let is_implicit_return = peek_matches(after_expr, Token::RBrace);
+
+            if is_block_expr || is_implicit_return {
+                Ok((after_expr, Stmt::ExprValueStmt(expr)))
+            } else {
+                // Expect a semicolon for other expression statements
+                let (i_final, _) = cut(semicolon_tag)(after_expr)?;
+                Ok((i_final, Stmt::ExprStmt(expr)))
             }
         }
     }
-    
-    // Try complex assignments
-    if let Ok((after_lhs, lhs)) = parse_atom_expr(input) {
-        match peek_token(after_lhs) {
-            Some(Token::Dot) => {
-                if let Ok(res) = try_parse_field_assignment(after_lhs, lhs.clone()) {
-                    return Ok(res);
-                }
-            }
-            Some(Token::LBracket) => {
-                if let Ok(res) = try_parse_index_assignment(after_lhs, lhs.clone()) {
-                    return Ok(res);
-                }
-            }
-            _ => {}
-        }
-    }
-    
-    // Fallback
-    parse_expr_stmt(input)
 }
 
-fn try_parse_field_assignment(input: Tokens, object: Expr) -> IResult<Tokens, Stmt> {
-    let (i1, _) = dot_tag(input)?;
-    let (i2, Ident(field_name)) = parse_ident(i1)?;
-    
-    if !peek_matches(i2, Token::Assign) {
-        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
-    }
-    
-    let (i3, _) = assign_tag(i2)?;
-    let (i4, value) = parse_expr(i3)?;
-    let (i5, _) = semicolon_tag(i4)?;
-    
-    Ok((i5, Stmt::FieldAssignStmt {
-        object: Box::new(object),
-        field: field_name,
-        value: Box::new(value),
-    }))
-}
-
-fn try_parse_index_assignment(input: Tokens, target: Expr) -> IResult<Tokens, Stmt> {
-    let (i1, _) = lbracket_tag(input)?;
-    let (i2, index) = parse_expr(i1)?;
-    let (i3, _) = rbracket_tag(i2)?;
-    
-    if !peek_matches(i3, Token::Assign) {
-        return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
-    }
-    
-    let (i4, _) = assign_tag(i3)?;
-    let (i5, value) = parse_expr(i4)?;
-    let (i6, _) = semicolon_tag(i5)?;
-    
-    Ok((i6, Stmt::IndexAssignStmt {
-        target: Box::new(target),
-        index: Box::new(index),
-        value: Box::new(value),
-    }))
-}
 
 // STATEMENT PARSERS
 
@@ -244,38 +234,22 @@ fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     )(input)
 }
 
+fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((function_tag, parse_ident, parens(comma_separated0(parse_ident)), parse_block_stmt)),
+        |(_, name, params, body)| Stmt::FnStmt { name, params, body },
+    )(input)
+}
+
 fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
-        tuple((return_tag, parse_expr, semicolon_tag)),
+        tuple((return_tag, parse_expr, opt(semicolon_tag))),
         |(_, expr, _)| Stmt::ReturnStmt(expr),
     )(input)
 }
 
-fn parse_expr_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    let (after_expr, expr) = parse_expr(input)?;
-    
-    if peek_matches(after_expr, Token::SemiColon) {
-        let (i1, _) = semicolon_tag(after_expr)?;
-        Ok((i1, Stmt::ExprStmt(expr)))
-    } else {
-        Ok((after_expr, Stmt::ExprValueStmt(expr)))
-    }
-}
-
 fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
     braced(many0(parse_stmt))(input)
-}
-
-fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        tuple((
-            function_tag,
-            parse_ident,
-            parens(comma_separated0(parse_ident)),
-            parse_block_stmt,
-        )),
-        |(_, name, params, body)| Stmt::FnStmt { name, params, body },
-    )(input)
 }
 
 // EXPRESSION PARSING
@@ -402,7 +376,13 @@ fn parse_if_expr(input: Tokens) -> IResult<Tokens, Expr> {
             if_tag,
             parens(parse_expr),
             parse_block_stmt,
-            opt(preceded(else_tag, parse_block_stmt)),
+            opt(preceded(
+                else_tag,
+                alt((
+                    map(parse_if_expr, |expr| vec![Stmt::ExprValueStmt(expr)]),
+                    parse_block_stmt,
+                )),
+            )),
         )),
         |(_, cond, consequence, alternative)| Expr::IfExpr {
             cond: Box::new(cond),
