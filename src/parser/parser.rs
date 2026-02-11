@@ -236,8 +236,8 @@ fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 
 fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
-        tuple((function_tag, parse_ident, parens(comma_separated0(parse_ident)), parse_block_stmt)),
-        |(_, name, params, body)| Stmt::FnStmt { name, params, body },
+        tuple((function_tag, parse_ident, parens(comma_separated0(parse_ident)), parse_block_stmt, opt(semicolon_tag))),
+        |(_, name, params, body, _)| Stmt::FnStmt { name, params, body },
     )(input)
 }
 
