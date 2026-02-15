@@ -7,6 +7,7 @@ pub mod helpers;
 
 #[cfg(test)]
 mod tests {
+    use nom::error::ErrorKind;
     use crate::ast::ast::Program;
     use crate::lexer::lexer::Lexer;
     use crate::lexer::token::Tokens;
@@ -14,7 +15,7 @@ mod tests {
     use crate::interpreter::eval::Evaluator;
     use crate::interpreter::obj::Object;
 
-    fn parse_test_helper(input: &str) -> Program {
+    pub fn parse_test_helper(input: &str) -> Program {
         let (remaining, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
         assert_eq!(remaining.len(), 0, "Lexer did not consume all input");
         let tokens_wrapper = Tokens::new(&tokens);
@@ -25,7 +26,21 @@ mod tests {
         program
     }
 
-    fn eval_test_helper(input: &str) -> Object {
+    // New helper to parse programs that are expected to fail during parsing
+    pub fn parse_program_expect_error(input: &str) -> nom::error::ErrorKind {
+        let (remaining, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+        assert_eq!(remaining.len(), 0, "Lexer did not consume all input");
+        let tokens_wrapper = Tokens::new(&tokens);
+        let result = Parser::parse_tokens(tokens_wrapper);
+        assert!(result.is_err(), "Parser was expected to return an error, but returned OK: {:?}", result.ok().unwrap());
+        if let nom::Err::Failure(e) | nom::Err::Error(e) = result.err().unwrap() {
+            e.code
+        } else {
+            panic!("Expected a Failure or Error from parser, but got Incomplete");
+        }
+    }
+
+    pub fn eval_test_helper(input: &str) -> Object {
         let program = parse_test_helper(input);
         let mut evaluator = Evaluator::default();
         evaluator.eval_program(program)
@@ -192,5 +207,217 @@ mod tests {
                 _ => panic!("Expected Integer, got {:?} for input: {}", evaluated, input),
             }
         }
+    }
+    #[test]
+    fn test_try_catch_no_throw() {
+        let input = r#"
+            let x = 0;
+            try {
+                x = 1;
+            } catch (e) {
+                x = 2;
+            } finally {
+                x = x + 1;
+            }
+            x
+        "#;
+        assert_eq!(eval_test_helper(input), Object::Integer(2));
+    }
+
+    #[test]
+    fn test_try_throw_catch() {
+        let input = r#"
+            let x = 0;
+            try {
+                throw "Error!";
+                x = 1;
+            } catch (e) {
+                x = 2;
+            } finally {
+                x = x + 1;
+            }
+            x
+        "#;
+        assert_eq!(eval_test_helper(input), Object::Integer(3));
+    }
+
+    #[test]
+    fn test_try_throw_catch_with_exception_ident() {
+        let input = r#"
+            let err_msg = "";
+            try {
+                throw "Something went wrong";
+            } catch (e) {
+                err_msg = e;
+            }
+            err_msg
+        "#;
+        assert_eq!(eval_test_helper(input), Object::String("Something went wrong".to_string()));
+    }
+
+    #[test]
+    fn test_try_throw_no_catch_finally() {
+        let input = r#"
+            let x = 0;
+            try {
+                throw "Error!";
+                x = 1;
+            } finally {
+                x = x + 1;
+            }
+            x
+        "#;
+        // The finally block should execute, and then the error should be re-thrown
+        match eval_test_helper(input) {
+            Object::ThrownValue(obj) => assert_eq!(*obj, Object::String("Error!".to_string())),
+            _ => panic!("Expected a ThrownValue"),
+        }
+    }
+
+    #[test]
+    fn test_finally_overrides_return() {
+        let input = r#"
+            fn test_fn() {
+                try {
+                    return 1;
+                } finally {
+                    return 2;
+                }
+            }
+            test_fn()
+        "#;
+        assert_eq!(eval_test_helper(input), Object::Integer(2));
+    }
+
+    #[test]
+    fn test_finally_overrides_thrown_value() {
+        let input = r#"
+            try {
+                throw "Error from try";
+            } finally {
+                throw "Error from finally";
+            }
+        "#;
+        match eval_test_helper(input) {
+            Object::ThrownValue(obj) => assert_eq!(*obj, Object::String("Error from finally".to_string())),
+            _ => panic!("Expected ThrownValue"),
+        }
+    }
+
+    #[test]
+    fn test_finally_not_overriding_thrown_value_if_not_thrown() {
+        let input = r#"
+            let result = try {
+                throw "Error from try";
+            } catch (e) {
+                "Caught: " + e // Removed semicolon
+            } finally {
+                // This finally block does not throw or return
+            };
+            result
+        "#;
+        assert_eq!(eval_test_helper(input), Object::String("Caught: Error from try".to_string()));
+    }
+
+    #[test]
+    fn test_nested_try_catch() {
+        let input = r#"
+            let outer_status = "";
+            try {
+                try {
+                    throw "Inner Error";
+                } catch (e) {
+                    outer_status = "Inner caught: " + e;
+                } finally {
+                    outer_status = outer_status + " (inner finally)";
+                }
+            } catch (e) {
+                outer_status = outer_status + "Outer caught: " + e;
+            } finally {
+                outer_status = outer_status + " (outer finally)";
+            }
+            outer_status
+        "#;
+        assert_eq!(eval_test_helper(input), Object::String("Inner caught: Inner Error (inner finally) (outer finally)".to_string()));
+    }
+
+    #[test]
+    fn test_try_result_is_last_expression() {
+        let input = r#"
+            let result = try {
+                1 + 1 // Removed semicolon
+            } catch (e) {
+                0
+            };
+            result
+        "#;
+        assert_eq!(eval_test_helper(input), Object::Integer(2));
+    }
+
+    #[test]
+    fn test_catch_result_is_last_expression() {
+        let input = r#"
+            let result = try {
+                throw 1;
+            } catch (e) {
+                e + 1 // Removed semicolon
+            };
+            result
+        "#;
+        assert_eq!(eval_test_helper(input), Object::Integer(2));
+    }
+
+    #[test]
+    fn test_error_type_propagation() {
+        let input = r#"
+            let err = try {
+                throw true;
+            } catch (e) {
+                e // Removed semicolon
+            };
+            err
+        "#;
+        assert_eq!(eval_test_helper(input), Object::Boolean(true));
+
+        let input_str = r#"
+            let err = try {
+                throw "some string";
+            } catch (e) {
+                e // Removed semicolon
+            };
+            err
+        "#;
+        assert_eq!(eval_test_helper(input_str), Object::String("some string".to_string()));
+
+        let input_int = r#"
+            let err = try {
+                throw 123;
+            } catch (e) {
+                e // Removed semicolon
+            };
+            err
+        "#;
+        assert_eq!(eval_test_helper(input_int), Object::Integer(123));
+    }
+
+    #[test]
+    fn test_if_no_catch_or_finally_is_present() {
+        let input = r#"
+            let res = try { 1 }
+            res
+        "#;
+        let err = parse_program_expect_error(input);
+        assert_eq!(err, ErrorKind::Verify);
+    }
+
+    #[test]
+    fn test_try_throw_no_catch_no_finally() {
+        let input = r#"
+            try {
+                throw "Critical Error";
+            }
+        "#;
+        let err = parse_program_expect_error(input);
+        assert_eq!(err, ErrorKind::Verify);
     }
 }

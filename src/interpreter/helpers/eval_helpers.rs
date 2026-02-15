@@ -26,6 +26,7 @@ pub trait EvalHelper {
     fn eval_index(&mut self, target_exp: Expr, id_exp: Expr) -> Object;
     fn eval_builtin_call(&mut self, args_expr: Vec<Expr>, min_params: usize, max_params: usize, b_fn: BuiltinFunction) -> Object;
     fn eval_std_call(&mut self, args_expr: Vec<Expr>, min_params: usize, max_params: usize, s_fn: StdFunction) -> Object;
+    fn eval_try_catch_expr(&mut self, try_body: Program, catch_ident: Option<Ident>, catch_body: Option<Program>, finally_body: Option<Program>) -> Object;
 }
 
 impl EvalHelper for Evaluator {
@@ -582,6 +583,64 @@ impl EvalHelper for Evaluator {
         match s_fn(args) {
             Ok(obj) => obj,
             Err(e) => Object::Error(e),
+        }
+    }
+
+    fn eval_try_catch_expr(&mut self, try_body: Program, catch_ident: Option<Ident>, catch_body: Option<Program>, finally_body: Option<Program>) -> Object {
+        let mut try_result = self.eval_blockstmt(try_body);
+        let final_result: Object;
+    
+        // Handle caught exception
+        let caught_exception_obj = match try_result.clone() {
+            Object::ThrownValue(ex) => Some(*ex), // Unwrap Box<Object>
+            Object::Error(err) => Some(Object::Error(err)), // Wrap RuntimeError in Object::Error
+            _ => None,
+        };
+
+        if let Some(exception) = caught_exception_obj {
+            if let Some(Ident(e_name)) = catch_ident {
+                if let Some(c_body) = catch_body {
+                    let old_env = Rc::clone(&self.env);
+                    let mut new_env = Environment::new_with_outer(Rc::clone(&self.env));
+                    new_env.set(&e_name, exception); // Now 'exception' is always Object
+                    self.env = Rc::new(RefCell::new(new_env));
+                    
+                    try_result = self.eval_blockstmt(c_body);
+                    self.env = old_env; // Restore environment
+                }
+            }
+        }
+    
+        // Execute finally block if it exists
+        if let Some(f_body) = finally_body {
+            let finally_result = self.eval_blockstmt(f_body);
+            match finally_result {
+                Object::ReturnValue(_) | Object::Break | Object::Continue | Object::ThrownValue(_) | Object::Error(_) => {
+                    // If finally block yields a control flow object, it takes precedence
+                    final_result = finally_result;
+                },
+                _ => {
+                    // Otherwise, the result from try/catch prevails
+                    final_result = try_result;
+                }
+            }
+        } else {
+            // No finally block, the result from try/catch is the final one
+            final_result = try_result;
+        }
+
+        // If there's an unhandled ThrownValue after try/catch/finally, re-throw it
+        if let Object::ThrownValue(_) = final_result {
+            return final_result;
+        }
+    
+        /*
+        If the original try_result was a control flow object (Return, Break, Continue, Error)
+        and was not overridden by finally, return it.
+        */
+        match final_result { // Unwrap ReturnValue if it's the final result, otherwise return as is
+            Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) => final_result,
+            _ => final_result.returned(), 
         }
     }
 }

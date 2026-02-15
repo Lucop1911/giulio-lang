@@ -65,6 +65,10 @@ pub enum Token {
     In,
     Break,
     Continue,
+    Try,
+    Catch,
+    Finally,
+    Throw,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

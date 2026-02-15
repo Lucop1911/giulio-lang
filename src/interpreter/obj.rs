@@ -33,6 +33,7 @@ pub enum Object {
     Method(Vec<Ident>, Program, Rc<RefCell<Environment>>),
     Break,
     Continue,
+    ThrownValue(Box<Object>),
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
@@ -51,6 +52,7 @@ impl PartialEq for Object {
             (Object::Null, Object::Null) => true,
             (Object::ReturnValue(a), Object::ReturnValue(b)) => a == b,
             (Object::Error(a), Object::Error(b)) => a == b,
+            (Object::ThrownValue(a), Object::ThrownValue(b)) => a == b,
             (Object::Builtin(name_a, params_a, params_a1, _), Object::Builtin(name_b, params_b, params_b1, _)) => {
                 name_a == name_b && params_a == params_b && params_a1 == params_b1
             }
@@ -98,6 +100,7 @@ impl Object {
             Object::Struct { name, .. } => format!("struct {}", name),
             Object::Break => "break".to_string(),
             Object::Continue => "continue".to_string(),
+            Object::ThrownValue(_) => "thrown value".to_string(),
         }
     }
 }
@@ -159,6 +162,7 @@ impl fmt::Display for Object {
             },
             Object::Break => write!(f, "break"),
             Object::Continue => write!(f, "continue"),
+            Object::ThrownValue(ref o) => write!(f, "Thrown: {}", *o),
         }
     }
 }

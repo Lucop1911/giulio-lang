@@ -35,6 +35,7 @@ pub enum Stmt {
     },
     BreakStmt,
     ContinueStmt,
+    ThrowStmt(Expr),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -90,6 +91,12 @@ pub enum Expr {
         cond: Option<Box<Expr>>,
         update: Option<Box<Stmt>>,
         body: Program,
+    },
+    TryCatchExpr {
+        try_body: Program,
+        catch_ident: Option<Ident>,
+        catch_body: Option<Program>,
+        finally_body: Option<Program>,
     },
 }
 

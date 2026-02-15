@@ -88,6 +88,10 @@ tag_token!(for_tag, Token::For);
 tag_token!(in_tag, Token::In);
 tag_token!(break_tag, Token::Break);
 tag_token!(continue_tag, Token::Continue);
+tag_token!(try_tag, Token::Try);
+tag_token!(catch_tag, Token::Catch);
+tag_token!(finally_tag, Token::Finally);
+tag_token!(throw_tag, Token::Throw);
 
 // OPERATOR PRECEDENCE
 
@@ -134,6 +138,7 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         parse_for_stmt,
         parse_break_stmt,
         parse_continue_stmt,
+        parse_throw_stmt,
         parse_expr_or_assign_stmt,
     ))(input)
 }
@@ -188,6 +193,7 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                     | Expr::WhileExpr { .. }
                     | Expr::ForExpr { .. }
                     | Expr::CStyleForExpr { .. }
+                    | Expr::TryCatchExpr { .. }
             );
             let is_implicit_return = peek_matches(after_expr, Token::RBrace) || peek_matches(after_expr, Token::EOF);
 
@@ -227,6 +233,13 @@ fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(terminated(continue_tag, semicolon_tag), |_| Stmt::ContinueStmt)(input)
 }
 
+fn parse_throw_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((throw_tag, parse_expr, semicolon_tag)),
+        |(_, expr, _)| Stmt::ThrowStmt(expr),
+    )(input)
+}
+
 fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
         tuple((let_tag, parse_ident, assign_tag, parse_expr, semicolon_tag)),
@@ -264,6 +277,7 @@ fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
         parse_array_expr,
         parse_hash_expr,
         parse_prefix_expr,
+        parse_try_catch_expr,
         parens(parse_expr),
     ))(input)
 }
@@ -412,6 +426,39 @@ fn parse_hash_expr(input: Tokens) -> IResult<Tokens, Expr> {
 
 fn parse_this_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(this_tag, |_| Expr::ThisExpr)(input)
+}
+
+fn parse_try_catch_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    let (i1, _) = try_tag(input)?;
+    let (i2, try_body) = parse_block_stmt(i1)?;
+
+    let (i3, catch_block) = opt(tuple((
+        catch_tag,
+        parens(parse_ident),
+        parse_block_stmt,
+    )))(i2)?;
+
+    let (i4, finally_body) = opt(preceded(finally_tag, parse_block_stmt))(i3)?;
+
+    if catch_block.is_none() && finally_body.is_none() {
+        return Err(Err::Error(Error::new(input, ErrorKind::Verify)));
+    }
+
+    let (catch_ident, catch_body) = if let Some((_, ident, body)) = catch_block {
+        (Some(ident), Some(body))
+    } else {
+        (None, None)
+    };
+
+    Ok((
+        i4,
+        Expr::TryCatchExpr {
+            try_body,
+            catch_ident,
+            catch_body,
+            finally_body,
+        },
+    ))
 }
 
 // STRUCT PARSING

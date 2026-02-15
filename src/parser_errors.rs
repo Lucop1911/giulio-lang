@@ -373,6 +373,10 @@ pub fn describe_token(token: &Token) -> String {
         Token::In => "'in'".to_string(),
         Token::Break => "'break'".to_string(),
         Token::Continue => "'continue'".to_string(),
+        Token::Try => "'try'".to_string(),
+        Token::Catch => "'catch'".to_string(),
+        Token::Finally => "'finally'".to_string(),
+        Token::Throw => "'throw'".to_string(),
     }
 }
 

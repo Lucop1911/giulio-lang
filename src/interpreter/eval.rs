@@ -52,37 +52,28 @@ impl Evaluator {
         self.returned(return_data)
     }
 
-    pub fn eval_blockstmt(&mut self, mut prog: Program) -> Object {
-        match prog.len() {
-            0 => Object::Null,
-            1 => {
-                let stmt = prog.remove(0);
-                let result = self.eval_statement(stmt);
-                // Only unwrap return values at function level, not at block level
-                match result {
-                    Object::ReturnValue(_) | Object::Break | 
-                    Object::Continue | Object::Error(_) => result,
-                    other => other  // Last statement's value (or Null) is returned
+    pub fn eval_blockstmt(&mut self, prog: Program) -> Object {
+        let mut result = Object::Null;
+
+        for stmt in prog.into_iter() {
+            result = self.eval_statement(stmt);
+            match result {
+                Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) | Object::ThrownValue(_) => {
+                    return result;
                 }
-            }
-            _ => {
-                let s = prog.remove(0);
-                let object = self.eval_statement(s);
-                match object {
-                    Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) => object,
-                    _ => self.eval_blockstmt(prog)
-                }
+                _ => {}
             }
         }
+        result
     }
 
     pub fn eval_statement(&mut self, stmt: Stmt) -> Object {
         match stmt {
             Stmt::ExprStmt(expr) => {
                 let result = self.eval_expr(expr);
-                // Propagate control flow objects (return, break, continue, error)
+                // Propagate control flow objects (return, break, continue, error, thrown)
                 match result {
-                    Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) => result,
+                    Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) | Object::ThrownValue(_) => result,
                     _ => Object::Null  // Expression statements don't produce values in normal flow
                 }
             }
@@ -122,6 +113,7 @@ impl Evaluator {
             }
             Stmt::BreakStmt => Object::Break,
             Stmt::ContinueStmt => Object::Continue,
+            Stmt::ThrowStmt(expr) => Object::ThrownValue(Box::new(self.eval_expr(expr))),
         }
     }
 
@@ -166,6 +158,9 @@ impl Evaluator {
             Expr::ForExpr { ident, iterable, body } => self.eval_for(ident, iterable, body),
             Expr::CStyleForExpr { init, cond, update, body } => {
                 self.eval_c_style_for(init, cond, update, body)
+            }
+            Expr::TryCatchExpr { try_body, catch_ident, catch_body, finally_body } => {
+                self.eval_try_catch_expr(try_body, catch_ident, catch_body, finally_body)
             }
         }
     }

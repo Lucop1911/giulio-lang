@@ -161,6 +161,10 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
                 "in" => Token::In,
                 "break" => Token::Break,
                 "continue" => Token::Continue,
+                "try" => Token::Try,
+                "catch" => Token::Catch,
+                "finally" => Token::Finally,
+                "throw" => Token::Throw,
                 _ => Token::Ident(syntax.to_string()),
             })
         },
