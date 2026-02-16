@@ -6,7 +6,8 @@ use crate::std::io::*;
 use crate::std::json::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
-use std::fs;
+use tokio::fs;
+use std::sync::{Arc, Mutex};
 use crate::ast::ast::{Program, Ident};
 use crate::interpreter::obj::Object;
 use crate::errors::RuntimeError;
@@ -101,49 +102,54 @@ impl ModuleRegistry {
         });
     }
     
-    pub fn load_module(&mut self, path: &[String]) -> Result<Module, RuntimeError> {
+    pub async fn load_module(module_registry_arc: Arc<Mutex<Self>>, path: &[String]) -> Result<Module, RuntimeError> {
         let module_path = path.join(".");
         
-        // Check if already loaded
-        if let Some(module) = self.loaded_modules.get(&module_path) {
-            return Ok(module.clone());
+        let loaded_module = {
+            let registry = module_registry_arc.lock().unwrap();
+            registry.loaded_modules.get(&module_path).cloned()
+        };
+
+        if let Some(module) = loaded_module {
+            return Ok(module);
         }
         
-        // Check stdlib
-        if let Some(module) = self.stdlib.get(&module_path) {
-            return Ok(module.clone());
+        let stdlib_module = {
+            let registry = module_registry_arc.lock().unwrap();
+            registry.stdlib.get(&module_path).cloned()
+        };
+
+        if let Some(module) = stdlib_module {
+            return Ok(module);
         }
         
-        // Load user module
-        self.load_user_module(path)
+        ModuleRegistry::load_user_module(module_registry_arc, path).await
     }
     
-    fn load_user_module(&mut self, path: &[String]) -> Result<Module, RuntimeError> {
-        let mut file_path = self.base_path.clone();
+    async fn load_user_module(module_registry_arc: Arc<Mutex<Self>>, path: &[String]) -> Result<Module, RuntimeError> {
+        let base_path = { module_registry_arc.lock().unwrap().base_path.clone() };
+        let mut file_path = base_path;
         
-        // Build file path from module path
         for part in path {
             file_path.push(part);
         }
         file_path.set_extension("giu");
         
-        let source = fs::read_to_string(&file_path)
+        let source = fs::read_to_string(&file_path).await
             .map_err(|e| RuntimeError::InvalidOperation(
                 format!("Failed to load module '{}': {}", path.join("."), e)
             ))?;
         
-        let module = self.parse_and_extract_module(&source, path)?;
+        let module = ModuleRegistry::parse_and_extract_module(Arc::clone(&module_registry_arc), &source, path).await?;
         
         let module_path = path.join(".");
-        self.loaded_modules.insert(module_path.clone(), module.clone());
+        module_registry_arc.lock().unwrap().loaded_modules.insert(module_path.clone(), module.clone());
         
         Ok(module)
     }
     
-    fn parse_and_extract_module(&mut self, source: &str, path: &[String]) -> Result<Module, RuntimeError> {
+    async fn parse_and_extract_module(module_registry_arc: Arc<Mutex<Self>>, source: &str, path: &[String]) -> Result<Module, RuntimeError> {
         use crate::{Lexer, Parser, Tokens};
-        use std::rc::Rc;
-        use std::cell::RefCell;
         
         let token_vec = Lexer::lex_tokens(source.as_bytes())
             .map_err(|e| RuntimeError::InvalidOperation(
@@ -159,15 +165,15 @@ impl ModuleRegistry {
             ))?
             .1;
         
-        // Create evaluator with shared registry reference
-        let registry_rc = Rc::new(RefCell::new(ModuleRegistry::new(self.base_path.clone())));
+        let base_path = { module_registry_arc.lock().unwrap().base_path.clone() };
+        let registry_arc_for_eval = Arc::new(Mutex::new(ModuleRegistry::new(base_path)));
         
-        // Copy loaded modules to avoid re-parsing
-        for (key, val) in &self.loaded_modules {
-            registry_rc.borrow_mut().loaded_modules.insert(key.clone(), val.clone());
+        let loaded_modules_for_eval = { module_registry_arc.lock().unwrap().loaded_modules.clone() };
+        for (key, val) in loaded_modules_for_eval {
+            registry_arc_for_eval.lock().unwrap().loaded_modules.insert(key.clone(), val.clone());
         }
         
-        let exports = self.extract_exports(program, registry_rc)?;
+        let exports = ModuleRegistry::extract_exports(program, registry_arc_for_eval).await?;
         
         Ok(Module {
             name: path.join("."),
@@ -175,7 +181,7 @@ impl ModuleRegistry {
         })
     }
     
-    fn extract_exports(&mut self, program: Program, registry: std::rc::Rc<std::cell::RefCell<ModuleRegistry>>) -> Result<HashMap<String, Object>, RuntimeError> {
+    async fn extract_exports(program: Program, registry: Arc<Mutex<Self>>) -> Result<HashMap<String, Object>, RuntimeError> {
         use crate::interpreter::eval::Evaluator;
         
         let mut evaluator = Evaluator::new(registry);
@@ -184,32 +190,31 @@ impl ModuleRegistry {
         for stmt in program {
             match stmt.clone() {
                 Stmt::StructStmt { name, .. } => {
-                    let _obj = evaluator.eval_statement(stmt);
+                    let _obj = evaluator.eval_statement(stmt).await;
                     let Ident(struct_name) = name;
                     
-                    if let Some(struct_obj) = evaluator.env.borrow().get(&struct_name) {
+                    if let Some(struct_obj) = evaluator.env.lock().unwrap().get(&struct_name) {
                         exports.insert(struct_name.clone(), struct_obj);
                     }
                 }
                 Stmt::LetStmt(ident, _) => {
-                    evaluator.eval_statement(stmt);
+                    evaluator.eval_statement(stmt).await;
                     let Ident(var_name) = ident;
                     
-                    if let Some(obj) = evaluator.env.borrow().get(&var_name) {
-                        // Export functions and other values
+                    if let Some(obj) = evaluator.env.lock().unwrap().get(&var_name) {
                         exports.insert(var_name, obj);
                     }
                 }
                 Stmt::FnStmt { name, params: _, body: _ } => {
-                    evaluator.eval_statement(stmt);
+                    evaluator.eval_statement(stmt).await;
                     let Ident(fn_name) = name;
 
-                    if let Some(obj) = evaluator.env.borrow().get(&fn_name) {
+                    if let Some(obj) = evaluator.env.lock().unwrap().get(&fn_name) {
                         exports.insert(fn_name, obj);
                     }
                 }
                 _ => {
-                    evaluator.eval_statement(stmt);
+                    evaluator.eval_statement(stmt).await;
                 }
             }
         }

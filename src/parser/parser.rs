@@ -92,6 +92,9 @@ tag_token!(try_tag, Token::Try);
 tag_token!(catch_tag, Token::Catch);
 tag_token!(finally_tag, Token::Finally);
 tag_token!(throw_tag, Token::Throw);
+tag_token!(async_tag, Token::Async);
+tag_token!(await_tag, Token::Await);
+
 
 // OPERATOR PRECEDENCE
 
@@ -131,7 +134,7 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     alt((
         parse_import_stmt,
         parse_let_stmt,
-        parse_fn_stmt,
+        parse_fn_declaration, // Async and Sync fn handler
         parse_return_stmt,
         parse_struct_stmt,
         parse_while_stmt,
@@ -141,6 +144,20 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         parse_throw_stmt,
         parse_expr_or_assign_stmt,
     ))(input)
+}
+
+// Helper to parse both sync and async function declarations
+fn parse_fn_declaration(input: Tokens) -> IResult<Tokens, Stmt> {
+    map(
+        tuple((opt(async_tag), function_tag, parse_ident, parens(comma_separated0(parse_ident)), parse_block_stmt, opt(semicolon_tag))),
+        |(is_async, _, name, params, body, _)| {
+            if is_async.is_some() {
+                Stmt::LetStmt(name, Expr::AsyncFnExpr { params, body })
+            } else {
+                Stmt::FnStmt { name, params, body }
+            }
+        },
+    )(input)
 }
 
 // ASSIGNMENT/EXPRESSION PARSING
@@ -190,6 +207,7 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                 &expr,
                 Expr::IfExpr { .. }
                     | Expr::FnExpr { .. }
+                    | Expr::AsyncFnExpr { .. } // Added AsyncFnExpr
                     | Expr::WhileExpr { .. }
                     | Expr::ForExpr { .. }
                     | Expr::CStyleForExpr { .. }
@@ -247,13 +265,6 @@ fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     )(input)
 }
 
-fn parse_fn_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        tuple((function_tag, parse_ident, parens(comma_separated0(parse_ident)), parse_block_stmt, opt(semicolon_tag))),
-        |(_, name, params, body, _)| Stmt::FnStmt { name, params, body },
-    )(input)
-}
-
 fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
         tuple((return_tag, parse_expr, opt(semicolon_tag))),
@@ -267,11 +278,32 @@ fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
 
 // EXPRESSION PARSING
 
+fn parse_fn_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((opt(async_tag), function_tag, parens(comma_separated0(parse_ident)), parse_block_stmt)),
+        |(is_async, _, params, body)| {
+            if is_async.is_some() {
+                Expr::AsyncFnExpr { params, body }
+            } else {
+                Expr::FnExpr { params, body }
+            }
+        },
+    )(input)
+}
+
+fn parse_await_expr(input: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((await_tag, |i| parse_pratt_expr(i, Precedence::PPrefix))), // Corrected call
+        |(_, expr)| Expr::AwaitExpr(Box::new(expr)),
+    )(input)
+}
+
 fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
     alt((
         parse_literal_expr,
         parse_ident_or_struct_literal,
         parse_fn_expr,
+        parse_await_expr,
         parse_if_expr,
         parse_this_expr,
         parse_array_expr,
@@ -353,7 +385,7 @@ fn parse_literal_expr(input: Tokens) -> IResult<Tokens, Expr> {
 
 fn parse_ident_or_struct_literal(input: Tokens) -> IResult<Tokens, Expr> {
     let (after_ident, ident) = parse_ident(input)?;
-    
+
     if peek_matches(after_ident, Token::LBrace) {
         let (i1, fields) = braced(comma_separated0(separated_pair(
             parse_ident,
@@ -368,7 +400,7 @@ fn parse_ident_or_struct_literal(input: Tokens) -> IResult<Tokens, Expr> {
 
 fn parse_prefix_expr(input: Tokens) -> IResult<Tokens, Expr> {
     let (i1, t1) = take(1usize)(input)?;
-    
+
     if t1.token.is_empty() {
         return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
     }
@@ -403,13 +435,6 @@ fn parse_if_expr(input: Tokens) -> IResult<Tokens, Expr> {
             consequence,
             alternative,
         },
-    )(input)
-}
-
-fn parse_fn_expr(input: Tokens) -> IResult<Tokens, Expr> {
-    map(
-        tuple((function_tag, parens(comma_separated0(parse_ident)), parse_block_stmt)),
-        |(_, params, body)| Expr::FnExpr { params, body },
     )(input)
 }
 

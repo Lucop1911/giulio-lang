@@ -1,11 +1,11 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{collections::HashMap, sync::{Arc, Mutex}};
 use crate::{ast::ast::Ident, interpreter::obj::Object};
 use crate::interpreter::builtins::functions::BuiltinsFunctions;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Environment {
     store: HashMap<String, Object>,
-    parent: Option<Rc<RefCell<Environment>>>,
+    parent: Option<Arc<Mutex<Environment>>>,
 }
 
 impl Default for Environment {
@@ -24,7 +24,7 @@ impl Environment {
         }
     }
 
-    pub fn new_with_outer(outer: Rc<RefCell<Environment>>) -> Self {
+    pub fn new_with_outer(outer: Arc<Mutex<Environment>>) -> Self {
         let mut hashmap = HashMap::new();
         Self::fill_env_with_builtins(&mut hashmap);
         Environment {
@@ -50,9 +50,9 @@ impl Environment {
         
         // Check if variable exists in parent scope
         if let Some(ref parent_env) = self.parent {
-            if parent_env.borrow().get(name).is_some() {
+            if parent_env.lock().unwrap().get(name).is_some() {
                 // Variable exists in parent, update it there
-                parent_env.borrow_mut().set(name, val);
+                parent_env.lock().unwrap().set(name, val);
                 return;
             }
         }
@@ -66,7 +66,7 @@ impl Environment {
             Some(o) => Some(o.clone()),
             None => match self.parent {
                 Some(ref parent_env) => {
-                    let env = parent_env.borrow();
+                    let env = parent_env.lock().unwrap();
                     env.get(name)
                 }
                 None => None,

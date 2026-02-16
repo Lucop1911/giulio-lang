@@ -8,7 +8,8 @@ use giulio_lang::runners::run_source::run_source;
 use giulio_lang::runners::run_repl_mode::repl;
 
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut evaluator = Evaluator::default();
     let args: Vec<String> = env::args().collect();
 
@@ -45,7 +46,7 @@ fn main() {
                     }
                 };
 
-            run_source(&source, &mut evaluator);
+            run_source(&source, &mut evaluator).await;
             }
         }
 
@@ -54,6 +55,6 @@ fn main() {
             eprintln!("Use --help for usage.");
         }
 
-        None => repl(evaluator),
+        None => repl(evaluator).await,
     }
 }

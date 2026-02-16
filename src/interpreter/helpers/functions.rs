@@ -1,0 +1,216 @@
+use std::sync::{Arc, Mutex};
+use tokio::task::JoinHandle; 
+use crate::{
+    ast::ast::{Expr, Ident, Program},
+    errors::RuntimeError,
+    interpreter::{
+        env::Environment, obj::{Object, BuiltinFunction, StdFunction}
+    },
+};
+use futures::stream::{FuturesUnordered, StreamExt};
+use super::super::eval::{Evaluator, EvalFuture};
+
+impl Evaluator {
+    pub fn eval_fn(&mut self, params: Vec<Ident>, body: Program) -> Object {
+        Object::Function(params, body, Arc::clone(&self.env))
+    }
+
+    pub fn eval_method(&mut self, params: Vec<Ident>, body: Program) -> Object {
+        Object::Method(params, body, Arc::clone(&self.env))
+    }
+
+    pub fn eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> EvalFuture {
+        let mut self_clone = self.clone();
+        Box::pin(async move {
+            let fn_object = self_clone.eval_expr(fn_expr).await;
+            let fn_ = self_clone.obj_to_func(fn_object);
+            match fn_ {
+                Object::Function(params, body, f_env) => {
+                    self_clone.eval_fn_call(args_expr, params, body, &f_env).await
+                }
+                Object::AsyncFunction(params, body, f_env) => {
+                    self_clone.eval_async_fn_call(args_expr, params, body, &f_env).await
+                }
+                Object::Builtin(_, min_params, max_params, b_fn) => {
+                    self_clone.eval_builtin_call(args_expr, min_params, max_params, b_fn).await
+                }
+                Object::BuiltinStd(_, min_params, max_params, s_fn) => {
+                    self_clone.eval_std_call(args_expr, min_params, max_params, s_fn).await
+                }
+                o_err => o_err,
+            }
+        })
+    }
+
+    pub fn eval_fn_call(
+        &mut self,
+        args_expr: Vec<Expr>,
+        params: Vec<Ident>,
+        body: Program,
+        f_env: &Arc<Mutex<Environment>>,
+    ) -> EvalFuture {
+        let mut self_clone = self.clone();
+        let f_env_clone = Arc::clone(f_env);
+        Box::pin(async move {
+            if args_expr.len() < params.len() {
+                return Object::Error(RuntimeError::WrongNumberOfArguments {
+                    min: params.len(),
+                    max: params.len(),
+                    got: args_expr.len(),
+                });
+            }
+
+            let mut args = Vec::new();
+            for e in args_expr {
+                args.push(self_clone.eval_expr(e).await);
+            }
+
+            let old_env = Arc::clone(&self_clone.env);
+            let mut new_env = Environment::new_with_outer(f_env_clone);
+            let zipped = params.into_iter().zip(args);
+            for (Ident(name), o) in zipped {
+                new_env.set(&name, o);
+            }
+            self_clone.env = Arc::new(Mutex::new(new_env));
+            let object = self_clone.eval_blockstmt(body).await;
+            self_clone.env = old_env;
+            self_clone.returned(object)
+        })
+    }
+
+    pub async fn eval_async_fn_call(
+        &mut self,
+        args_expr: Vec<Expr>,
+        params: Vec<Ident>,
+        body: Program,
+        f_env: &Arc<Mutex<Environment>>,
+    ) -> Object {
+        if args_expr.len() < params.len() {
+            return Object::Error(RuntimeError::WrongNumberOfArguments {
+                min: params.len(),
+                max: params.len(),
+                got: args_expr.len(),
+            });
+        }
+    
+        let mut args_futures = FuturesUnordered::new();
+        for e in args_expr {
+            let mut evaluator = self.clone();
+            args_futures.push(async move {
+                evaluator.eval_expr(e).await
+            });
+        }
+    
+        let mut args: Vec<Object> = Vec::new();
+        while let Some(arg) = args_futures.next().await {
+            args.push(arg);
+        }
+        
+        let f_env_clone = Arc::clone(f_env);
+        let mut evaluator = self.clone();
+    
+        let future: JoinHandle<Object> = tokio::spawn(async move {
+            let mut new_env = Environment::new_with_outer(f_env_clone);
+            for (i, ident) in params.iter().enumerate() {
+                let Ident(name) = ident;
+                new_env.set(name, args[i].clone());
+            }
+            evaluator.env = Arc::new(Mutex::new(new_env));
+    
+            let result = evaluator.eval_blockstmt(body).await;
+            evaluator.returned(result)
+        });
+
+        let mapped_future = async {
+            match future.await {
+                Ok(obj) => Ok(obj),
+                Err(e) => Err(RuntimeError::InvalidOperation(format!("Future panicked: {}", e))),
+            }
+        };
+    
+        Object::Future(Arc::new(Mutex::new(Some(Box::pin(mapped_future)))))
+    }
+
+    pub fn eval_builtin_call(
+        &mut self,
+        args_expr: Vec<Expr>,
+        min_params: usize,
+        max_params: usize,
+        b_fn: BuiltinFunction,
+    ) -> EvalFuture {
+        let mut self_clone = self.clone();
+        Box::pin(async move {
+            if args_expr.len() < min_params || args_expr.len() > max_params {
+                return Object::Error(RuntimeError::WrongNumberOfArguments {
+                    min: min_params,
+                    max: max_params,
+                    got: args_expr.len(),
+                });
+            }
+
+            let mut args = Vec::new();
+            for e in args_expr {
+                args.push(self_clone.eval_expr(e).await);
+            }
+            
+            match b_fn(args) {
+                Ok(obj) => obj,
+                Err(e) => Object::Error(RuntimeError::InvalidArguments(e)),
+            }
+        })
+    }
+
+    pub fn eval_std_call(
+        &mut self,
+        args_expr: Vec<Expr>,
+        min_params: usize,
+        max_params: usize,
+        s_fn: StdFunction,
+    ) -> EvalFuture {
+        let mut self_clone = self.clone();
+        Box::pin(async move {
+            if args_expr.len() < min_params || args_expr.len() > max_params {
+                return Object::Error(RuntimeError::WrongNumberOfArguments {
+                    min: min_params,
+                    max: max_params,
+                    got: args_expr.len(),
+                });
+            }
+
+            let mut args = Vec::new();
+            for e in args_expr {
+                args.push(self_clone.eval_expr(e).await);
+            }
+            
+            match s_fn(args) {
+                Ok(obj) => obj,
+                Err(e) => Object::Error(e),
+            }
+        })
+    }
+
+    pub fn eval_fn_call_direct(
+        &mut self,
+        args: Vec<Object>,
+        params: Vec<Ident>,
+        body: Program,
+    ) -> EvalFuture {
+        let mut self_clone = self.clone();
+        Box::pin(async move {
+            if args.len() != params.len() {
+                return Object::Error(RuntimeError::WrongNumberOfArguments {
+                    min: params.len(),
+                    max: params.len(),
+                    got: args.len(),
+                });
+            }
+
+            let zipped = params.into_iter().zip(args);
+            for (Ident(name), o) in zipped {
+                self_clone.env.lock().unwrap().set(&name, o);
+            }
+            
+            self_clone.eval_blockstmt(body).await
+        })
+    }
+}

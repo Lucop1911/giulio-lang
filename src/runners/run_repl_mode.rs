@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use crate::{Evaluator, Lexer, Parser, Tokens, interpreter::obj::Object};
 use crate::parser_errors::{convert_nom_error, show_error_context};
 
-pub fn repl(mut evaluator: Evaluator) {
+pub async fn repl(mut evaluator: Evaluator) {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     println!("Giulio-lang v{}", VERSION);
     println!("Type 'exit' or 'quit' to quit\n");
@@ -52,7 +52,7 @@ pub fn repl(mut evaluator: Evaluator) {
             }
         };
 
-        match evaluator.eval_program(program) {
+        match evaluator.eval_program(program).await {
             Object::Null => {}
             Object::Error(e) => eprintln!("{}", e),
             Object::String(s) => print!("{}", s),

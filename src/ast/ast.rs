@@ -1,8 +1,9 @@
 use num_bigint::BigInt;
+use std::hash::{Hash, Hasher};
 
 pub type Program = Vec<Stmt>;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash)]
 pub enum Stmt {
     LetStmt(Ident, Expr),
     AssignStmt(Ident, Expr),
@@ -38,7 +39,7 @@ pub enum Stmt {
     ThrowStmt(Expr),
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash)]
 pub enum Expr {
     IdentExpr(Ident),
     LitExpr(Literal),
@@ -98,6 +99,11 @@ pub enum Expr {
         catch_body: Option<Program>,
         finally_body: Option<Program>,
     },
+    AsyncFnExpr {
+        params: Vec<Ident>,
+        body: Program,
+    },
+    AwaitExpr(Box<Expr>),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -110,17 +116,30 @@ pub enum Literal {
     NullLiteral,
 }
 
-#[derive(PartialEq, Debug, Eq, Clone)]
+impl Hash for Literal {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Literal::IntLiteral(i) => i.hash(state),
+            Literal::BigIntLiteral(b) => b.hash(state),
+            Literal::FloatLitera(f) => f.to_bits().hash(state),
+            Literal::BoolLiteral(b) => b.hash(state),
+            Literal::StringLiteral(s) => s.hash(state),
+            Literal::NullLiteral => "null".hash(state),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Eq, Clone, Hash)]
 pub struct Ident(pub String);
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash)]
 pub enum Prefix {
     PrefixPlus,
     PrefixMinus,
     Not,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash)]
 pub enum Infix {
     Plus,
     Minus,
@@ -151,7 +170,7 @@ pub enum Precedence {
     PIndex,        // array[index]
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash)]
 pub enum ImportItems {
     All,
     Specific(Vec<String>),

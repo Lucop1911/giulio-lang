@@ -165,6 +165,8 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
                 "catch" => Token::Catch,
                 "finally" => Token::Finally,
                 "throw" => Token::Throw,
+                "async" => Token::Async,
+                "await" => Token::Await,
                 _ => Token::Ident(syntax.to_string()),
             })
         },

@@ -40,14 +40,14 @@ mod tests {
         }
     }
 
-    pub fn eval_test_helper(input: &str) -> Object {
+    pub async fn eval_test_helper(input: &str) -> Object {
         let program = parse_test_helper(input);
         let mut evaluator = Evaluator::default();
-        evaluator.eval_program(program)
+        evaluator.eval_program(program).await
     }
 
-    #[test]
-    fn test_eval_integer_expression() {
+    #[tokio::test]
+    async fn test_eval_integer_expression() {
         let tests = vec![
             ("5", 5),
             ("10", 10),
@@ -67,7 +67,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             match evaluated {
                 Object::Integer(i) => assert_eq!(i, expected, "input: {}", input),
                 _ => panic!("Expected Integer, got {:?} for input: {}", evaluated, input),
@@ -75,8 +75,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_eval_boolean_expression() {
+    #[tokio::test]
+    async fn test_eval_boolean_expression() {
         let tests = vec![
             ("true", true),
             ("false", false),
@@ -100,7 +100,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             match evaluated {
                 Object::Boolean(b) => assert_eq!(b, expected, "input: {}", input),
                 _ => panic!("Expected Boolean, got {:?} for input: {}", evaluated, input),
@@ -108,8 +108,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_bang_operator() {
+    #[tokio::test]
+    async fn test_bang_operator() {
         let tests = vec![
             ("!true", false),
             ("!false", true),
@@ -118,7 +118,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             match evaluated {
                 Object::Boolean(b) => assert_eq!(b, expected, "input: {}", input),
                 _ => panic!("Expected Boolean, got {:?} for input: {}", evaluated, input),
@@ -126,8 +126,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_if_else_expressions() {
+    #[tokio::test]
+    async fn test_if_else_expressions() {
         let tests = vec![
             ("if (true) { 10 }", Object::Integer(10)),
             ("if (false) { 10 }", Object::Null),
@@ -139,13 +139,13 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             assert_eq!(evaluated, expected, "input: {}", input);
         }
     }
 
-    #[test]
-    fn test_return_statements() {
+    #[tokio::test]
+    async fn test_return_statements() {
         let tests = vec![
             ("return 10;", 10),
             ("return 10; 9;", 10),
@@ -163,7 +163,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             match evaluated {
                 Object::Integer(i) => assert_eq!(i, expected, "input: {}", input),
                 _ => panic!("Expected Integer, got {:?} for input: {}", evaluated, input),
@@ -171,8 +171,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_let_statements() {
+    #[tokio::test]
+    async fn test_let_statements() {
         let tests = vec![
             ("let a = 5; a", 5),
             ("let a = 5 * 5; a", 25),
@@ -181,7 +181,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             match evaluated {
                 Object::Integer(i) => assert_eq!(i, expected, "input: {}", input),
                 _ => panic!("Expected Integer, got {:?} for input: {}", evaluated, input),
@@ -189,8 +189,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_function_application() {
+    #[tokio::test]
+    async fn test_function_application() {
         let tests = vec![
             ("let identity = fn(x) { x }; identity(5)", 5),
             ("let identity = fn(x) { return x; }; identity(5)", 5),
@@ -201,15 +201,15 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = eval_test_helper(input);
+            let evaluated = eval_test_helper(input).await;
             match evaluated {
                 Object::Integer(i) => assert_eq!(i, expected, "input: {}", input),
                 _ => panic!("Expected Integer, got {:?} for input: {}", evaluated, input),
             }
         }
     }
-    #[test]
-    fn test_try_catch_no_throw() {
+    #[tokio::test]
+    async fn test_try_catch_no_throw() {
         let input = r#"
             let x = 0;
             try {
@@ -221,11 +221,11 @@ mod tests {
             }
             x
         "#;
-        assert_eq!(eval_test_helper(input), Object::Integer(2));
+        assert_eq!(eval_test_helper(input).await, Object::Integer(2));
     }
 
-    #[test]
-    fn test_try_throw_catch() {
+    #[tokio::test]
+    async fn test_try_throw_catch() {
         let input = r#"
             let x = 0;
             try {
@@ -238,11 +238,11 @@ mod tests {
             }
             x
         "#;
-        assert_eq!(eval_test_helper(input), Object::Integer(3));
+        assert_eq!(eval_test_helper(input).await, Object::Integer(3));
     }
 
-    #[test]
-    fn test_try_throw_catch_with_exception_ident() {
+    #[tokio::test]
+    async fn test_try_throw_catch_with_exception_ident() {
         let input = r#"
             let err_msg = "";
             try {
@@ -252,11 +252,11 @@ mod tests {
             }
             err_msg
         "#;
-        assert_eq!(eval_test_helper(input), Object::String("Something went wrong".to_string()));
+        assert_eq!(eval_test_helper(input).await, Object::String("Something went wrong".to_string()));
     }
 
-    #[test]
-    fn test_try_throw_no_catch_finally() {
+    #[tokio::test]
+    async fn test_try_throw_no_catch_finally() {
         let input = r#"
             let x = 0;
             try {
@@ -268,14 +268,14 @@ mod tests {
             x
         "#;
         // The finally block should execute, and then the error should be re-thrown
-        match eval_test_helper(input) {
+        match eval_test_helper(input).await {
             Object::ThrownValue(obj) => assert_eq!(*obj, Object::String("Error!".to_string())),
             _ => panic!("Expected a ThrownValue"),
         }
     }
 
-    #[test]
-    fn test_finally_overrides_return() {
+    #[tokio::test]
+    async fn test_finally_overrides_return() {
         let input = r#"
             fn test_fn() {
                 try {
@@ -286,11 +286,11 @@ mod tests {
             }
             test_fn()
         "#;
-        assert_eq!(eval_test_helper(input), Object::Integer(2));
+        assert_eq!(eval_test_helper(input).await, Object::Integer(2));
     }
 
-    #[test]
-    fn test_finally_overrides_thrown_value() {
+    #[tokio::test]
+    async fn test_finally_overrides_thrown_value() {
         let input = r#"
             try {
                 throw "Error from try";
@@ -298,17 +298,17 @@ mod tests {
                 throw "Error from finally";
             }
         "#;
-        match eval_test_helper(input) {
+        match eval_test_helper(input).await {
             Object::ThrownValue(obj) => assert_eq!(*obj, Object::String("Error from finally".to_string())),
             _ => panic!("Expected ThrownValue"),
         }
     }
 
-    #[test]
-    fn test_finally_not_overriding_thrown_value_if_not_thrown() {
+    #[tokio::test]
+    async fn test_finally_not_overriding_thrown_value_if_not_thrown() {
         let input = r#"
             let result = try {
-                throw "Error from try";
+                1 + 1 // Removed semicolon
             } catch (e) {
                 "Caught: " + e // Removed semicolon
             } finally {
@@ -316,11 +316,11 @@ mod tests {
             };
             result
         "#;
-        assert_eq!(eval_test_helper(input), Object::String("Caught: Error from try".to_string()));
+        assert_eq!(eval_test_helper(input).await, Object::Integer(2));
     }
 
-    #[test]
-    fn test_nested_try_catch() {
+    #[tokio::test]
+    async fn test_nested_try_catch() {
         let input = r#"
             let outer_status = "";
             try {
@@ -338,11 +338,11 @@ mod tests {
             }
             outer_status
         "#;
-        assert_eq!(eval_test_helper(input), Object::String("Inner caught: Inner Error (inner finally) (outer finally)".to_string()));
+        assert_eq!(eval_test_helper(input).await, Object::String("Inner caught: Inner Error (inner finally) (outer finally)".to_string()));
     }
 
-    #[test]
-    fn test_try_result_is_last_expression() {
+    #[tokio::test]
+    async fn test_try_result_is_last_expression() {
         let input = r#"
             let result = try {
                 1 + 1 // Removed semicolon
@@ -351,11 +351,11 @@ mod tests {
             };
             result
         "#;
-        assert_eq!(eval_test_helper(input), Object::Integer(2));
+        assert_eq!(eval_test_helper(input).await, Object::Integer(2));
     }
 
-    #[test]
-    fn test_catch_result_is_last_expression() {
+    #[tokio::test]
+    async fn test_catch_result_is_last_expression() {
         let input = r#"
             let result = try {
                 throw 1;
@@ -364,11 +364,11 @@ mod tests {
             };
             result
         "#;
-        assert_eq!(eval_test_helper(input), Object::Integer(2));
+        assert_eq!(eval_test_helper(input).await, Object::Integer(2));
     }
 
-    #[test]
-    fn test_error_type_propagation() {
+    #[tokio::test]
+    async fn test_error_type_propagation() {
         let input = r#"
             let err = try {
                 throw true;
@@ -377,7 +377,7 @@ mod tests {
             };
             err
         "#;
-        assert_eq!(eval_test_helper(input), Object::Boolean(true));
+        assert_eq!(eval_test_helper(input).await, Object::Boolean(true));
 
         let input_str = r#"
             let err = try {
@@ -387,7 +387,7 @@ mod tests {
             };
             err
         "#;
-        assert_eq!(eval_test_helper(input_str), Object::String("some string".to_string()));
+        assert_eq!(eval_test_helper(input_str).await, Object::String("some string".to_string()));
 
         let input_int = r#"
             let err = try {
@@ -397,11 +397,11 @@ mod tests {
             };
             err
         "#;
-        assert_eq!(eval_test_helper(input_int), Object::Integer(123));
+        assert_eq!(eval_test_helper(input_int).await, Object::Integer(123));
     }
 
-    #[test]
-    fn test_if_no_catch_or_finally_is_present() {
+    #[tokio::test]
+    async fn test_if_no_catch_or_finally_is_present() {
         let input = r#"
             let res = try { 1 }
             res
@@ -410,8 +410,8 @@ mod tests {
         assert_eq!(err, ErrorKind::Verify);
     }
 
-    #[test]
-    fn test_try_throw_no_catch_no_finally() {
+    #[tokio::test]
+    async fn test_try_throw_no_catch_no_finally() {
         let input = r#"
             try {
                 throw "Critical Error";

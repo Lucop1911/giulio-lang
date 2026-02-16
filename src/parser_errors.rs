@@ -377,6 +377,8 @@ pub fn describe_token(token: &Token) -> String {
         Token::Catch => "'catch'".to_string(),
         Token::Finally => "'finally'".to_string(),
         Token::Throw => "'throw'".to_string(),
+        Token::Async => "'async'".to_string(),
+        Token::Await => "'await'".to_string(),
     }
 }
 

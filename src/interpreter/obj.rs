@@ -1,8 +1,7 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use num_bigint::BigInt;
 
@@ -10,7 +9,7 @@ use crate::ast::ast::{Ident, Program};
 use crate::errors::RuntimeError;
 use crate::interpreter::env::Environment;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Object {
     Integer(i64),
     BigInteger(BigInt),
@@ -19,7 +18,8 @@ pub enum Object {
     String(String),
     Array(Vec<Object>),
     Hash(HashMap<Object, Object>),
-    Function(Vec<Ident>, Program, Rc<RefCell<Environment>>),
+    Function(Vec<Ident>, Program, Arc<Mutex<Environment>>),
+    AsyncFunction(Vec<Ident>, Program, Arc<Mutex<Environment>>),
     Builtin(String, usize, usize, BuiltinFunction),
     BuiltinStd(String, usize, usize, StdFunction),
     Struct {
@@ -30,14 +30,42 @@ pub enum Object {
     Null,
     ReturnValue(Box<Object>),
     Error(RuntimeError),
-    Method(Vec<Ident>, Program, Rc<RefCell<Environment>>),
+    Method(Vec<Ident>, Program, Arc<Mutex<Environment>>),
     Break,
     Continue,
     ThrownValue(Box<Object>),
+    Future(Arc<Mutex<Option<std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>>>>),
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
 pub type StdFunction = fn(Vec<Object>) -> Result<Object, RuntimeError>;
+
+impl fmt::Debug for Object {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Object::Integer(i) => write!(f, "Integer({})", i),
+            Object::BigInteger(b) => write!(f, "BigInteger({})", b),
+            Object::Float(fl) => write!(f, "Float({})", fl),
+            Object::Boolean(b) => write!(f, "Boolean({})", b),
+            Object::String(s) => write!(f, "String(\"{}\")", s),
+            Object::Array(a) => write!(f, "Array({:?})", a),
+            Object::Hash(h) => write!(f, "Hash({:?})", h),
+            Object::Function(p, b, _) => write!(f, "Function(params:{:?}, body:{:?})", p, b),
+            Object::AsyncFunction(p, b, _) => write!(f, "AsyncFunction(params:{:?}, body:{:?})", p, b),
+            Object::Builtin(n, _, _, _) => write!(f, "Builtin(\"{}\")", n),
+            Object::BuiltinStd(n, _, _, _) => write!(f, "BuiltinStd(\"{}\")", n),
+            Object::Struct { name, fields, methods } => write!(f, "Struct(name:{}, fields:{:?}, methods:{:?})", name, fields, methods),
+            Object::Null => write!(f, "Null"),
+            Object::ReturnValue(o) => write!(f, "ReturnValue({:?})", o),
+            Object::Error(e) => write!(f, "Error({:?})", e),
+            Object::Method(p, b, _) => write!(f, "Method(params:{:?}, body:{:?})", p, b),
+            Object::Break => write!(f, "Break"),
+            Object::Continue => write!(f, "Continue"),
+            Object::ThrownValue(o) => write!(f, "ThrownValue({:?})", o),
+            Object::Future(_) => write!(f, "Future(_)"),
+        }
+    }
+}
 
 impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
@@ -62,8 +90,12 @@ impl PartialEq for Object {
             (Object::Function(params_a, body_a, _), Object::Function(params_b, body_b, _)) => {
                 params_a == params_b && body_a == body_b
             }
+            (Object::AsyncFunction(params_a, body_a, _), Object::AsyncFunction(params_b, body_b, _)) => {
+                params_a == params_b && body_a == body_b
+            }
             (Object::Break, Object::Break) => true,
             (Object::Continue, Object::Continue) => true,
+            (Object::Future(_), Object::Future(_)) => false,
             _ => false,
         }
     }
@@ -91,6 +123,7 @@ impl Object {
             Object::Array(_) => "array".to_string(),
             Object::Hash(_) => "hash".to_string(),
             Object::Function(_, _, _) => "function".to_string(),
+            Object::AsyncFunction(_, _, _) => "async function".to_string(),
             Object::Builtin(_, _, _, _) => "builtin function".to_string(),
             Object::BuiltinStd(_, _, _, _) => "builtin function".to_string(),
             Object::Null => "null".to_string(),
@@ -101,6 +134,7 @@ impl Object {
             Object::Break => "break".to_string(),
             Object::Continue => "continue".to_string(),
             Object::ThrownValue(_) => "thrown value".to_string(),
+            Object::Future(_) => "future".to_string(),
         }
     }
 }
@@ -144,6 +178,7 @@ impl fmt::Display for Object {
                 write!(f, "{}", fmt_string)
             }
             Object::Function(_, _, _) => write!(f, "[function]"),
+            Object::AsyncFunction(_, _, _) => write!(f, "[async function]"),
             Object::Builtin(ref name,_, _, _) => write!(f, "[built-in function: {}]", *name),
             Object::BuiltinStd(ref name,_, _, _) => write!(f, "[built-in function: {}]", *name),
             Object::Null => write!(f, "null"),
@@ -163,6 +198,7 @@ impl fmt::Display for Object {
             Object::Break => write!(f, "break"),
             Object::Continue => write!(f, "continue"),
             Object::ThrownValue(ref o) => write!(f, "Thrown: {}", *o),
+            Object::Future(_) => write!(f, "[future]"),
         }
     }
 }
@@ -177,6 +213,18 @@ impl Hash for Object {
             Object::BigInteger(ref i) => i.hash(state),
             Object::Boolean(ref b) => b.hash(state),
             Object::String(ref s) => s.hash(state),
+            Object::Function(ref params, ref body, _) => {
+                params.hash(state);
+                body.hash(state);
+            },
+            Object::AsyncFunction(ref params, ref body, _) => {
+                params.hash(state);
+                body.hash(state);
+            },
+            Object::Method(ref params, ref body, _) => {
+                params.hash(state);
+                body.hash(state);
+            },
             _ => "".hash(state),
         }
     }

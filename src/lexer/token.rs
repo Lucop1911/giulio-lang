@@ -65,10 +65,14 @@ pub enum Token {
     In,
     Break,
     Continue,
+    // Error handling
     Try,
     Catch,
     Finally,
     Throw,
+    // Async
+    Async,
+    Await,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
