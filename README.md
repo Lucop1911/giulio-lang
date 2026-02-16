@@ -156,7 +156,7 @@ OPTIONS:
 
 ## Documentation
 
-For comprehensive documentation and more examples, please visit the [official documentation website](https://github.com/Lucop1911/giulio-lang) WIP.
+For comprehensive documentation and more examples, please visit the [official documentation website](https://giulio-lang.vercel.app)
 
 ## License
 
