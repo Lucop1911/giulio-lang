@@ -4,6 +4,24 @@ use num_traits::ToPrimitive;
 use crate::interpreter::obj::Object;
 
 // Method only
+pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
+    match args.first() {
+        Some(Object::Integer(n)) => {
+            Ok(Object::String(n.to_string()))
+        }
+        Some(Object::Float(n)) => {
+            Ok(Object::String(n.to_string()))
+        }
+        Some(Object::BigInteger(n)) => {
+            Ok(Object::String(n.to_string()))
+        }
+        _ => {
+            Err("to_string() expects an integer".to_string())
+        }
+    }
+}
+
+// Method only
 pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => {
