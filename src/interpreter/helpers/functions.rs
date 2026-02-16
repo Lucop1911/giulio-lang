@@ -19,27 +19,26 @@ impl Evaluator {
         Object::Method(params, body, Arc::clone(&self.env))
     }
 
-    pub fn eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> EvalFuture {
-        let mut self_clone = self.clone();
-        Box::pin(async move {
-            let fn_object = self_clone.eval_expr(fn_expr).await;
-            let fn_ = self_clone.obj_to_func(fn_object);
-            match fn_ {
-                Object::Function(params, body, f_env) => {
-                    self_clone.eval_fn_call(args_expr, params, body, &f_env).await
-                }
-                Object::AsyncFunction(params, body, f_env) => {
-                    self_clone.eval_async_fn_call(args_expr, params, body, &f_env).await
-                }
-                Object::Builtin(_, min_params, max_params, b_fn) => {
-                    self_clone.eval_builtin_call(args_expr, min_params, max_params, b_fn).await
-                }
-                Object::BuiltinStd(_, min_params, max_params, s_fn) => {
-                    self_clone.eval_std_call(args_expr, min_params, max_params, s_fn).await
-                }
-                o_err => o_err,
+    pub async fn eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> Object {
+        let fn_object = self.eval_expr(fn_expr).await;
+        let fn_ = self.obj_to_func(fn_object);
+
+        match fn_ {
+            Object::Function(params, body, f_env) => {
+                self.eval_fn_call(args_expr, params, body, &f_env).await
             }
-        })
+            Object::AsyncFunction(params, body, f_env) => {
+                let future_eval_future = self.eval_async_fn_call(args_expr, params, body, &f_env);
+                future_eval_future.await
+            }
+            Object::Builtin(_, min_params, max_params, b_fn) => {
+                self.eval_builtin_call(args_expr, min_params, max_params, b_fn).await
+            }
+            Object::BuiltinStd(_, min_params, max_params, s_fn) => {
+                self.eval_std_call(args_expr, min_params, max_params, s_fn).await
+            }
+            o_err => o_err,
+        }
     }
 
     pub fn eval_fn_call(

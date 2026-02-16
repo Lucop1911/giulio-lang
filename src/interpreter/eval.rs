@@ -92,7 +92,7 @@ impl Evaluator {
                     // Propagate control flow objects (return, break, continue, error, thrown)
                     match result {
                         Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) | Object::ThrownValue(_) => result,
-                        _ => Object::Null  // Expression statements don't produce values in normal flow
+                        _ => result  // Expression statements now produce values in normal flow
                     }
                 }
                 Stmt::ExprValueStmt(expr) => {

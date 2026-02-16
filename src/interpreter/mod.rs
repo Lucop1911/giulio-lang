@@ -208,6 +208,71 @@ mod tests {
             }
         }
     }
+
+    #[tokio::test]
+    async fn test_async_function_basic() {
+        let input = r#"
+            async fn async_identity(x) {
+                return x;
+            }
+            await async_identity(10);
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(10));
+    }
+
+    #[tokio::test]
+    async fn test_await_expressions() {
+        let input = r#"
+            async fn add_one(x) {
+                return x + 1;
+            }
+            let res = await add_one(5);
+            await add_one(res);
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(7));
+    }
+
+    #[tokio::test]
+    async fn test_chained_async_calls() {
+        let input = r#"
+            async fn add_one(x) {
+                return x + 1;
+            }
+            async fn add_two(x) {
+                let one_added = await add_one(x);
+                return await add_one(one_added);
+            }
+            await add_two(5);
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(7));
+    }
+
+    #[tokio::test]
+    async fn test_async_function_return_types() {
+        let input_int = r#"
+            async fn get_int() {
+                return 123;
+            }
+            await get_int();
+        "#;
+        assert_eq!(eval_test_helper(input_int).await, Object::Integer(123));
+
+        let input_bool = r#"
+            async fn get_bool() {
+                return true;
+            }
+            await get_bool();
+        "#;
+        assert_eq!(eval_test_helper(input_bool).await, Object::Boolean(true));
+
+        let input_string = r#"
+            async fn get_string() {
+                return "hello";
+            }
+            await get_string();
+        "#;
+        assert_eq!(eval_test_helper(input_string).await, Object::String("hello".to_string()));
+    }
     #[tokio::test]
     async fn test_try_catch_no_throw() {
         let input = r#"
