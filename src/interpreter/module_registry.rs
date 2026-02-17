@@ -85,6 +85,10 @@ impl ModuleRegistry {
 
         io_exports.insert("list_dir".to_string(), create_builtin("list_dir", 1, 1, io_list_dir));
 
+        io_exports.insert("create_dir".to_string(), create_builtin("create_dir", 1, 1, io_create_dir));
+        io_exports.insert("delete_file".to_string(), create_builtin("delete_file", 1, 1, io_delete_file));
+        io_exports.insert("delete_dir".to_string(), create_builtin("delete_dir", 1, 1, io_delete_dir));
+
         self.stdlib.insert("std.io".to_string(), Module {
             name: "std.io".to_string(),
             exports: io_exports,

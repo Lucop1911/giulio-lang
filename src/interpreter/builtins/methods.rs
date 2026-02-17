@@ -1,13 +1,29 @@
-use crate::{RuntimeError, interpreter::obj::Object};
-use crate::interpreter::builtins::impls::{string::*, array::*, int::*, hash::*, shared::*, struct_ops::*, float::*};
+use crate::interpreter::builtins::impls::{
+    array::*, float::*, hash::*, int::*, shared::*, string::*, struct_ops::*,
+};
+use crate::{interpreter::obj::Object, RuntimeError};
 
 pub struct BuiltinMethods;
 
 impl BuiltinMethods {
-    pub fn call_method(object: Object, method_name: &str, args: Vec<Object>) -> Result<Object, RuntimeError> {
+    pub fn call_method(
+        object: Object,
+        method_name: &str,
+        args: Vec<Object>,
+    ) -> Result<Object, RuntimeError> {
         match (&object, method_name) {
             // Conversion methods
-            (Object::Integer(_), "to_string") => {
+            (
+                Object::Integer(_)
+                | Object::Float(_)
+                | Object::BigInteger(_)
+                | Object::Boolean(_)
+                | Object::String(_)
+                | Object::Array(_)
+                | Object::Hash(_)
+                | Object::Null,
+                "to_string",
+            ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 btostring_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
@@ -71,7 +87,7 @@ impl BuiltinMethods {
                 all_args.extend(args);
                 btrim_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            
+
             // Array methods
             (Object::Array(_), "head") => {
                 let mut all_args = vec![object];
@@ -144,31 +160,61 @@ impl BuiltinMethods {
             }
 
             // Struct methods
-            (Object::Struct { name: _, fields: _, methods: _ }, "set") => {
+            (
+                Object::Struct {
+                    name: _,
+                    fields: _,
+                    methods: _,
+                },
+                "set",
+            ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bset_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (Object::Struct { name: _, fields: _, methods: _ }, "get") => {
+            (
+                Object::Struct {
+                    name: _,
+                    fields: _,
+                    methods: _,
+                },
+                "get",
+            ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bget_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (Object::Struct { name: _, fields: _, methods: _ }, "fields") => {
+            (
+                Object::Struct {
+                    name: _,
+                    fields: _,
+                    methods: _,
+                },
+                "fields",
+            ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bstruct_fields_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (Object::Struct { name: _, fields: _, methods: _ }, "name") => {
+            (
+                Object::Struct {
+                    name: _,
+                    fields: _,
+                    methods: _,
+                },
+                "name",
+            ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bstruct_name_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
 
             // Method not found for this type
-            _ => Err(RuntimeError::InvalidOperation(
-                format!("{} has no method '{}'", object.type_name(), method_name)
-            ))
+            _ => Err(RuntimeError::InvalidOperation(format!(
+                "{} has no method '{}'",
+                object.type_name(),
+                method_name
+            ))),
         }
     }
 }

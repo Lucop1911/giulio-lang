@@ -22,6 +22,7 @@ pub enum Object {
     AsyncFunction(Vec<Ident>, Program, Arc<Mutex<Environment>>),
     Builtin(String, usize, usize, BuiltinFunction),
     BuiltinStd(String, usize, usize, StdFunction),
+    BuiltinStdAsync(String, usize, usize, AsyncStdFunction),
     Struct {
         name: String,
         fields: HashMap<String, Object>,
@@ -34,11 +35,26 @@ pub enum Object {
     Break,
     Continue,
     ThrownValue(Box<Object>),
-    Future(Arc<Mutex<Option<std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>>>>),
+    Future(
+        Arc<
+            Mutex<
+                Option<
+                    std::pin::Pin<
+                        Box<
+                            dyn std::future::Future<Output = Result<Object, RuntimeError>>
+                                + Send
+                                + 'static,
+                        >,
+                    >,
+                >,
+            >,
+        >,
+    ),
 }
 
 pub type BuiltinFunction = fn(Vec<Object>) -> Result<Object, String>;
 pub type StdFunction = fn(Vec<Object>) -> Result<Object, RuntimeError>;
+pub type AsyncStdFunction = fn(Vec<Object>) -> Result<Object, RuntimeError>;
 
 impl fmt::Debug for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -51,10 +67,21 @@ impl fmt::Debug for Object {
             Object::Array(a) => write!(f, "Array({:?})", a),
             Object::Hash(h) => write!(f, "Hash({:?})", h),
             Object::Function(p, b, _) => write!(f, "Function(params:{:?}, body:{:?})", p, b),
-            Object::AsyncFunction(p, b, _) => write!(f, "AsyncFunction(params:{:?}, body:{:?})", p, b),
+            Object::AsyncFunction(p, b, _) => {
+                write!(f, "AsyncFunction(params:{:?}, body:{:?})", p, b)
+            }
             Object::Builtin(n, _, _, _) => write!(f, "Builtin(\"{}\")", n),
             Object::BuiltinStd(n, _, _, _) => write!(f, "BuiltinStd(\"{}\")", n),
-            Object::Struct { name, fields, methods } => write!(f, "Struct(name:{}, fields:{:?}, methods:{:?})", name, fields, methods),
+            Object::BuiltinStdAsync(n, _, _, _) => write!(f, "BuiltinStdAsync(\"{}\")", n),
+            Object::Struct {
+                name,
+                fields,
+                methods,
+            } => write!(
+                f,
+                "Struct(name:{}, fields:{:?}, methods:{:?})",
+                name, fields, methods
+            ),
             Object::Null => write!(f, "Null"),
             Object::ReturnValue(o) => write!(f, "ReturnValue({:?})", o),
             Object::Error(e) => write!(f, "Error({:?})", e),
@@ -81,18 +108,25 @@ impl PartialEq for Object {
             (Object::ReturnValue(a), Object::ReturnValue(b)) => a == b,
             (Object::Error(a), Object::Error(b)) => a == b,
             (Object::ThrownValue(a), Object::ThrownValue(b)) => a == b,
-            (Object::Builtin(name_a, params_a, params_a1, _), Object::Builtin(name_b, params_b, params_b1, _)) => {
-                name_a == name_b && params_a == params_b && params_a1 == params_b1
-            }
-            (Object::BuiltinStd(name_a, params_a, params_a1, _), Object::BuiltinStd(name_b, params_b, params_b1, _)) => {
-                name_a == name_b && params_a == params_b && params_a1 == params_b1
-            }
+            (
+                Object::Builtin(name_a, params_a, params_a1, _),
+                Object::Builtin(name_b, params_b, params_b1, _),
+            ) => name_a == name_b && params_a == params_b && params_a1 == params_b1,
+            (
+                Object::BuiltinStd(name_a, params_a, params_a1, _),
+                Object::BuiltinStd(name_b, params_b, params_b1, _),
+            ) => name_a == name_b && params_a == params_b && params_a1 == params_b1,
+            (
+                Object::BuiltinStdAsync(name_a, params_a, params_a1, _),
+                Object::BuiltinStdAsync(name_b, params_b, params_b1, _),
+            ) => name_a == name_b && params_a == params_b && params_a1 == params_b1,
             (Object::Function(params_a, body_a, _), Object::Function(params_b, body_b, _)) => {
                 params_a == params_b && body_a == body_b
             }
-            (Object::AsyncFunction(params_a, body_a, _), Object::AsyncFunction(params_b, body_b, _)) => {
-                params_a == params_b && body_a == body_b
-            }
+            (
+                Object::AsyncFunction(params_a, body_a, _),
+                Object::AsyncFunction(params_b, body_b, _),
+            ) => params_a == params_b && body_a == body_b,
             (Object::Break, Object::Break) => true,
             (Object::Continue, Object::Continue) => true,
             (Object::Future(_), Object::Future(_)) => false,
@@ -126,6 +160,7 @@ impl Object {
             Object::AsyncFunction(_, _, _) => "async function".to_string(),
             Object::Builtin(_, _, _, _) => "builtin function".to_string(),
             Object::BuiltinStd(_, _, _, _) => "builtin function".to_string(),
+            Object::BuiltinStdAsync(_, _, _, _) => "async builtin function".to_string(),
             Object::Null => "null".to_string(),
             Object::ReturnValue(_) => "return value".to_string(),
             Object::Error(_) => "error".to_string(),
@@ -179,13 +214,20 @@ impl fmt::Display for Object {
             }
             Object::Function(_, _, _) => write!(f, "[function]"),
             Object::AsyncFunction(_, _, _) => write!(f, "[async function]"),
-            Object::Builtin(ref name,_, _, _) => write!(f, "[built-in function: {}]", *name),
-            Object::BuiltinStd(ref name,_, _, _) => write!(f, "[built-in function: {}]", *name),
+            Object::Builtin(ref name, _, _, _) => write!(f, "[built-in function: {}]", *name),
+            Object::BuiltinStd(ref name, _, _, _) => write!(f, "[built-in function: {}]", *name),
+            Object::BuiltinStdAsync(ref name, _, _, _) => {
+                write!(f, "[async built-in function: {}]", *name)
+            }
             Object::Null => write!(f, "null"),
             Object::ReturnValue(ref o) => write!(f, "{}", *o),
             Object::Error(ref e) => write!(f, "{}", e),
             Object::Method(_, _, _) => write!(f, "[method]"),
-            Object::Struct { ref name, ref fields, .. } => {
+            Object::Struct {
+                ref name,
+                ref fields,
+                ..
+            } => {
                 write!(f, "{}{{ ", name)?;
                 for (i, (field_name, field_value)) in fields.iter().enumerate() {
                     write!(f, "{}: {}", field_name, field_value)?;
@@ -194,7 +236,7 @@ impl fmt::Display for Object {
                     }
                 }
                 write!(f, " }}")
-            },
+            }
             Object::Break => write!(f, "break"),
             Object::Continue => write!(f, "continue"),
             Object::ThrownValue(ref o) => write!(f, "Thrown: {}", *o),
@@ -216,15 +258,15 @@ impl Hash for Object {
             Object::Function(ref params, ref body, _) => {
                 params.hash(state);
                 body.hash(state);
-            },
+            }
             Object::AsyncFunction(ref params, ref body, _) => {
                 params.hash(state);
                 body.hash(state);
-            },
+            }
             Object::Method(ref params, ref body, _) => {
                 params.hash(state);
                 body.hash(state);
-            },
+            }
             _ => "".hash(state),
         }
     }
