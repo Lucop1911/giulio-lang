@@ -1,8 +1,8 @@
 pub mod obj_operations;
 pub mod type_converters;
-pub mod control_flow;
-pub mod functions;
-pub mod data_structures;
-pub mod structs;
-pub mod expressions;
-pub mod misc;
+pub mod eval_control_flow;
+pub mod eval_functions;
+pub mod eval_data_structures;
+pub mod eval_structs;
+pub mod eval_expressions;
+pub mod eval_misc;
