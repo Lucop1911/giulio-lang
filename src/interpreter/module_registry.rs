@@ -75,8 +75,11 @@ impl ModuleRegistry {
         let mut io_exports = HashMap::new();
         
         io_exports.insert("read_file".to_string(), create_builtin("read_file", 1, 1, io_read_file));
+        io_exports.insert("read_file_async".to_string(), create_builtin("read_file_async", 1, 1, io_read_file_async));
         io_exports.insert("write_file".to_string(), create_builtin("write_file", 2, 2, io_write_file));
+        io_exports.insert("write_file_async".to_string(), create_builtin("write_file_async", 2, 2, io_write_file_async));
         io_exports.insert("append_file".to_string(), create_builtin("append_file", 2, 2, io_append_file));
+        io_exports.insert("append_file_async".to_string(), create_builtin("append_file_async", 2, 2, io_append_file_async));
 
         io_exports.insert("exists".to_string(), create_builtin("exists", 1, 1, io_exists));
         io_exports.insert("is_file".to_string(), create_builtin("is_file", 1, 1, io_is_file));
@@ -84,10 +87,14 @@ impl ModuleRegistry {
         io_exports.insert("is_dir".to_string(), create_builtin("is_dir", 1, 1, io_is_dir));
 
         io_exports.insert("list_dir".to_string(), create_builtin("list_dir", 1, 1, io_list_dir));
+        io_exports.insert("list_dir_async".to_string(), create_builtin("list_dir_async", 1, 1, io_list_dir_async));
 
         io_exports.insert("create_dir".to_string(), create_builtin("create_dir", 1, 1, io_create_dir));
+        io_exports.insert("create_dir_async".to_string(), create_builtin("create_dir_async", 1, 1, io_create_dir_async));
         io_exports.insert("delete_file".to_string(), create_builtin("delete_file", 1, 1, io_delete_file));
+        io_exports.insert("delete_file_async".to_string(), create_builtin("delete_file_async", 1, 1, io_delete_file_async));
         io_exports.insert("delete_dir".to_string(), create_builtin("delete_dir", 1, 1, io_delete_dir));
+        io_exports.insert("delete_dir_async".to_string(), create_builtin("delete_dir_async", 1, 1, io_delete_dir_async));
 
         self.stdlib.insert("std.io".to_string(), Module {
             name: "std.io".to_string(),
