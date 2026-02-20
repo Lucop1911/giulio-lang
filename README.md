@@ -14,6 +14,7 @@ Giulio-lang is a lightweight, expressive language designed for simplicity and ea
 - **Module System**: Import and organize code across multiple files
 - **REPL Mode**: Interactive Read-Eval-Print Loop for quick experimentation
 - **Standard Library**: Built-in functions for common operations
+- **Async and Await**: Support for asynchronous operations
 
 ## Installation
 
