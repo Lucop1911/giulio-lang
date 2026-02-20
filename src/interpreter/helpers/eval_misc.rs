@@ -31,7 +31,7 @@ impl Evaluator {
             match items {
                 ImportItems::All => {
                     for (name, obj) in &module.exports { // Iterate by reference
-                        self_clone.env.lock().unwrap().set(name, obj.clone()); // name is &String, obj is &Object
+                        self_clone.env.lock().unwrap().set(name, obj.clone());
                     }
                 }
                 ImportItems::Specific(names) => {

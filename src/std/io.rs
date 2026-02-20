@@ -32,7 +32,7 @@ pub async fn async_io_read_file(args: Vec<Object>) -> Result<Object, RuntimeErro
     }
 }
 
-pub fn io_read_file_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_read_file_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_read_file(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }
@@ -63,7 +63,7 @@ pub async fn async_io_create_dir(args: Vec<Object>) -> Result<Object, RuntimeErr
     }
 }
 
-pub fn io_create_dir_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_create_dir_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_create_dir(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }
@@ -94,7 +94,7 @@ pub async fn async_io_delete_file(args: Vec<Object>) -> Result<Object, RuntimeEr
     }
 }
 
-pub fn io_delete_file_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_delete_file_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_delete_file(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }
@@ -125,7 +125,7 @@ pub async fn async_io_delete_dir(args: Vec<Object>) -> Result<Object, RuntimeErr
     }
 }
 
-pub fn io_delete_dir_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_delete_dir_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_delete_dir(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }
@@ -162,7 +162,7 @@ pub async fn async_io_write_file(args: Vec<Object>) -> Result<Object, RuntimeErr
     }
 }
 
-pub fn io_write_file_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_write_file_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_write_file(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }
@@ -212,7 +212,7 @@ pub async fn async_io_append_file(args: Vec<Object>) -> Result<Object, RuntimeEr
     }
 }
 
-pub fn io_append_file_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_append_file_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_append_file(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }
@@ -303,7 +303,7 @@ pub async fn async_io_list_dir(args: Vec<Object>) -> Result<Object, RuntimeError
     }
 }
 
-pub fn io_list_dir_async(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn io_list_dir_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_io_list_dir(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }

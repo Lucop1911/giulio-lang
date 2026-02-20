@@ -3,23 +3,25 @@ use crate::interpreter::obj::Object;
 pub fn bhead_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(arr)) => match arr.into_iter().next() {
-            None => Err("cannot get head of empty array".to_string()),
+            None => Err(format!("head() cannot get head of empty array")),
             Some(x) => Ok(x),
         },
-        _ => Err("head() requires an array".to_string()),
+        Some(o) => Err(format!("head() expects array, got {}", o.type_name())),
+        None => Err(format!("head() expects 1 argument, got 0")),
     }
 }
 
 pub fn btail_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(mut arr)) => match arr.len() {
-            0 => Err("cannot get tail of empty array".to_string()),
+            0 => Err(format!("tail() cannot get tail of empty array")),
             _ => {
                 arr.remove(0);
                 Ok(Object::Array(arr))
             }
         },
-        _ => Err("tail() requires an array".to_string()),
+        Some(o) => Err(format!("tail() expects array, got {}", o.type_name())),
+        None => Err(format!("tail() expects 1 argument, got 0")),
     }
 }
 
@@ -30,7 +32,13 @@ pub fn bcons_fn(args: Vec<Object>) -> Result<Object, String> {
             os.insert(0, o);
             Ok(Object::Array(os))
         }
-        _ => Err("cons() requires a value and an array".to_string()),
+        (Some(o), Some(other)) => Err(format!(
+            "cons() expects (value, array), got {} and {}",
+            o.type_name(),
+            other.type_name()
+        )),
+        (None, _) => Err(format!("cons() expects 2 arguments, got 1")),
+        (_, None) => Err(format!("cons() expects 2 arguments, got 1")),
     }
 }
 
@@ -41,6 +49,7 @@ pub fn bpush_fn(args: Vec<Object>) -> Result<Object, String> {
             arr.push(o);
             Ok(Object::Array(arr))
         }
-        _ => Err("push() requires an array and a value".to_string()),
+        (Some(o), _) => Err(format!("push() expects array, got {}", o.type_name())),
+        (None, _) => Err(format!("push() expects 2 arguments, got 1")),
     }
 }

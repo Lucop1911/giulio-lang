@@ -1,20 +1,22 @@
-use std::collections::HashMap;
 use crate::interpreter::obj::Object;
+use std::collections::HashMap;
 
 // Method only
 pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next(), args.next()) {
-        (Some(Object::Hash(mut hash)), Some(key), Some(value)) => {
-            match &key {
-                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
-                    hash.insert(key, value);
-                    Ok(Object::Hash(hash))
-                }
-                _ => Err(format!("{} is not hashable", key.type_name())),
+        (Some(Object::Hash(mut hash)), Some(key), Some(value)) => match &key {
+            Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
+                hash.insert(key, value);
+                Ok(Object::Hash(hash))
             }
-        }
-        _ => Err("Invalid arguments to set(hash, key, value)".to_string()),
+            _ => Err(format!(
+                "set() key must be integer, boolean, or string, got {}",
+                key.type_name()
+            )),
+        },
+        (Some(o), _, _) => Err(format!("set() expects hash, got {}", o.type_name())),
+        (None, _, _) => Err(format!("set() expects 3 arguments, got {}", args.len() + 1)),
     }
 }
 
@@ -22,15 +24,17 @@ pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
 pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
-        (Some(Object::Hash(hash)), Some(key)) => {
-            match &key {
-                Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
-                    Ok(Object::Boolean(hash.contains_key(&key)))
-                }
-                _ => Err(format!("{} is not hashable", key.type_name())),
+        (Some(Object::Hash(hash)), Some(key)) => match &key {
+            Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
+                Ok(Object::Boolean(hash.contains_key(&key)))
             }
-        }
-        _ => Err("Invalid arguments to has(hash, key)".to_string()),
+            _ => Err(format!(
+                "has() key must be integer, boolean, or string, got {}",
+                key.type_name()
+            )),
+        },
+        (Some(o), _) => Err(format!("has() expects hash, got {}", o.type_name())),
+        (None, _) => Err(format!("has() expects 2 arguments, got 1")),
     }
 }
 
@@ -40,7 +44,8 @@ pub fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
             let keys: Vec<Object> = hash.keys().cloned().collect();
             Ok(Object::Array(keys))
         }
-        _ => Err("Invalid arguments to keys(hash)".to_string()),
+        Some(o) => Err(format!("keys() expects hash, got {}", o.type_name())),
+        None => Err(format!("keys() expects 1 argument, got 0")),
     }
 }
 
@@ -50,15 +55,15 @@ pub fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
             let values: Vec<Object> = hash.values().cloned().collect();
             Ok(Object::Array(values))
         }
-        _ => Err("Invalid arguments to values(hash)".to_string()),
+        Some(o) => Err(format!("values() expects hash, got {}", o.type_name())),
+        None => Err(format!("values() expects 1 argument, got 0")),
     }
 }
 
 pub fn bclear_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
-        Some(Object::Hash(_)) => {
-            Ok(Object::Hash(HashMap::new()))
-        }
-        _ => Err("Invalid arguments to clear(hash)".to_string()),
+        Some(Object::Hash(_)) => Ok(Object::Hash(HashMap::new())),
+        Some(o) => Err(format!("clear() expects hash, got {}", o.type_name())),
+        None => Err(format!("clear() expects 1 argument, got 0")),
     }
 }
