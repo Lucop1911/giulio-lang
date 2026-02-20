@@ -1,13 +1,15 @@
-use nom::{IResult, branch::*};
 use nom::bytes::complete::take;
 use nom::combinator::{cut, map, opt, verify};
 use nom::error::{Error, ErrorKind};
 use nom::multi::many0;
 use nom::sequence::*;
 use nom::Err;
+use nom::{branch::*, IResult};
 use std::result::Result::*;
 
-use crate::ast::ast::{Expr, Ident, ImportItems, Infix, Literal, Precedence, Prefix, Program, Stmt};
+use crate::ast::ast::{
+    Expr, Ident, ImportItems, Infix, Literal, Precedence, Prefix, Program, Stmt,
+};
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::parser_helpers::*;
 
@@ -28,11 +30,11 @@ macro_rules! tag_token {
 
 fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
     let (i1, t1) = take(1usize)(input)?;
-    
+
     if t1.token.is_empty() {
         return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
     }
-    
+
     // Pattern matching to know when i need to clone and when i don't
     match &t1.token[0] {
         Token::IntLiteral(n) => Ok((i1, Literal::IntLiteral(*n))),
@@ -47,11 +49,11 @@ fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
 
 fn parse_ident(input: Tokens) -> IResult<Tokens, Ident> {
     let (i1, t1) = take(1usize)(input)?;
-    
+
     if t1.token.is_empty() {
         return Err(Err::Error(Error::new(input, ErrorKind::Tag)));
     }
-    
+
     match &t1.token[0] {
         Token::Ident(name) => Ok((i1, Ident(name.clone()))),
         _ => Err(Err::Error(Error::new(input, ErrorKind::Tag))),
@@ -72,6 +74,11 @@ tag_token!(lbracket_tag, Token::LBracket);
 tag_token!(rbracket_tag, Token::RBracket);
 tag_token!(comma_tag, Token::Comma);
 tag_token!(colon_tag, Token::Colon);
+tag_token!(plus_assign_tag, Token::PlusAssign);
+tag_token!(minus_assign_tag, Token::MinusAssign);
+tag_token!(multiply_assign_tag, Token::MultiplyAssign);
+tag_token!(divide_assign_tag, Token::DivideAssign);
+tag_token!(modulo_assign_tag, Token::ModuloAssign);
 tag_token!(plus_tag, Token::Plus);
 tag_token!(minus_tag, Token::Minus);
 tag_token!(not_tag, Token::Not);
@@ -94,7 +101,6 @@ tag_token!(finally_tag, Token::Finally);
 tag_token!(throw_tag, Token::Throw);
 tag_token!(async_tag, Token::Async);
 tag_token!(await_tag, Token::Await);
-
 
 // OPERATOR PRECEDENCE
 
@@ -149,7 +155,14 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 // Helper to parse both sync and async function declarations
 fn parse_fn_declaration(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
-        tuple((opt(async_tag), function_tag, parse_ident, parens(comma_separated0(parse_ident)), parse_block_stmt, opt(semicolon_tag))),
+        tuple((
+            opt(async_tag),
+            function_tag,
+            parse_ident,
+            parens(comma_separated0(parse_ident)),
+            parse_block_stmt,
+            opt(semicolon_tag),
+        )),
         |(is_async, _, name, params, body, _)| {
             if is_async.is_some() {
                 Stmt::LetStmt(name, Expr::AsyncFnExpr { params, body })
@@ -194,6 +207,20 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                 Err(Err::Error(Error::new(input, ErrorKind::Verify)))
             }
         }
+    } else if let Ok((i2, infix)) = aug_assign_to_infix(i1) {
+        let (i3, rhs_expr) = parse_expr(i2)?;
+        let (i4, _) = semicolon_tag(i3)?;
+
+        match lhs_expr {
+            Expr::IdentExpr(ident) => Ok((
+                i4,
+                Stmt::AssignStmt(
+                    ident.clone(),
+                    Expr::InfixExpr(infix, Box::new(Expr::IdentExpr(ident)), Box::new(rhs_expr)),
+                ),
+            )),
+            _ => Err(Err::Error(Error::new(input, ErrorKind::Verify))),
+        }
     } else {
         // This is an expression statement
         let after_expr = i1;
@@ -213,7 +240,8 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                     | Expr::CStyleForExpr { .. }
                     | Expr::TryCatchExpr { .. }
             );
-            let is_implicit_return = peek_matches(after_expr, Token::RBrace) || peek_matches(after_expr, Token::EOF);
+            let is_implicit_return =
+                peek_matches(after_expr, Token::RBrace) || peek_matches(after_expr, Token::EOF);
 
             if is_block_expr || is_implicit_return {
                 Ok((after_expr, Stmt::ExprValueStmt(expr)))
@@ -225,7 +253,6 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         }
     }
 }
-
 
 // STATEMENT PARSERS
 
@@ -248,7 +275,9 @@ fn parse_break_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_continue_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(terminated(continue_tag, semicolon_tag), |_| Stmt::ContinueStmt)(input)
+    map(terminated(continue_tag, semicolon_tag), |_| {
+        Stmt::ContinueStmt
+    })(input)
 }
 
 fn parse_throw_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -280,7 +309,12 @@ fn parse_block_stmt(input: Tokens) -> IResult<Tokens, Program> {
 
 fn parse_fn_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(
-        tuple((opt(async_tag), function_tag, parens(comma_separated0(parse_ident)), parse_block_stmt)),
+        tuple((
+            opt(async_tag),
+            function_tag,
+            parens(comma_separated0(parse_ident)),
+            parse_block_stmt,
+        )),
         |(is_async, _, params, body)| {
             if is_async.is_some() {
                 Expr::AsyncFnExpr { params, body }
@@ -318,7 +352,9 @@ fn parse_pratt_expr(input: Tokens, precedence: Precedence) -> IResult<Tokens, Ex
     let (mut i, mut left) = parse_atom_expr(input)?;
 
     loop {
-        let Some(curr_token) = peek_token(i) else { break };
+        let Some(curr_token) = peek_token(i) else {
+            break;
+        };
         let (peek_precedence, _) = infix_op(curr_token);
 
         if precedence >= peek_precedence || peek_precedence == Precedence::PLowest {
@@ -392,7 +428,13 @@ fn parse_ident_or_struct_literal(input: Tokens) -> IResult<Tokens, Expr> {
             colon_tag,
             parse_expr,
         )))(after_ident)?;
-        Ok((i1, Expr::StructLiteral { name: ident, fields }))
+        Ok((
+            i1,
+            Expr::StructLiteral {
+                name: ident,
+                fields,
+            },
+        ))
     } else {
         Ok((after_ident, Expr::IdentExpr(ident)))
     }
@@ -444,7 +486,9 @@ fn parse_array_expr(input: Tokens) -> IResult<Tokens, Expr> {
 
 fn parse_hash_expr(input: Tokens) -> IResult<Tokens, Expr> {
     map(
-        braced(comma_separated0(separated_pair(parse_expr, colon_tag, parse_expr))),
+        braced(comma_separated0(separated_pair(
+            parse_expr, colon_tag, parse_expr,
+        ))),
         Expr::HashExpr,
     )(input)
 }
@@ -457,11 +501,7 @@ fn parse_try_catch_expr(input: Tokens) -> IResult<Tokens, Expr> {
     let (i1, _) = try_tag(input)?;
     let (i2, try_body) = parse_block_stmt(i1)?;
 
-    let (i3, catch_block) = opt(tuple((
-        catch_tag,
-        parens(parse_ident),
-        parse_block_stmt,
-    )))(i2)?;
+    let (i3, catch_block) = opt(tuple((catch_tag, parens(parse_ident), parse_block_stmt)))(i2)?;
 
     let (i4, finally_body) = opt(preceded(finally_tag, parse_block_stmt))(i3)?;
 
@@ -493,21 +533,29 @@ fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
         tuple((
             struct_tag,
             parse_ident,
-            braced(comma_separated0(separated_pair(parse_ident, colon_tag, parse_expr))),
-            opt(semicolon_tag)
+            braced(comma_separated0(separated_pair(
+                parse_ident,
+                colon_tag,
+                parse_expr,
+            ))),
+            opt(semicolon_tag),
         )),
         |(_, name, pairs, _)| {
             let mut fields = Vec::new();
             let mut methods = Vec::new();
-            
+
             for (ident, expr) in pairs {
                 match expr {
                     Expr::FnExpr { .. } => methods.push((ident, expr)),
                     _ => fields.push((ident, expr)),
                 }
             }
-            
-            Stmt::StructStmt { name, fields, methods }
+
+            Stmt::StructStmt {
+                name,
+                fields,
+                methods,
+            }
         },
     )(input)
 }
@@ -517,10 +565,12 @@ fn parse_struct_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 fn parse_while_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
         tuple((while_tag, parens(parse_expr), parse_block_stmt)),
-        |(_, cond, body)| Stmt::ExprStmt(Expr::WhileExpr {
-            cond: Box::new(cond),
-            body,
-        }),
+        |(_, cond, body)| {
+            Stmt::ExprStmt(Expr::WhileExpr {
+                cond: Box::new(cond),
+                body,
+            })
+        },
     )(input)
 }
 
@@ -551,12 +601,15 @@ fn parse_for_in_loop(input: Tokens) -> IResult<Tokens, Stmt> {
     let (i3, iterable) = parse_expr(i2)?;
     let (i4, _) = rparen_tag(i3)?;
     let (i5, body) = parse_block_stmt(i4)?;
-    
-    Ok((i5, Stmt::ExprStmt(Expr::ForExpr {
-        ident,
-        iterable: Box::new(iterable),
-        body,
-    })))
+
+    Ok((
+        i5,
+        Stmt::ExprStmt(Expr::ForExpr {
+            ident,
+            iterable: Box::new(iterable),
+            body,
+        }),
+    ))
 }
 
 fn parse_c_style_for(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -564,20 +617,23 @@ fn parse_c_style_for(input: Tokens) -> IResult<Tokens, Stmt> {
         map(parse_let_stmt_no_semicolon, Box::new),
         map(parse_assign_stmt_no_semicolon, Box::new),
     )))(input)?;
-    
+
     let (i2, _) = semicolon_tag(i1)?;
     let (i3, cond) = opt(map(parse_expr, Box::new))(i2)?;
     let (i4, _) = semicolon_tag(i3)?;
     let (i5, update) = opt(map(parse_assign_stmt_no_semicolon, Box::new))(i4)?;
     let (i6, _) = rparen_tag(i5)?;
     let (i7, body) = parse_block_stmt(i6)?;
-    
-    Ok((i7, Stmt::ExprStmt(Expr::CStyleForExpr {
-        init,
-        cond,
-        update,
-        body,
-    })))
+
+    Ok((
+        i7,
+        Stmt::ExprStmt(Expr::CStyleForExpr {
+            init,
+            cond,
+            update,
+            body,
+        }),
+    ))
 }
 
 // IMPORT STATEMENT
@@ -591,7 +647,7 @@ fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     for Ident(name) in rest {
         path.push(name);
     }
-    
+
     let (i4, items) = if peek_matches(i3, Token::Dot) {
         let (i_dot, _) = dot_tag(i3)?;
         let (i_items, idents) = braced(comma_separated1(parse_ident))(i_dot)?;
@@ -600,7 +656,7 @@ fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     } else {
         (i3, ImportItems::All)
     };
-    
+
     let (i5, _) = semicolon_tag(i4)?;
     Ok((i5, Stmt::ImportStmt { path, items }))
 }

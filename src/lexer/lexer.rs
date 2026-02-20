@@ -22,6 +22,11 @@ macro_rules! syntax {
 }
 
 // operators
+syntax! {plus_assign_operator, "+=", Token::PlusAssign}
+syntax! {minus_assign_operator, "-=", Token::MinusAssign}
+syntax! {multiply_assign_operator, "*=", Token::MultiplyAssign}
+syntax! {divide_assign_operator, "/=", Token::DivideAssign}
+syntax! {modulo_assign_operator, "%=", Token::ModuloAssign}
 syntax! {equal_operator, "==", Token::Equal}
 syntax! {not_equal_operator, "!=", Token::NotEqual}
 syntax! {assign_operator, "=", Token::Assign}
@@ -40,6 +45,11 @@ syntax! {or_operator,  "||", Token::Or}
 
 pub fn lex_operator(input: &[u8]) -> IResult<&[u8], Token> {
     alt((
+        plus_assign_operator,
+        minus_assign_operator,
+        multiply_assign_operator,
+        divide_assign_operator,
+        modulo_assign_operator,
         equal_operator,
         not_equal_operator,
         assign_operator,

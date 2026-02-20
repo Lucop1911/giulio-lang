@@ -25,6 +25,12 @@ pub enum Token {
     Assign,
     If,
     Else,
+    // Assignments
+    PlusAssign,
+    MinusAssign,
+    MultiplyAssign,
+    DivideAssign,
+    ModuloAssign,
     // operators
     Plus,
     Minus,

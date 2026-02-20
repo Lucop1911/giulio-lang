@@ -1,7 +1,10 @@
+use crate::ast::ast::Infix;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::parser::*;
-use nom::{IResult, branch::alt, multi::many0};
+use nom::bytes::complete::take;
+use nom::error::Error;
 use nom::sequence::*;
+use nom::{branch::alt, multi::many0, IResult};
 use std::result::Result::*;
 
 // Peek at the next token without consuming it
@@ -26,7 +29,7 @@ where
     move |input| {
         let (i1, first) = item_parser(input)?;
         let (i2, rest) = many0(preceded(comma_tag, &mut item_parser))(i1)?;
-        
+
         let mut result = Vec::with_capacity(1 + rest.len());
         result.push(first);
         result.extend(rest);
@@ -66,4 +69,27 @@ where
     F: FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>,
 {
     delimited(lbracket_tag, parser, rbracket_tag)
+}
+
+pub fn aug_assign_to_infix<'a>(input: Tokens<'a>) -> IResult<Tokens<'a>, Infix> {
+    let (i1, t1) = take(1usize)(input).map_err(|e| e)?;
+
+    if t1.token.is_empty() {
+        return Err(nom::Err::Error(Error::new(
+            input,
+            nom::error::ErrorKind::Eof,
+        )));
+    }
+
+    match &t1.token[0] {
+        Token::PlusAssign => Ok((i1, Infix::Plus)),
+        Token::MinusAssign => Ok((i1, Infix::Minus)),
+        Token::MultiplyAssign => Ok((i1, Infix::Multiply)),
+        Token::DivideAssign => Ok((i1, Infix::Divide)),
+        Token::ModuloAssign => Ok((i1, Infix::Modulo)),
+        _ => Err(nom::Err::Error(Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
+    }
 }
