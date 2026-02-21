@@ -83,6 +83,14 @@ impl Evaluator {
                         ))
                     }
                 }
+                Object::Module { exports, .. } => {
+                    match exports.get(&field_name) {
+                        Some(value) => value.clone(),
+                        None => Object::Error(RuntimeError::InvalidOperation(
+                            format!("module has no export '{}'", field_name)
+                        ))
+                    }
+                }
                 other => Object::Error(RuntimeError::InvalidOperation(
                     format!("{} does not have fields", other.type_name())
                 ))
@@ -170,6 +178,58 @@ impl Evaluator {
                     };
                     
                     return self_clone.returned(final_result);
+                }
+            }
+
+            if let Object::Module { ref exports, .. } = object {
+                if let Some(func_obj) = exports.get(&method_name) {
+                    let mut args = Vec::new();
+                    for e in args_expr {
+                        args.push(self_clone.eval_expr(e).await);
+                    }
+                    return match func_obj.clone() {
+                        Object::Function(params, body, _) => {
+                            self_clone.eval_fn_call_direct(args, params, body).await
+                        }
+                        Object::BuiltinStd(name, min, max, func) => {
+                            if args.len() < min || args.len() > max {
+                                return Object::Error(RuntimeError::InvalidOperation(
+                                    format!("{} expects between {} and {} arguments, got {}", name, min, max, args.len())
+                                ));
+                            }
+                            match func(args) {
+                                Ok(obj) => obj,
+                                Err(e) => Object::Error(e),
+                            }
+                        }
+                        Object::BuiltinStdAsync(name, min, max, func) => {
+                            if args.len() < min || args.len() > max {
+                                return Object::Error(RuntimeError::InvalidOperation(
+                                    format!("{} expects between {} and {} arguments, got {}", name, min, max, args.len())
+                                ));
+                            }
+                            match func(args) {
+                                Ok(obj) => obj,
+                                Err(e) => Object::Error(e),
+                            }
+                        }
+                        Object::Builtin(name, min, max, func) => {
+                            if args.len() < min || args.len() > max {
+                                return Object::Error(RuntimeError::InvalidOperation(
+                                    format!("{} expects between {} and {} arguments, got {}", name, min, max, args.len())
+                                ));
+                            }
+                            match func(args) {
+                                Ok(obj) => obj,
+                                Err(e) => Object::Error(RuntimeError::InvalidOperation(e)),
+                            }
+                        }
+                        _ => Object::Error(RuntimeError::NotCallable(method_name)),
+                    };
+                } else {
+                    return Object::Error(RuntimeError::InvalidOperation(
+                        format!("module has no export '{}'", method_name)
+                    ));
                 }
             }
             

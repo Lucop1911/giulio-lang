@@ -88,6 +88,7 @@ tag_token!(else_tag, Token::Else);
 tag_token!(function_tag, Token::Function);
 tag_token!(eof_tag, Token::EOF);
 tag_token!(dot_tag, Token::Dot);
+tag_token!(double_colon_tag, Token::DoubleColon);
 tag_token!(struct_tag, Token::Struct);
 tag_token!(this_tag, Token::This);
 tag_token!(import_tag, Token::Import);
@@ -123,6 +124,7 @@ fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
         Token::LParen => (Precedence::PCall, None),
         Token::LBracket => (Precedence::PIndex, None),
         Token::Dot => (Precedence::PCall, None),
+        Token::DoubleColon => (Precedence::PCall, None),
         _ => (Precedence::PLowest, None),
     }
 }
@@ -399,6 +401,26 @@ fn parse_pratt_expr(input: Tokens, precedence: Precedence) -> IResult<Tokens, Ex
                     i = i2;
                 }
             }
+            Token::DoubleColon => {
+                let (i1, _) = double_colon_tag(i)?;
+                let (i2, Ident(field_name)) = parse_ident(i1)?;
+
+                if peek_matches(i2, Token::LParen) {
+                    let (i3, args) = parens(comma_separated0(parse_expr))(i2)?;
+                    left = Expr::MethodCallExpr {
+                        object: Box::new(left),
+                        method: field_name,
+                        arguments: args,
+                    };
+                    i = i3;
+                } else {
+                    left = Expr::FieldAccessExpr {
+                        object: Box::new(left),
+                        field: field_name,
+                    };
+                    i = i2;
+                }
+            }
             _ => {
                 let (_, infix_op_opt) = infix_op(curr_token);
                 if let Some(infix) = infix_op_opt {
@@ -644,14 +666,13 @@ fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     let (i2, Ident(first)) = parse_ident(i1)?;
     let mut path = vec![first];
 
-    let (i3, rest) = many0(preceded(dot_tag, parse_ident))(i2)?;
+    let (i3, rest) = many0(preceded(double_colon_tag, parse_ident))(i2)?;
     for Ident(name) in rest {
         path.push(name);
     }
 
-    let (i4, items) = if peek_matches(i3, Token::Dot) {
-        let (i_dot, _) = dot_tag(i3)?;
-        let (i_items, idents) = braced(comma_separated1(parse_ident))(i_dot)?;
+    let (i4, items) = if peek_matches(i3, Token::LBrace) {
+        let (i_items, idents) = braced(comma_separated1(parse_ident))(i3)?;
         let names = idents.into_iter().map(|Ident(n)| n).collect();
         (i_items, ImportItems::Specific(names))
     } else {

@@ -22,7 +22,8 @@ impl BuiltinMethods {
                 | Object::Array(_)
                 | Object::Hash(_)
                 | Object::Null
-                | Object::Error(_),
+                | Object::Error(_)
+                | Object::Future(_),
                 "to_string",
             ) => {
                 let mut all_args = vec![object];

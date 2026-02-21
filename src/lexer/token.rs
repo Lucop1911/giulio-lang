@@ -1,10 +1,4 @@
-use nom::{
-    InputIter,
-    InputLength,
-    InputTake,
-    Slice,
-    Needed,
-};
+use nom::{InputIter, InputLength, InputTake, Needed, Slice};
 use num_bigint::BigInt;
 use std::iter::Enumerate;
 use std::ops::{Range, RangeFrom, RangeFull, RangeTo};
@@ -65,6 +59,7 @@ pub enum Token {
     Or,
     Not,
     Dot,
+    DoubleColon,
     // Loops
     While,
     For,

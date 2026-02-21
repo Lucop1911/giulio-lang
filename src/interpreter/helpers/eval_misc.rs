@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use crate::{
     ast::ast::{Ident, ImportItems},
@@ -28,22 +29,32 @@ impl Evaluator {
                 Err(e) => return Object::Error(e),
             };
             
+            let simple_name = path.last().unwrap().clone();
+            
             match items {
                 ImportItems::All => {
-                    for (name, obj) in &module.exports { // Iterate by reference
-                        self_clone.env.lock().unwrap().set(name, obj.clone());
-                    }
+                    let module_obj = Object::Module {
+                        name: path.join("::"),
+                        exports: module.exports.clone(),
+                    };
+                    self_clone.env.lock().unwrap().set(&simple_name, module_obj);
                 }
                 ImportItems::Specific(names) => {
+                    let mut exports = HashMap::new();
                     for name in names {
                         if let Some(obj) = module.exports.get(&name) {
-                            self_clone.env.lock().unwrap().set(&name, obj.clone());
+                            exports.insert(name, obj.clone());
                         } else {
                             return Object::Error(RuntimeError::InvalidOperation(
                                 format!("Module {} has no export '{}'", module.name, name)
                             ));
                         }
                     }
+                    let module_obj = Object::Module {
+                        name: path.join("::"),
+                        exports,
+                    };
+                    self_clone.env.lock().unwrap().set(&simple_name, module_obj);
                 }
                 ImportItems::Single(name) => {
                     if let Some(obj) = module.exports.get(&name) {

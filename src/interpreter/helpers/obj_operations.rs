@@ -58,10 +58,10 @@ impl Evaluator {
     gen_numeric_op! {object_divide,   /, true}
     gen_numeric_op! {object_modulo,   %, true}
 
-    gen_compare_op! {object_compare_gt,  >}
-    gen_compare_op! {object_compare_gte, >=}
-    gen_compare_op! {object_compare_lt,  <}
-    gen_compare_op! {object_compare_lte, <=}
+    gen_compare_op! {object_compare_gt,  >} // Greater than
+    gen_compare_op! {object_compare_gte, >=} // Greater than/ equal to
+    gen_compare_op! {object_compare_lt,  <} // Lower than
+    gen_compare_op! {object_compare_lte, <=} // Lower than/ equal to
 
     fn type_mismatch_error(&self, expected: &str, obj1: Object, obj2: Object) -> Object {
         Object::Error(RuntimeError::TypeMismatch {

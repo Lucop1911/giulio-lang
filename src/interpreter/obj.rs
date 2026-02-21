@@ -28,6 +28,10 @@ pub enum Object {
         fields: HashMap<String, Object>,
         methods: HashMap<String, Object>,
     },
+    Module {
+        name: String,
+        exports: HashMap<String, Object>,
+    },
     Null,
     ReturnValue(Box<Object>),
     Error(RuntimeError),
@@ -82,6 +86,12 @@ impl fmt::Debug for Object {
                 "Struct(name:{}, fields:{:?}, methods:{:?})",
                 name, fields, methods
             ),
+            Object::Module { name, exports } => write!(
+                f,
+                "Module(name:{}, exports:{:?})",
+                name,
+                exports.keys().collect::<Vec<_>>()
+            ),
             Object::Null => write!(f, "Null"),
             Object::ReturnValue(o) => write!(f, "ReturnValue({:?})", o),
             Object::Error(e) => write!(f, "Error({:?})", e),
@@ -130,6 +140,16 @@ impl PartialEq for Object {
             (Object::Break, Object::Break) => true,
             (Object::Continue, Object::Continue) => true,
             (Object::Future(_), Object::Future(_)) => false,
+            (
+                Object::Module {
+                    name: a,
+                    exports: e_a,
+                },
+                Object::Module {
+                    name: b,
+                    exports: e_b,
+                },
+            ) => a == b && e_a.keys().collect::<Vec<_>>() == e_b.keys().collect::<Vec<_>>(),
             _ => false,
         }
     }
@@ -166,6 +186,7 @@ impl Object {
             Object::Error(_) => "error".to_string(),
             Object::Method(_, _, _) => "method".to_string(),
             Object::Struct { name, .. } => format!("struct {}", name),
+            Object::Module { name, .. } => format!("module {}", name),
             Object::Break => "break".to_string(),
             Object::Continue => "continue".to_string(),
             Object::ThrownValue(_) => "thrown value".to_string(),
@@ -241,6 +262,7 @@ impl fmt::Display for Object {
             Object::Continue => write!(f, "continue"),
             Object::ThrownValue(ref o) => write!(f, "Thrown: {}", *o),
             Object::Future(_) => write!(f, "[future]"),
+            Object::Module { ref name, .. } => write!(f, "[module: {}]", name),
         }
     }
 }

@@ -1,7 +1,7 @@
 use nom::branch::*;
-use nom::bytes::complete::{tag, take, is_not};
-use nom::character::complete::{alpha1, alphanumeric1, digit1, multispace0, line_ending};
-use nom::combinator::{map, map_res, recognize, value, opt};
+use nom::bytes::complete::{is_not, tag, take};
+use nom::character::complete::{alpha1, alphanumeric1, digit1, line_ending, multispace0};
+use nom::combinator::{map, map_res, opt, recognize, value};
 use nom::multi::many0;
 use nom::sequence::{pair, preceded};
 use nom::*;
@@ -17,7 +17,7 @@ macro_rules! syntax {
     ($func_name: ident, $tag_string: literal, $output_token: expr) => {
         fn $func_name(s: &[u8]) -> IResult<&[u8], Token> {
             map(tag($tag_string), |_| $output_token)(s)
-        }        
+        }
     };
 }
 
@@ -78,11 +78,13 @@ syntax! {rbrace_punctuation, "}", Token::RBrace}
 syntax! {lbracket_punctuation, "[", Token::LBracket}
 syntax! {rbracket_punctuation, "]", Token::RBracket}
 syntax! {dot_punctuation, ".", Token::Dot}
+syntax! {double_colon_punctuation, "::", Token::DoubleColon}
 
 pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
     alt((
         comma_punctuation,
         semicolon_punctuation,
+        double_colon_punctuation,
         colon_punctuation,
         lparen_punctuation,
         rparen_punctuation,
@@ -90,7 +92,7 @@ pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
         rbrace_punctuation,
         lbracket_punctuation,
         rbracket_punctuation,
-        dot_punctuation
+        dot_punctuation,
     ))(input)
 }
 
@@ -104,24 +106,21 @@ fn parse_escaped_char(input: &[u8]) -> IResult<&[u8], char> {
             value('n', tag("n")),
             value('r', tag("r")),
             value('t', tag("t")),
-        ))
+        )),
     )(input)
 }
 
 fn parse_string_fragment(input: &[u8]) -> IResult<&[u8], String> {
     alt((
-        map(parse_escaped_char, |c| {
-            match c {
-                'n' => "\n".to_string(),
-                'r' => "\r".to_string(),
-                't' => "\t".to_string(),
-                other => other.to_string(),
-            }
+        map(parse_escaped_char, |c| match c {
+            'n' => "\n".to_string(),
+            'r' => "\r".to_string(),
+            't' => "\t".to_string(),
+            other => other.to_string(),
         }),
-        map_res(
-            is_not("\"\\"),
-            |bytes: &[u8]| str::from_utf8(bytes).map(|s| s.to_string())
-        ),
+        map_res(is_not("\"\\"), |bytes: &[u8]| {
+            str::from_utf8(bytes).map(|s| s.to_string())
+        }),
     ))(input)
 }
 
@@ -135,8 +134,9 @@ fn lex_string(input: &[u8]) -> IResult<&[u8], Token> {
 
     let (input, contents) = parse_string_contents(input)?;
 
-    let (input, _) = tag("\"")(input)
-        .map_err(|_: nom::Err<nom::error::Error<&[u8]>>| nom::Err::Failure(nom::error::Error::new(input, nom::error::ErrorKind::Tag)))?;
+    let (input, _) = tag("\"")(input).map_err(|_: nom::Err<nom::error::Error<&[u8]>>| {
+        nom::Err::Failure(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
+    })?;
 
     Ok((input, Token::StringLiteral(contents)))
 }
@@ -186,22 +186,29 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
 // Numbers parsing
 fn lex_number(input: &[u8]) -> IResult<&[u8], Token, nom::error::Error<&[u8]>> {
     let (remaining, digits) = map_res(digit1, complete_byte_slice_str_from_utf8)(input)?;
-    
+
     // Check if there's a decimal point
     if let Ok((after_dot, _)) = tag::<_, _, nom::error::Error<&[u8]>>(".")(remaining) {
         // Check if the next character is a digit (to avoid matching method calls like "123.to_string()")
-        if let Ok((after_decimals, decimal_digits)) = map_res::<_, _, _, nom::error::Error<&[u8]>, _, _, _>(
-            digit1, 
-            complete_byte_slice_str_from_utf8
-        )(after_dot) {
+        if let Ok((after_decimals, decimal_digits)) =
+            map_res::<_, _, _, nom::error::Error<&[u8]>, _, _, _>(
+                digit1,
+                complete_byte_slice_str_from_utf8,
+            )(after_dot)
+        {
             let float_str = format!("{}.{}", digits, decimal_digits);
             match f64::from_str(&float_str) {
                 Ok(f) => return Ok((after_decimals, Token::FloatLiteral(f))),
-                Err(_) => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Digit))),
+                Err(_) => {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Digit,
+                    )))
+                }
             }
         }
     }
-    
+
     // It's an integer (or BigInt)
     let token = match i64::from_str(digits) {
         Ok(n) => Token::IntLiteral(n),
@@ -209,11 +216,16 @@ fn lex_number(input: &[u8]) -> IResult<&[u8], Token, nom::error::Error<&[u8]>> {
             // Falls back to BigInt if too large for i64
             match BigInt::parse_bytes(digits.as_bytes(), 10) {
                 Some(big) => Token::BigIntLiteral(big),
-                None => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Digit)))
+                None => {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Digit,
+                    )))
+                }
             }
         }
     };
-    
+
     Ok((remaining, token))
 }
 
@@ -242,37 +254,37 @@ fn skip_line_comment(input: &[u8]) -> IResult<&[u8], ()> {
 
 fn skip_ws_and_comments(input: &[u8]) -> IResult<&[u8], ()> {
     let (mut input, _) = multispace0(input)?;
-    
+
     while let Ok((remaining, _)) = skip_line_comment(input) {
         let (remaining, _) = multispace0(remaining)?;
         input = remaining;
     }
-    
+
     Ok((input, ()))
 }
 
 fn lex_tokens(input: &[u8]) -> IResult<&[u8], Vec<Token>> {
     let (mut input, _) = skip_ws_and_comments(input)?;
     let mut tokens = Vec::new();
-    
+
     loop {
         // Try to lex a token
         if input.is_empty() {
             break;
         }
-        
+
         match lex_token(input) {
             Ok((remaining, token)) => {
                 tokens.push(token);
                 input = remaining;
-                
+
                 let (remaining, _) = skip_ws_and_comments(input)?;
                 input = remaining;
             }
             Err(e) => return Err(e),
         }
     }
-    
+
     Ok((input, tokens))
 }
 

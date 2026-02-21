@@ -44,8 +44,8 @@ impl ModuleRegistry {
         
         string_exports.insert("join".to_string(), create_builtin("join", 2, 2, string_join));
         
-        self.stdlib.insert("std.string".to_string(), Module {
-            name: "std.string".to_string(),
+        self.stdlib.insert("std::string".to_string(), Module {
+            name: "std::string".to_string(),
             exports: string_exports,
         });
 
@@ -56,8 +56,8 @@ impl ModuleRegistry {
         math_exports.insert("random".to_string(), create_builtin("random", 0, 2, math_random));
         math_exports.insert("round".to_string(), create_builtin("round", 1, 1, math_round));
 
-        self.stdlib.insert("std.math".to_string(), Module {
-            name: "std.math".to_string(),
+        self.stdlib.insert("std::math".to_string(), Module {
+            name: "std::math".to_string(),
             exports: math_exports,
         });
 
@@ -67,8 +67,8 @@ impl ModuleRegistry {
         time_exports.insert("now".to_string(), create_builtin("now", 0, 0, time_now));
         time_exports.insert("sleep".to_string(), create_builtin("sleep", 1, 1, time_sleep));
 
-        self.stdlib.insert("std.time".to_string(), Module {
-            name: "std.time".to_string(),
+        self.stdlib.insert("std::time".to_string(), Module {
+            name: "std::time".to_string(),
             exports: time_exports,
         });
 
@@ -97,8 +97,8 @@ impl ModuleRegistry {
         io_exports.insert("delete_dir".to_string(), create_builtin("delete_dir", 1, 1, io_delete_dir));
         io_exports.insert("delete_dir_async".to_string(), create_builtin("delete_dir_async", 1, 1, io_delete_dir_wrapper));
 
-        self.stdlib.insert("std.io".to_string(), Module {
-            name: "std.io".to_string(),
+        self.stdlib.insert("std::io".to_string(), Module {
+            name: "std::io".to_string(),
             exports: io_exports,
         });
 
@@ -108,8 +108,8 @@ impl ModuleRegistry {
         json_exports.insert("serialize".to_string(), create_builtin("serialize", 1, 1, json_serialize));
         json_exports.insert("deserialize".to_string(), create_builtin("deserialize", 1, 1, json_deserialize));
 
-        self.stdlib.insert("std.json".to_string(), Module {
-            name: "std.json".to_string(),
+        self.stdlib.insert("std::json".to_string(), Module {
+            name: "std::json".to_string(),
             exports: json_exports,
         });
 
@@ -121,14 +121,14 @@ impl ModuleRegistry {
         http_exports.insert("put".to_string(), create_builtin("put", 2, 2, http_put));
         http_exports.insert("delete".to_string(), create_builtin("delete", 1, 1, http_delete));
 
-        self.stdlib.insert("std.http".to_string(), Module {
-            name: "std.http".to_string(),
+        self.stdlib.insert("std::http".to_string(), Module {
+            name: "std::http".to_string(),
             exports: http_exports,
         });
     }
     
     pub async fn load_module(module_registry_arc: Arc<Mutex<Self>>, path: &[String]) -> Result<Module, RuntimeError> {
-        let module_path = path.join(".");
+        let module_path = path.join("::");
         
         let loaded_module = {
             let registry = module_registry_arc.lock().unwrap();
@@ -162,12 +162,12 @@ impl ModuleRegistry {
         
         let source = fs::read_to_string(&file_path).await
             .map_err(|e| RuntimeError::InvalidOperation(
-                format!("Failed to load module '{}': {}", path.join("."), e)
+                format!("Failed to load module '{}': {}", path.join("::"), e)
             ))?;
         
         let module = ModuleRegistry::parse_and_extract_module(Arc::clone(&module_registry_arc), &source, path).await?;
         
-        let module_path = path.join(".");
+        let module_path = path.join("::");
         module_registry_arc.lock().unwrap().loaded_modules.insert(module_path.clone(), module.clone());
         
         Ok(module)
@@ -201,7 +201,7 @@ impl ModuleRegistry {
         let exports = ModuleRegistry::extract_exports(program, registry_arc_for_eval).await?;
         
         Ok(Module {
-            name: path.join("."),
+            name: path.join("::"),
             exports,
         })
     }

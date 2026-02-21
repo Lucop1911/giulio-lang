@@ -1,5 +1,5 @@
-use crate::lexer::token::{Token, Tokens};
 use crate::errors::ParserError;
+use crate::lexer::token::{Token, Tokens};
 use nom::error::{Error, ErrorKind};
 use nom::Err;
 
@@ -7,22 +7,22 @@ pub fn convert_nom_error<'a>(err: &Err<Error<Tokens<'a>>>, context: &str) -> Par
     match err {
         Err::Error(e) | Err::Failure(e) => {
             let tokens = &e.input;
-            
+
             if tokens.token.is_empty() {
                 return ParserError::UnexpectedEOF;
             }
-            
+
             let current_token = &tokens.token[0];
             let token_description = describe_token(current_token);
-            
+
             // Check if this looks like an incomplete statement
             // This happens when we're at a statement keyword but parsing failed
             let looks_incomplete = is_incomplete_statement(tokens);
-            
+
             if looks_incomplete {
                 return detect_incomplete_error(tokens);
             }
-            
+
             // Special case: if we're at EOF with Verify error, likely missing semicolon
             if current_token == &Token::EOF && e.code == ErrorKind::Verify {
                 return ParserError::ExpectedToken {
@@ -30,7 +30,7 @@ pub fn convert_nom_error<'a>(err: &Err<Error<Tokens<'a>>>, context: &str) -> Par
                     found: "end of file".to_string(),
                 };
             }
-            
+
             // Try to provide context-specific error messages
             match e.code {
                 ErrorKind::Tag | ErrorKind::Verify => {
@@ -47,12 +47,17 @@ fn is_incomplete_statement(tokens: &Tokens) -> bool {
     if tokens.token.is_empty() {
         return false;
     }
-    
+
     // If we start with a statement keyword, this might be incomplete
     matches!(
         tokens.token[0],
-        Token::Let | Token::For | Token::While | Token::If | 
-        Token::Return | Token::Function | Token::Struct
+        Token::Let
+            | Token::For
+            | Token::While
+            | Token::If
+            | Token::Return
+            | Token::Function
+            | Token::Struct
     )
 }
 
@@ -60,19 +65,19 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
     if tokens.token.is_empty() {
         return ParserError::UnexpectedEOF;
     }
-    
+
     let statement_type = &tokens.token[0];
-    
+
     // Scan through the tokens to find if we have EOF
     let mut has_eof = false;
-    
+
     for token in tokens.token.iter() {
         if token == &Token::EOF {
             has_eof = true;
             break;
         }
     }
-    
+
     // If we hit EOF, determine what's missing
     if has_eof {
         match statement_type {
@@ -91,7 +96,8 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
                             // We have "let x ..."
                             if let Some(pos) = find_token_position(tokens, &Token::Assign) {
                                 // Check if there's an unexpected token before EOF
-                                if let Some(colon_pos) = find_token_position(tokens, &Token::Colon) {
+                                if let Some(colon_pos) = find_token_position(tokens, &Token::Colon)
+                                {
                                     if colon_pos > pos {
                                         // "let a = 10:" - colon instead of semicolon
                                         return ParserError::ExpectedToken {
@@ -101,7 +107,9 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
                                     }
                                 }
                                 // We have "let x =", check if we have a value
-                                if pos + 2 >= tokens.token.len() || tokens.token[pos + 1] == Token::EOF {
+                                if pos + 2 >= tokens.token.len()
+                                    || tokens.token[pos + 1] == Token::EOF
+                                {
                                     return ParserError::ExpectedToken {
                                         expected: "expression after '='".to_string(),
                                         found: "end of input".to_string(),
@@ -115,7 +123,9 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
                             } else {
                                 return ParserError::ExpectedToken {
                                     expected: "'=' after variable name".to_string(),
-                                    found: describe_token(tokens.token.get(2).unwrap_or(&Token::EOF)),
+                                    found: describe_token(
+                                        tokens.token.get(2).unwrap_or(&Token::EOF),
+                                    ),
                                 };
                             }
                         }
@@ -190,7 +200,9 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
                                     found: "end of input".to_string(),
                                 };
                             }
-                            return ParserError::InvalidExpression("incomplete struct definition".to_string());
+                            return ParserError::InvalidExpression(
+                                "incomplete struct definition".to_string(),
+                            );
                         }
                         _ => {
                             return ParserError::ExpectedToken {
@@ -209,7 +221,7 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
             _ => {}
         }
     }
-    
+
     // Fallback
     ParserError::UnexpectedToken(describe_token(statement_type))
 }
@@ -310,10 +322,7 @@ fn create_contextual_error(context: &str, _: &Token, token_desc: &str) -> Parser
             expected: "'}' to close hash".to_string(),
             found: token_desc.to_string(),
         },
-        "expression" => ParserError::InvalidExpression(format!(
-            "unexpected token: {}",
-            token_desc
-        )),
+        "expression" => ParserError::InvalidExpression(format!("unexpected token: {}", token_desc)),
         _ => ParserError::UnexpectedToken(token_desc.to_string()),
     }
 }
@@ -373,6 +382,7 @@ pub fn describe_token(token: &Token) -> String {
         Token::Or => "'||'".to_string(),
         Token::Not => "'!'".to_string(),
         Token::Dot => "'.'".to_string(),
+        Token::DoubleColon => "'::'".to_string(),
         Token::While => "'while'".to_string(),
         Token::For => "'for'".to_string(),
         Token::In => "'in'".to_string(),
@@ -390,9 +400,9 @@ pub fn describe_token(token: &Token) -> String {
 pub fn show_error_context(tokens: &Tokens, num_context_tokens: usize) -> String {
     let start = tokens.start;
     let mut result = String::new();
-    
+
     result.push_str("Near: ");
-    
+
     // Show a few tokens before the error
     let context_start = start.saturating_sub(num_context_tokens);
     for i in context_start..start {
@@ -401,19 +411,19 @@ pub fn show_error_context(tokens: &Tokens, num_context_tokens: usize) -> String 
             result.push(' ');
         }
     }
-    
+
     // Show the problematic token
     if start < tokens.token.len() {
         result.push_str(">>> ");
         result.push_str(&describe_token(&tokens.token[start]));
         result.push_str(" <<<");
     }
-    
+
     // Show a few tokens after
     for i in (start + 1)..std::cmp::min(start + num_context_tokens + 1, tokens.token.len()) {
         result.push(' ');
         result.push_str(&describe_token(&tokens.token[i]));
     }
-    
+
     result
 }
