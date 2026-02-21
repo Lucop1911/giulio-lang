@@ -212,10 +212,13 @@ mod tests {
     #[tokio::test]
     async fn test_async_function_basic() {
         let input = r#"
-            async fn async_identity(x) {
-                return x;
+            async fn main() {
+                async fn async_identity(x) {
+                    return x;
+                }
+                return await async_identity(10);
             }
-            await async_identity(10);
+            main();
         "#;
         assert_eq!(eval_test_helper(input).await, Object::Integer(10));
     }
@@ -223,11 +226,14 @@ mod tests {
     #[tokio::test]
     async fn test_await_expressions() {
         let input = r#"
-            async fn add_one(x) {
-                return x + 1;
+            async fn main() {
+                async fn add_one(x) {
+                    return x + 1;
+                }
+                let res = await add_one(5);
+                return await add_one(res);
             }
-            let res = await add_one(5);
-            await add_one(res);
+            main();
         "#;
         assert_eq!(eval_test_helper(input).await, Object::Integer(7));
     }
@@ -235,14 +241,17 @@ mod tests {
     #[tokio::test]
     async fn test_chained_async_calls() {
         let input = r#"
-            async fn add_one(x) {
-                return x + 1;
+            async fn main() {
+                async fn add_one(x) {
+                    return x + 1;
+                }
+                async fn add_two(x) {
+                    let one_added = await add_one(x);
+                    return await add_one(one_added);
+                }
+                return await add_two(5);
             }
-            async fn add_two(x) {
-                let one_added = await add_one(x);
-                return await add_one(one_added);
-            }
-            await add_two(5);
+            main();
         "#;
         assert_eq!(eval_test_helper(input).await, Object::Integer(7));
     }
@@ -250,26 +259,35 @@ mod tests {
     #[tokio::test]
     async fn test_async_function_return_types() {
         let input_int = r#"
-            async fn get_int() {
-                return 123;
+            async fn main() {
+                async fn get_int() {
+                    return 123;
+                }
+                return await get_int();
             }
-            await get_int();
+            main();
         "#;
         assert_eq!(eval_test_helper(input_int).await, Object::Integer(123));
 
         let input_bool = r#"
-            async fn get_bool() {
-                return true;
+            async fn main() {
+                async fn get_bool() {
+                    return true;
+                }
+                return await get_bool();
             }
-            await get_bool();
+            main();
         "#;
         assert_eq!(eval_test_helper(input_bool).await, Object::Boolean(true));
 
         let input_string = r#"
-            async fn get_string() {
-                return "hello";
+            async fn main() {
+                async fn get_string() {
+                    return "hello";
+                }
+                return await get_string();
             }
-            await get_string();
+            main();
         "#;
         assert_eq!(eval_test_helper(input_string).await, Object::String("hello".to_string()));
     }

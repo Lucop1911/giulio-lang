@@ -15,6 +15,7 @@ pub type EvalFuture = Pin<Box<dyn Future<Output = Object> + Send + 'static>>;
 pub struct Evaluator {
     pub(crate) env: Arc<Mutex<Environment>>,
     pub(crate) module_registry: Arc<Mutex<ModuleRegistry>>,
+    pub(crate) in_async_context: bool,
 }
 
 impl Clone for Evaluator {
@@ -22,6 +23,7 @@ impl Clone for Evaluator {
         Evaluator {
             env: Arc::clone(&self.env),
             module_registry: Arc::clone(&self.module_registry),
+            in_async_context: self.in_async_context,
         }
     }
 }
@@ -38,6 +40,7 @@ impl Default for Evaluator {
         Evaluator {
             env: Arc::new(Mutex::new(Environment::new())),
             module_registry: registry,
+            in_async_context: false,
         }
     }
 }
@@ -47,6 +50,7 @@ impl Evaluator {
         Evaluator {
             env: Arc::new(Mutex::new(Environment::new())),
             module_registry,
+            in_async_context: false,
         }
     }
 

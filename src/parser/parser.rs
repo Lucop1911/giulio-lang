@@ -11,6 +11,7 @@ use crate::ast::ast::{
     Expr, Ident, ImportItems, Infix, Literal, Precedence, Prefix, Program, Stmt,
 };
 use crate::lexer::token::{Token, Tokens};
+use crate::parser::await_ctx_helpers::validate_await_usage;
 use crate::parser::parser_helpers::*;
 
 // TOKEN TAG MACRO
@@ -665,6 +666,10 @@ pub struct Parser;
 
 impl Parser {
     pub fn parse_tokens(tokens: Tokens) -> IResult<Tokens, Program> {
-        parse_program(tokens)
+        let (rest, program) = parse_program(tokens)?;
+        if let Err(_) = validate_await_usage(&program) {
+            return Err(Err::Error(Error::new(tokens, ErrorKind::Verify)));
+        }
+        Ok((rest, program))
     }
 }

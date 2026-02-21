@@ -28,8 +28,29 @@ impl Evaluator {
                 self.eval_fn_call(args_expr, params, body, &f_env).await
             }
             Object::AsyncFunction(params, body, f_env) => {
-                let future_eval_future = self.eval_async_fn_call(args_expr, params, body, &f_env);
-                future_eval_future.await
+                let future_obj = self.eval_async_fn_call(args_expr, params, body, &f_env).await;
+                if !self.in_async_context {
+                    if let Object::Future(future_arc) = future_obj {
+                        let future_to_await = {
+                            let mut future_opt_guard = future_arc.lock().unwrap();
+                            future_opt_guard.take()
+                        };
+                        if let Some(f) = future_to_await {
+                            match f.await {
+                                Ok(obj) => obj,
+                                Err(e) => Object::Error(e),
+                            }
+                        } else {
+                            Object::Error(RuntimeError::InvalidOperation(
+                                "Cannot await a future that has already been awaited".to_string()
+                            ))
+                        }
+                    } else {
+                        future_obj
+                    }
+                } else {
+                    future_obj
+                }
             }
             Object::Builtin(_, min_params, max_params, b_fn) => {
                 self.eval_builtin_call(args_expr, min_params, max_params, b_fn).await
@@ -115,7 +136,8 @@ impl Evaluator {
                 new_env.set(name, args[i].clone());
             }
             evaluator.env = Arc::new(Mutex::new(new_env));
-    
+            evaluator.in_async_context = true;
+
             let result = evaluator.eval_blockstmt(body).await;
             evaluator.returned(result)
         });

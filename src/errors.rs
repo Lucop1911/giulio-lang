@@ -20,6 +20,7 @@ pub enum ParserError {
     ExpectedToken { expected: String, found: String },
     InvalidExpression(String),
     UnexpectedEOF,
+    AwaitOutsideAsync,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +68,9 @@ impl fmt::Display for ParserError {
             }
             ParserError::InvalidExpression(s) => write!(f, "Invalid expression: {}", s),
             ParserError::UnexpectedEOF => write!(f, "Unexpected end of file"),
+            ParserError::AwaitOutsideAsync => {
+                write!(f, "Cannot use 'await' outside of an async function")
+            }
         }
     }
 }
@@ -84,11 +88,19 @@ impl fmt::Display for RuntimeError {
             RuntimeError::DivisionByZero => write!(f, "Invalid operation, Division by zero"),
             RuntimeError::ModuloByZero => write!(f, "Invalid operation, Modulo by zero"),
             RuntimeError::IndexOutOfBounds { index, length } => {
-                write!(f, "Index {} out of bounds for array of length {}", index, length)
+                write!(
+                    f,
+                    "Index {} out of bounds for array of length {}",
+                    index, length
+                )
             }
             RuntimeError::WrongNumberOfArguments { min, max, got } => {
                 if min != max {
-                    write!(f, "Wrong number of arguments: min {}, max: {} got {}", min, max, got)
+                    write!(
+                        f,
+                        "Wrong number of arguments: min {}, max: {} got {}",
+                        min, max, got
+                    )
                 } else {
                     write!(f, "Wrong number of arguments: expected {} got {}", min, got)
                 }
