@@ -64,6 +64,16 @@ impl BuiltinMethods {
             }
 
             // String methods
+            (Object::String(_), "to_upper") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                btoupper_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
+            (Object::String(_), "to_lower") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                btolower_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
             (Object::String(_), "starts_with") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
@@ -162,50 +172,22 @@ impl BuiltinMethods {
             }
 
             // Struct methods
-            (
-                Object::Struct {
-                    name: _,
-                    fields: _,
-                    methods: _,
-                },
-                "set",
-            ) => {
+            (Object::Struct {name: _, fields: _, methods: _}, "set") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bset_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (
-                Object::Struct {
-                    name: _,
-                    fields: _,
-                    methods: _,
-                },
-                "get",
-            ) => {
+            (Object::Struct {name: _, fields: _, methods: _}, "get") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bget_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (
-                Object::Struct {
-                    name: _,
-                    fields: _,
-                    methods: _,
-                },
-                "fields",
-            ) => {
+            (Object::Struct {name: _, fields: _, methods: _},"fields" ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bstruct_fields_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
-            (
-                Object::Struct {
-                    name: _,
-                    fields: _,
-                    methods: _,
-                },
-                "name",
-            ) => {
+            (Object::Struct {name: _, fields: _, methods: _}, "name") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bstruct_name_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))

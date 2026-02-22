@@ -5,6 +5,7 @@ use crate::std::time::*;
 use crate::std::io::*;
 use crate::std::json::*;
 use crate::std::http::*;
+use crate::std::env::*;
 use std::collections::HashMap;
 use std::path::{PathBuf};
 use tokio::fs;
@@ -124,6 +125,16 @@ impl ModuleRegistry {
         self.stdlib.insert("std::http".to_string(), Module {
             name: "std::http".to_string(),
             exports: http_exports,
+        });
+
+        // Env modules
+        let mut env_exports = HashMap::new();
+
+        env_exports.insert("args".to_string(), create_builtin("args", 0, 0, env_args));
+
+        self.stdlib.insert("std::env".to_string(), Module {
+            name: "std::env".to_string(),
+            exports: env_exports,
         });
     }
     

@@ -110,7 +110,7 @@ fn parse_escaped_char(input: &[u8]) -> IResult<&[u8], char> {
     )(input)
 }
 
-fn parse_string_fragment(input: &[u8]) -> IResult<&[u8], String> {
+fn parse_string_fragment<'a>(input: &'a [u8], excluded: &[u8]) -> IResult<&'a [u8], String> {
     alt((
         map(parse_escaped_char, |c| match c {
             'n' => "\n".to_string(),
@@ -118,23 +118,24 @@ fn parse_string_fragment(input: &[u8]) -> IResult<&[u8], String> {
             't' => "\t".to_string(),
             other => other.to_string(),
         }),
-        map_res(is_not("\"\\"), |bytes: &[u8]| {
+        map_res(is_not(excluded), |bytes: &[u8]| {
             str::from_utf8(bytes).map(|s| s.to_string())
         }),
     ))(input)
 }
 
-fn parse_string_contents(input: &[u8]) -> IResult<&[u8], String> {
-    let (input, fragments) = many0(parse_string_fragment)(input)?;
+fn parse_string_contents(input: &[u8], quote: u8) -> IResult<&[u8], String> {
+    let excluded = [b'\\', quote];
+    let (input, fragments) = many0(|i| parse_string_fragment(i, &excluded))(input)?;
     Ok((input, fragments.join("")))
 }
 
 fn lex_string(input: &[u8]) -> IResult<&[u8], Token> {
-    let (input, _) = tag("\"")(input)?;
+    let (input, quote) = alt((tag("\""), tag("'")))(input)?;
 
-    let (input, contents) = parse_string_contents(input)?;
+    let (input, contents) = parse_string_contents(input, quote[0])?;
 
-    let (input, _) = tag("\"")(input).map_err(|_: nom::Err<nom::error::Error<&[u8]>>| {
+    let (input, _) = tag(quote)(input).map_err(|_: nom::Err<nom::error::Error<&[u8]>>| {
         nom::Err::Failure(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
     })?;
 
