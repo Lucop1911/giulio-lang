@@ -1,3 +1,4 @@
 /target
 *.giu
 /notes
+/.vscode
