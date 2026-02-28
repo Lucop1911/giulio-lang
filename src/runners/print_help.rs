@@ -1,7 +1,7 @@
 pub fn print_help() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     const GITHUB: &str = "https://github.com/Lucop1911/giulio-lang";
-    const DOCUMENTATION: &str = "";
+    const DOCUMENTATION: &str = "https://giulio-lang.vercel.app";
 
     print!("Giulio-lang v");
     println!("{}", VERSION);
@@ -25,14 +25,6 @@ pub fn print_help() {
     println!("    giulio-lang check script.giu   # Check a file");
     println!("    giulio-lang --version          # Show version");
     println!("    giulio-lang --help             # Show this help\n");
-    
-    println!("LANGUAGE FEATURES:");
-    println!("    • Variables with let keyword");
-    println!("    • Functions with fn keyword");
-    println!("    • Structs with fields and methods");
-    println!("    • Control flow: if/else, while, for");
-    println!("    • Built-in types: integers, booleans, strings, arrays, hashes");
-    println!("    • Module system with import statements\n");
     
     println!("REPL COMMANDS:");
     println!("    exit, quit         Exit the REPL\n");
