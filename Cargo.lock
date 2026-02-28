@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "giulio-lang"
-version = "0.0.6"
+version = "0.2.3"
 dependencies = [
  "futures",
  "nom",

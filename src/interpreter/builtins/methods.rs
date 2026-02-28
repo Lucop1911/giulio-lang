@@ -62,6 +62,11 @@ impl BuiltinMethods {
                 all_args.extend(args);
                 bget_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
             }
+            (Object::String(_) | Object::Array(_), "contains") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                bcontains_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+            }
 
             // String methods
             (Object::String(_), "to_upper") => {

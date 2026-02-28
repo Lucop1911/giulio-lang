@@ -691,6 +691,24 @@ impl Parser {
         if let Err(_) = validate_await_usage(&program) {
             return Err(Err::Error(Error::new(tokens, ErrorKind::Verify)));
         }
+
+        // This is for checking wether there are more statements after a top level return and if they are valid
+        if program.len() > 1 {
+            for (i, stmt) in program.iter().enumerate() {
+                if i == 0 {
+                    continue;
+                }
+                // Check if current is ExprValueStmt (implicit return, no semicolon)
+                // and previous is ReturnStmt
+                if matches!(stmt, Stmt::ExprValueStmt(_)) {
+                    let prev_stmt = &program[i - 1];
+                    if matches!(prev_stmt, Stmt::ReturnStmt(_)) {
+                        return Err(Err::Error(Error::new(tokens, ErrorKind::Verify)));
+                    }
+                }
+            }
+        }
+
         Ok((rest, program))
     }
 }

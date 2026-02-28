@@ -32,7 +32,7 @@ pub async fn async_time_sleep(args: Vec<Object>) -> Result<Object, RuntimeError>
     }
 }
 
-pub fn time_sleep(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub fn time_sleep_wrapper(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args = args;
     Ok(Object::Future(Arc::new(Mutex::new(Some(Box::pin(async_time_sleep(args)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Object, RuntimeError>> + Send + 'static>>)))))
 }

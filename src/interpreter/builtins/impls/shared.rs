@@ -26,7 +26,8 @@ pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
             None => match n.to_bigint() {
                 Some(big) => Ok(Object::BigInteger(big)),
                 None => Err(format!(
-                    "to_int() cannot convert {} to integer (overflow)", n
+                    "to_int() cannot convert {} to integer (overflow)",
+                    n
                 )),
             },
         },
@@ -149,5 +150,81 @@ pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
             o.type_name()
         )),
         (None, _) => Err(format!("get() expects 2 arguments, got {}", args.len() + 1)),
+    }
+}
+
+pub fn bcontains_fn(args: Vec<Object>) -> Result<Object, String> {
+    let mut args = args.into_iter();
+    match (args.next(), args.next()) {
+        (Some(Object::String(s)), Some(Object::String(sub))) => {
+            Ok(Object::Boolean(s.contains(&sub)))
+        }
+        (Some(Object::Array(arr)), Some(item)) => Ok(Object::Boolean(arr.contains(&item))),
+        (Some(o), _) => Err(format!(
+            "contains() expects string or array, got {}",
+            o.type_name()
+        )),
+        (None, _) => Err(format!("contains() expects 2 arguments, got 1")),
+    }
+}
+
+pub fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
+    let mut args = args.into_iter();
+    match (args.next(), args.next(), args.next()) {
+        (Some(Object::String(s)), Some(Object::Integer(start)), end_opt) => {
+            let chars: Vec<char> = s.chars().collect();
+            let len = chars.len() as i64;
+            let start = if start < 0 { len + start } else { start };
+            let end = match end_opt {
+                Some(Object::Integer(e)) => {
+                    if e < 0 {
+                        len + e
+                    } else {
+                        e
+                    }
+                }
+                None => len,
+                Some(o) => {
+                    return Err(format!(
+                        "slice() end must be integer, got {}",
+                        o.type_name()
+                    ))
+                }
+            };
+            if start > len || end > len || start > end {
+                return Err(format!("slice() indices out of bounds"));
+            }
+            let result: String = chars[start as usize..end as usize].iter().collect();
+            Ok(Object::String(result))
+        }
+        (Some(Object::Array(vec)), Some(Object::Integer(start)), end_opt) => {
+            let len = vec.len() as i64;
+            let start = if start < 0 { len + start } else { start };
+            let end = match end_opt {
+                Some(Object::Integer(e)) => {
+                    if e < 0 {
+                        len + e
+                    } else {
+                        e
+                    }
+                }
+                None => len,
+                Some(o) => {
+                    return Err(format!(
+                        "slice() end must be integer, got {}",
+                        o.type_name()
+                    ))
+                }
+            };
+            if start > len || end > len || start > end {
+                return Err(format!("slice() indices out of bounds"));
+            }
+            Ok(Object::Array(vec[start as usize..end as usize].to_vec()))
+        }
+        (Some(o), _, _) => Err(format!(
+            "slice() expects string or array, got {}",
+            o.type_name()
+        )),
+        (None, _, _) => Err(format!("slice() expects at least 2 arguments, got 1")),
     }
 }

@@ -1,9 +1,13 @@
+use crate::interpreter::builtins::impls::{
+    array::*, hash::*, input::*, int::*, output::*, r#type::*, shared::*, string::*, struct_ops::*,
+};
 use crate::{
     ast::ast::Ident,
-    interpreter::{builtins::impls::struct_ops::bset_field_fn, obj::{BuiltinFunction, Object}},
+    interpreter::{
+        builtins::impls::struct_ops::bset_field_fn,
+        obj::{BuiltinFunction, Object},
+    },
 };
-use crate::interpreter::builtins::impls::{array::*, input::*, output::*, r#type::*, int::*, shared::*, hash::*, string::*, struct_ops::*};
-
 
 pub struct BuiltinsFunctions;
 
@@ -36,7 +40,9 @@ impl BuiltinsFunctions {
             add_builtin("split", 1, 1, bsplit_fn),
             add_builtin("replace", 1, 1, breplace_fn),
             add_builtin("trim", 3, 3, btrim_fn),
-            // Array 
+            add_builtin("contains", 2, 2, bcontains_fn),
+            add_builtin("slice", 2, 3, bslice_fn),
+            // Array
             add_builtin("len", 1, 1, blen_fn),
             add_builtin("head", 1, 1, bhead_fn),
             add_builtin("tail", 1, 1, btail_fn),
@@ -48,7 +54,7 @@ impl BuiltinsFunctions {
             add_builtin("min", 2, 2, bmin_fn),
             add_builtin("max", 2, 2, bmax_fn),
             // Hash
-            add_builtin("keys",1 , 1, bkeys_fn),
+            add_builtin("keys", 1, 1, bkeys_fn),
             add_builtin("values", 1, 1, bvalues_fn),
             add_builtin("clear", 1, 1, bclear_fn),
         ]

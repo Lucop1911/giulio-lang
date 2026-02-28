@@ -44,6 +44,8 @@ impl ModuleRegistry {
         let mut string_exports = HashMap::new();
         
         string_exports.insert("join".to_string(), create_builtin("join", 2, 2, string_join));
+        string_exports.insert("reverse".to_string(), create_builtin("reverse", 1, 1, string_reverse));
+        string_exports.insert("repeat".to_string(), create_builtin("repeat", 2, 2, string_repeat));
         
         self.stdlib.insert("std::string".to_string(), Module {
             name: "std::string".to_string(),
@@ -56,6 +58,19 @@ impl ModuleRegistry {
         math_exports.insert("clamp".to_string(), create_builtin("clamp", 3, 3, math_clamp));
         math_exports.insert("random".to_string(), create_builtin("random", 0, 2, math_random));
         math_exports.insert("round".to_string(), create_builtin("round", 1, 1, math_round));
+        math_exports.insert("floor".to_string(), create_builtin("floor", 1, 1, math_floor));
+        math_exports.insert("ceil".to_string(), create_builtin("ceil", 1, 1, math_ceil));
+        math_exports.insert("sqrt".to_string(), create_builtin("sqrt", 1, 1, math_sqrt));
+        math_exports.insert("sin".to_string(), create_builtin("sin", 1, 1, math_sin));
+        math_exports.insert("cos".to_string(), create_builtin("cos", 1, 1, math_cos));
+        math_exports.insert("tan".to_string(), create_builtin("tan", 1, 1, math_tan));
+        math_exports.insert("log".to_string(), create_builtin("log", 1, 1, math_log));
+        math_exports.insert("log10".to_string(), create_builtin("log10", 1, 1, math_log10));
+        math_exports.insert("abs".to_string(), create_builtin("abs", 1, 1, math_abs_int));
+        math_exports.insert("min".to_string(), create_builtin("min", 2, 2, math_min_int));
+        math_exports.insert("max".to_string(), create_builtin("max", 2, 2, math_max_int));
+        math_exports.insert("PI".to_string(), math_pi());
+        math_exports.insert("E".to_string(), math_e());
 
         self.stdlib.insert("std::math".to_string(), Module {
             name: "std::math".to_string(),
@@ -66,7 +81,7 @@ impl ModuleRegistry {
         let mut time_exports = HashMap::new();
 
         time_exports.insert("now".to_string(), create_builtin("now", 0, 0, time_now));
-        time_exports.insert("sleep".to_string(), create_builtin("sleep", 1, 1, time_sleep));
+        time_exports.insert("sleep".to_string(), create_builtin("sleep", 1, 1, time_sleep_wrapper));
 
         self.stdlib.insert("std::time".to_string(), Module {
             name: "std::time".to_string(),
