@@ -2,22 +2,16 @@ use std::sync::Arc;
 use ahash::HashMapExt;
 
 use crate::{
-    ast::ast::{Ident, ImportItems},
+    ast::ast::ImportItems,
     errors::RuntimeError,
     interpreter::{
         module_registry::ModuleRegistry, obj::{Object, HashMap}
     },
 };
-use super::super::eval::Evaluator;
+use super::super::super::eval::Evaluator;
 
 impl Evaluator {
-    pub fn register_ident(&mut self, ident: Ident, object: Object) -> Object {
-        let Ident(name) = ident;
-        self.env.lock().unwrap().set(&name, object.clone());
-        object
-    }
-
-    pub fn eval_import(&mut self, path: Vec<String>, items: ImportItems) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_import(&mut self, path: Vec<String>, items: ImportItems) -> impl Future<Output = Object> + Send + '_  {
         let self_clone = self.clone();
         async move {
             let path_clone = path.clone();

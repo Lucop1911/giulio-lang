@@ -9,19 +9,11 @@ use crate::{
     wasm::{WasmInstance, giulio_to_wasm_val, wasm_val_to_giulio},
 };
 use futures::stream::{FuturesUnordered, StreamExt};
-use super::super::eval::Evaluator;
+use super::super::super::eval::Evaluator;
 use wasmtime::Val;
 
 impl Evaluator {
-    pub fn eval_fn(&mut self, params: Vec<Ident>, body: Program) -> Object {
-        Object::Function(params, body, Arc::clone(&self.env))
-    }
-
-    pub fn eval_method(&mut self, params: Vec<Ident>, body: Program) -> Object {
-        Object::Method(params, body, Arc::clone(&self.env))
-    }
-
-    pub async fn eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> Object {
+    pub async fn async_eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> Object {
         let fn_object = self.eval_expr(fn_expr).await;
         let fn_ = self.obj_to_func(fn_object);
 
@@ -59,10 +51,35 @@ impl Evaluator {
             }
 
             Object::Builtin(_, min_params, max_params, b_fn) => {
-                self.eval_builtin_call(args_expr, min_params, max_params, b_fn).await
+                self.async_eval_builtin_call(args_expr, min_params, max_params, b_fn).await
             }
             Object::BuiltinStd(_, min_params, max_params, s_fn) => {
-                self.eval_std_call(args_expr, min_params, max_params, s_fn).await
+                self.async_eval_std_call(args_expr, min_params, max_params, s_fn).await
+            }
+            Object::BuiltinStdAsync(_, min_params, max_params, s_fn) => {
+                let future_obj = self.async_eval_std_call(args_expr, min_params, max_params, s_fn).await;
+                if !self.in_async_context {
+                    if let Object::Future(future_arc) = future_obj {
+                        let future_to_await = {
+                            let mut future_opt_guard = future_arc.lock().unwrap();
+                            future_opt_guard.take()
+                        };
+                        if let Some(f) = future_to_await {
+                            match f.await {
+                                Ok(obj) => obj,
+                                Err(e) => Object::Error(e),
+                            }
+                        } else {
+                            Object::Error(RuntimeError::InvalidOperation(
+                                "Cannot await a future that has already been awaited".to_string()
+                            ))
+                        }
+                    } else {
+                        future_obj
+                    }
+                } else {
+                    future_obj
+                }
             }
             o_err => o_err,
         }
@@ -158,7 +175,7 @@ impl Evaluator {
         Object::Future(Arc::new(Mutex::new(Some(Box::pin(mapped_future)))))
     }
 
-    pub fn eval_builtin_call(
+    pub fn async_eval_builtin_call(
         &mut self,
         args_expr: Vec<Expr>,
         min_params: usize,
@@ -187,7 +204,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_std_call(
+    pub fn async_eval_std_call(
         &mut self,
         args_expr: Vec<Expr>,
         min_params: usize,
@@ -216,7 +233,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_fn_call_direct(
+    pub fn async_eval_fn_call_direct(
         &mut self,
         args: Vec<Object>,
         params: Vec<Ident>,

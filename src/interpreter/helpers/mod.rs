@@ -1,9 +1,5 @@
 pub mod obj_operations;
 pub mod type_converters;
-pub mod eval_control_flow;
-pub mod eval_functions;
-pub mod eval_data_structures;
-pub mod eval_structs;
-pub mod eval_expressions;
-pub mod eval_misc;
 pub mod wasm_loader;
+pub mod eval_async;
+pub mod eval_sync;

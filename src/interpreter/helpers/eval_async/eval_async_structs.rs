@@ -8,10 +8,10 @@ use crate::{
     },
 };
 use crate::interpreter::builtins::methods::BuiltinMethods;
-use super::super::eval::Evaluator;
+use super::super::super::eval::Evaluator;
 
 impl Evaluator {
-    pub fn eval_struct_def(&mut self, name: Ident, fields: Vec<(Ident, Expr)>, methods: Vec<(Ident, Expr)>) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_struct_def(&mut self, name: Ident, fields: Vec<(Ident, Expr)>, methods: Vec<(Ident, Expr)>) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let Ident(struct_name) = name.clone();
@@ -40,7 +40,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_struct_literal(&mut self, name: Ident, field_assignments: Vec<(Ident, Expr)>) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_struct_literal(&mut self, name: Ident, field_assignments: Vec<(Ident, Expr)>) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let Ident(struct_name) = name;
@@ -69,7 +69,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_field_access(&mut self, object_expr: Expr, field_name: String) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_field_access(&mut self, object_expr: Expr, field_name: String) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let object = self_clone.eval_expr(object_expr).await;
@@ -98,7 +98,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_field_assign(&mut self, object_expr: Expr, field_name: String, value_expr: Expr) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_field_assign(&mut self, object_expr: Expr, field_name: String, value_expr: Expr) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let value = self_clone.eval_expr(value_expr).await;
@@ -131,7 +131,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_method_call(&mut self, object_expr: Expr, method_name: String, args_expr: Vec<Expr>) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_method_call(&mut self, object_expr: Expr, method_name: String, args_expr: Vec<Expr>) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let var_name_if_ident = if let Expr::IdentExpr(Ident(ref name)) = object_expr {
@@ -156,7 +156,7 @@ impl Evaluator {
                             for e in args_expr {
                                 args.push(self_clone.eval_expr(e).await);
                             }
-                            self_clone.eval_fn_call_direct(args, params, body).await
+                            self_clone.async_eval_fn_call_direct(args, params, body).await
                         }
                         _ => {
                             return Object::Error(RuntimeError::NotCallable(method_name));
@@ -189,7 +189,7 @@ impl Evaluator {
                     }
                     return match func_obj.clone() {
                         Object::Function(params, body, _) => {
-                            self_clone.eval_fn_call_direct(args, params, body).await
+                            self_clone.async_eval_fn_call_direct(args, params, body).await
                         }
                         Object::BuiltinStd(name, min, max, func) => {
                             if args.len() < min || args.len() > max {
@@ -208,9 +208,31 @@ impl Evaluator {
                                     format!("{} expects between {} and {} arguments, got {}", name, min, max, args.len())
                                 ));
                             }
-                            match func(args) {
+                            let future_obj = match func(args) {
                                 Ok(obj) => obj,
-                                Err(e) => Object::Error(e),
+                                Err(e) => return Object::Error(e),
+                            };
+                            if !self_clone.in_async_context {
+                                if let Object::Future(future_arc) = future_obj {
+                                    let future_to_await = {
+                                        let mut future_opt_guard = future_arc.lock().unwrap();
+                                        future_opt_guard.take()
+                                    };
+                                    if let Some(f) = future_to_await {
+                                        match f.await {
+                                            Ok(obj) => obj,
+                                            Err(e) => Object::Error(e),
+                                        }
+                                    } else {
+                                        Object::Error(RuntimeError::InvalidOperation(
+                                            "Cannot await a future that has already been awaited".to_string()
+                                        ))
+                                    }
+                                } else {
+                                    future_obj
+                                }
+                            } else {
+                                future_obj
                             }
                         }
                         Object::Builtin(name, min, max, func) => {

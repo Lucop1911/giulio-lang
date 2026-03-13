@@ -5,12 +5,12 @@ use crate::{
     errors::RuntimeError,
     interpreter::obj::Object
 };
-use super::super::eval::{Evaluator};
+use super::super::super::eval::{Evaluator};
 
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
 impl Evaluator {
-    pub fn eval_index_assign(&mut self, target_expr: Expr, index_expr: Expr, value_expr: Expr) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_index_assign(&mut self, target_expr: Expr, index_expr: Expr, value_expr: Expr) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let index = self_clone.eval_expr(index_expr).await;
@@ -120,7 +120,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_array(&mut self, exprs: Vec<Expr>) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_array(&mut self, exprs: Vec<Expr>) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let mut new_vec = Vec::new();
@@ -131,7 +131,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_hash(&mut self, hs: Vec<(Expr, Expr)>) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_hash(&mut self, hs: Vec<(Expr, Expr)>) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let mut hashmap = HashMap::new();
@@ -153,7 +153,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_index(&mut self, target_exp: Expr, id_exp: Expr) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_index(&mut self, target_exp: Expr, id_exp: Expr) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let target = self_clone.eval_expr(target_exp).await;

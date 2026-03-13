@@ -104,7 +104,7 @@ impl ModuleRegistry {
         let mut time_exports = HashMap::new();
 
         time_exports.insert("now".to_string(), create_builtin("now", 0, 0, time_now));
-        time_exports.insert("sleep".to_string(), create_builtin("sleep", 1, 1, time_sleep_wrapper));
+        time_exports.insert("sleep".to_string(), create_builtin_async("sleep", 1, 1, time_sleep_wrapper));
 
         self.stdlib.insert("std::time".to_string(), Module {
             name: "std::time".to_string(),
@@ -115,11 +115,11 @@ impl ModuleRegistry {
         let mut io_exports = HashMap::new();
         
         io_exports.insert("read_file".to_string(), create_builtin("read_file", 1, 1, io_read_file));
-        io_exports.insert("read_file_async".to_string(), create_builtin("read_file_async", 1, 1, io_read_file_wrapper));
+        io_exports.insert("read_file_async".to_string(), create_builtin_async("read_file_async", 1, 1, io_read_file_wrapper));
         io_exports.insert("write_file".to_string(), create_builtin("write_file", 2, 2, io_write_file));
-        io_exports.insert("write_file_async".to_string(), create_builtin("write_file_async", 2, 2, io_write_file_wrapper));
+        io_exports.insert("write_file_async".to_string(), create_builtin_async("write_file_async", 2, 2, io_write_file_wrapper));
         io_exports.insert("append_file".to_string(), create_builtin("append_file", 2, 2, io_append_file));
-        io_exports.insert("append_file_async".to_string(), create_builtin("append_file_async", 2, 2, io_append_file_wrapper));
+        io_exports.insert("append_file_async".to_string(), create_builtin_async("append_file_async", 2, 2, io_append_file_wrapper));
 
         io_exports.insert("exists".to_string(), create_builtin("exists", 1, 1, io_exists));
         io_exports.insert("is_file".to_string(), create_builtin("is_file", 1, 1, io_is_file));
@@ -127,14 +127,14 @@ impl ModuleRegistry {
         io_exports.insert("is_dir".to_string(), create_builtin("is_dir", 1, 1, io_is_dir));
 
         io_exports.insert("list_dir".to_string(), create_builtin("list_dir", 1, 1, io_list_dir));
-        io_exports.insert("list_dir_async".to_string(), create_builtin("list_dir_async", 1, 1, io_list_dir_wrapper));
+        io_exports.insert("list_dir_async".to_string(), create_builtin_async("list_dir_async", 1, 1, io_list_dir_wrapper));
 
         io_exports.insert("create_dir".to_string(), create_builtin("create_dir", 1, 1, io_create_dir));
-        io_exports.insert("create_dir_async".to_string(), create_builtin("create_dir_async", 1, 1, io_create_dir_wrapper));
+        io_exports.insert("create_dir_async".to_string(), create_builtin_async("create_dir_async", 1, 1, io_create_dir_wrapper));
         io_exports.insert("delete_file".to_string(), create_builtin("delete_file", 1, 1, io_delete_file));
-        io_exports.insert("delete_file_async".to_string(), create_builtin("delete_file_async", 1, 1, io_delete_file_wrapper));
+        io_exports.insert("delete_file_async".to_string(), create_builtin_async("delete_file_async", 1, 1, io_delete_file_wrapper));
         io_exports.insert("delete_dir".to_string(), create_builtin("delete_dir", 1, 1, io_delete_dir));
-        io_exports.insert("delete_dir_async".to_string(), create_builtin("delete_dir_async", 1, 1, io_delete_dir_wrapper));
+        io_exports.insert("delete_dir_async".to_string(), create_builtin_async("delete_dir_async", 1, 1, io_delete_dir_wrapper));
 
         self.stdlib.insert("std::io".to_string(), Module {
             name: "std::io".to_string(),
@@ -155,10 +155,10 @@ impl ModuleRegistry {
         // HTTP modules
         let mut http_exports = HashMap::new();
         
-        http_exports.insert("get".to_string(), create_builtin("get", 1, 1, http_get));
-        http_exports.insert("post".to_string(), create_builtin("post", 2, 2, http_post));
-        http_exports.insert("put".to_string(), create_builtin("put", 2, 2, http_put));
-        http_exports.insert("delete".to_string(), create_builtin("delete", 1, 1, http_delete));
+        http_exports.insert("get".to_string(), create_builtin_async("get", 1, 1, http_get));
+        http_exports.insert("post".to_string(), create_builtin_async("post", 2, 2, http_post));
+        http_exports.insert("put".to_string(), create_builtin_async("put", 2, 2, http_put));
+        http_exports.insert("delete".to_string(), create_builtin_async("delete", 1, 1, http_delete));
 
         self.stdlib.insert("std::http".to_string(), Module {
             name: "std::http".to_string(),
@@ -303,4 +303,8 @@ impl ModuleRegistry {
 
 fn create_builtin(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, RuntimeError>) -> Object {
     Object::BuiltinStd(name.to_string(), min, max, func)
+}
+
+fn create_builtin_async(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, RuntimeError>) -> Object {
+    Object::BuiltinStdAsync(name.to_string(), min, max, func)
 }

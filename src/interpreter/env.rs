@@ -46,35 +46,46 @@ impl Environment {
     }
 
     pub fn set(&mut self, name: &str, val: Object) {
-        // Check if variable exists in current scope
-        if self.store.contains_key(name) {
-            self.store.insert(name.to_string(), val);
-            return;
-        }
-        
-        // Check if variable exists in parent scope
-        if let Some(ref parent_env) = self.parent {
-            if parent_env.lock().unwrap().get(name).is_some() {
-                // Variable exists in parent, update it there
-                parent_env.lock().unwrap().set(name, val);
-                return;
+        // Check if key exists in current scope
+        match self.store.get_key_value(name) {
+            Some(_) => {
+                // Key exists in current scope, replace it
+                self.store.insert(name.to_string(), val);
+            }
+            None => {
+                // Check parent scope
+                if let Some(ref parent_env) = self.parent {
+                    if parent_env.lock().unwrap().get(name).is_some() {
+                        // Exists in parent, set it there
+                        parent_env.lock().unwrap().set(name, val);
+                        return;
+                    }
+                }
+                // New key, insert in current scope
+                self.store.insert(name.to_string(), val);
             }
         }
-        
-        // Variable doesn't exist anywhere, create it in current scope
-        self.store.insert(name.to_string(), val);
     }
 
     pub fn get(&self, name: &str) -> Option<Object> {
         match self.store.get(name) {
-            Some(o) => Some(o.clone()),
-            None => match self.parent {
-                Some(ref parent_env) => {
-                    let env = parent_env.lock().unwrap();
-                    env.get(name)
+            Some(o) => {
+                // Avoid clone for primitive types
+                match o {
+                    Object::Integer(i) => Some(Object::Integer(*i)),
+                    Object::Float(f) => Some(Object::Float(*f)),
+                    Object::Boolean(b) => Some(Object::Boolean(*b)),
+                    Object::Null => Some(Object::Null),
+                    // Keep clone for complex types
+                    _ => Some(o.clone()),
                 }
-                None => None,
-            },
+            }
+            None => {
+                match &self.parent {
+                    Some(parent_env) => parent_env.lock().unwrap().get(name),
+                    None => None,
+                }
+            }
         }
     }
 }

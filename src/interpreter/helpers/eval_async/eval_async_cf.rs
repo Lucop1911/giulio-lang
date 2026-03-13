@@ -7,12 +7,12 @@ use crate::{
     },
 };
 
-use super::super::eval::{Evaluator, EvalFuture};
+use super::super::super::eval::Evaluator;
 
 impl Evaluator {
-    pub fn eval_if(&mut self, cond: Expr, conse: Program, maybe_alter: Option<Program>) -> EvalFuture {
+    pub fn async_eval_if(&mut self, cond: Expr, conse: Program, maybe_alter: Option<Program>) -> impl Future<Output = Object> + Send + '_ {
         let mut self_clone = self.clone();
-        Box::pin(async move {
+        async move {
             let object = self_clone.eval_expr(cond).await;
             match self_clone.obj_to_bool(object) {
                 Ok(b) => {
@@ -27,10 +27,10 @@ impl Evaluator {
                 }
                 Err(err) => err,
             }
-        })
+        }
     }
 
-    pub fn eval_while(&mut self, cond: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_ {
+    pub fn async_eval_while(&mut self, cond: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_ {
         let mut self_clone = self.clone();
         async move {
             loop {
@@ -53,7 +53,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_for(&mut self, ident: Ident, iterable: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_for(&mut self, ident: Ident, iterable: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let iter_obj = self_clone.eval_expr(*iterable).await;
@@ -86,7 +86,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_c_style_for(
+    pub fn async_eval_c_style_for(
         &mut self,
         init: Option<Box<Stmt>>,
         cond: Option<Box<Expr>>,
@@ -95,16 +95,18 @@ impl Evaluator {
     ) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
+            // sync eval for init
             if let Some(init_stmt) = init {
-                let result = self_clone.eval_statement(*init_stmt).await;
+                let result = self_clone.eval_statement_sync(*init_stmt);
                 if let Object::Error(_) = result {
                     return result;
                 }
             }
             
             loop {
+                // sync eval for condition
                 let should_continue = if let Some(ref cond_expr) = cond {
-                    match self_clone.eval_expr(cond_expr.as_ref().clone()).await {
+                    match self_clone.eval_expr_sync(cond_expr.as_ref().clone()) {
                         Object::Boolean(b) => b,
                         Object::Error(e) => return Object::Error(e),
                         _ => return Object::Error(RuntimeError::TypeMismatch {
@@ -120,6 +122,7 @@ impl Evaluator {
                     break;
                 }
                 
+                // async for body as it might contain async code
                 let result = self_clone.eval_blockstmt(&body).await;
                 match result {
                     Object::Break => return Object::Null,
@@ -129,8 +132,9 @@ impl Evaluator {
                     _ => {}
                 }
                 
+                // sync eval for update
                 if let Some(ref update_stmt) = update {
-                    let result = self_clone.eval_statement(update_stmt.as_ref().clone()).await;
+                    let result = self_clone.eval_statement_sync(update_stmt.as_ref().clone());
                     if let Object::Error(_) = result {
                         return result;
                     }
@@ -141,7 +145,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_try_catch_expr(
+    pub fn async_eval_try_catch_expr(
         &mut self, 
         try_body: Program, 
         catch_ident: Option<Ident>, 
