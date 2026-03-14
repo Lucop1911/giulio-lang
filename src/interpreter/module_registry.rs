@@ -209,7 +209,15 @@ impl ModuleRegistry {
         let mut file_path = base_path;
         
         for part in path {
-            file_path.push(part);
+            if part == "super" {
+                if !file_path.pop() {
+                    return Err(RuntimeError::InvalidOperation(
+                        "Cannot use 'super::' at root level".to_string()
+                    ));
+                }
+            } else {
+                file_path.push(part);
+            }
         }
         file_path.set_extension("g");
         
