@@ -1,8 +1,8 @@
-# Giulio-lang
+# G-lang
 
 A dynamically-typed interpreted programming language written in Rust.
 
-Giulio-lang is a lightweight, expressive language designed for simplicity and ease of use. It provides a clean syntax with support for modern programming paradigms including functions, structs, and a flexible type system.
+G-lang is a lightweight, expressive language designed for simplicity and ease of use. It provides a clean syntax with support for modern programming paradigms including functions, structs, and a flexible type system.
 
 ## Features
 
@@ -26,8 +26,8 @@ Giulio-lang is a lightweight, expressive language designed for simplicity and ea
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Lucop1911/giulio-lang.git
-cd giulio-lang
+git clone https://github.com/Lucop1911/g-lang.git
+cd g-lang
 ```
 
 2. Build the project:
@@ -35,11 +35,11 @@ cd giulio-lang
 cargo build --release
 ```
 
-3. The executable will be located at `target/release/giulio-lang`
+3. The executable will be located at `target/release/g-lang`
 
 ### Add to PATH (Optional)
 
-To run `giulio-lang` from anywhere:
+To run `g-lang` from anywhere:
 
 **On Linux**
 ```bash
@@ -47,7 +47,7 @@ export PATH="$PATH:$(pwd)/target/release"
 ```
 
 **On Windows:**
-Add `C:\path\to\giulio-lang\target\release` to your system PATH environment variable.
+Add `C:\path\to\g-lang\target\release` to your system PATH environment variable.
 
 ## Quick Start
 
@@ -55,14 +55,14 @@ Add `C:\path\to\giulio-lang\target\release` to your system PATH environment vari
 
 Start the interactive REPL:
 ```bash
-giulio-lang
+g-lang
 ```
 
 ### Run a Script
 
-Execute a `.giu` file:
+Execute a `.g` file:
 ```bash
-giulio-lang run script.giu
+g-lang run script.g
 ```
 
 ### Basic Examples
@@ -143,12 +143,12 @@ person.greet();
 
 ```
 USAGE:
-    giulio-lang [COMMAND] [OPTIONS]
+    g-lang [COMMAND] [OPTIONS]
 
 COMMANDS:
     (no command)       Start the REPL (Read-Eval-Print Loop)
-    run <file>         Execute a .giu file
-    check <file>       Parse and check a .giu file for errors
+    run <file>         Execute a .g file
+    check <file>       Parse and check a .g file for errors
 
 OPTIONS:
     -h, --help         Print this help message
@@ -157,7 +157,7 @@ OPTIONS:
 
 ## Documentation
 
-For comprehensive documentation and more examples, please visit the [official documentation website](https://giulio-lang.vercel.app)
+For comprehensive documentation and more examples, please visit the [official documentation website](https://g-lang.vercel.app)
 
 ## License
 
@@ -165,4 +165,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Repository
 
-- **GitHub**: [https://github.com/Lucop1911/giulio-lang](https://github.com/Lucop1911/giulio-lang)
+- **GitHub**: [https://github.com/Lucop1911/g-lang](https://github.com/Lucop1911/g-lang)

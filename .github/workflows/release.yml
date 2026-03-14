@@ -36,13 +36,13 @@ jobs:
       - name: Prepare binary
         run: |
           mkdir -p dist
-          cp target/release/giulio-lang dist/giulio-lang
+          cp target/release/gl dist/gl
 
       - name: Upload linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: giulio-lang-linux
-          path: dist/giulio-lang
+          name: gl-linux
+          path: dist/gl
 
   build-windows:
     runs-on: windows-latest
@@ -69,13 +69,13 @@ jobs:
       - name: Prepare binary (Windows)
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item -Path target\release\giulio-lang.exe -Destination dist\giulio-lang.exe -Force
+          Copy-Item -Path target\release\gl.exe -Destination dist\gl.exe -Force
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: giulio-lang-windows
-          path: dist/giulio-lang.exe
+          name: gl-windows
+          path: dist/gl.exe
 
   publish:
     needs: [build-linux, build-windows]
@@ -84,13 +84,13 @@ jobs:
       - name: Download linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: giulio-lang-linux
+          name: gl-linux
           path: downloaded/linux
 
       - name: Download windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: giulio-lang-windows
+          name: gl-windows
           path: downloaded/windows
 
       - name: Prepare dist for release

@@ -5,7 +5,7 @@ use crate::parser_errors::{convert_nom_error, show_error_context};
 
 pub async fn repl(mut evaluator: Evaluator) {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
-    println!("Giulio-lang v{}", VERSION);
+    println!("g-lang v{}", VERSION);
     println!("Type 'exit' or 'quit' to quit\n");
 
     loop {

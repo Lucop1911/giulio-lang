@@ -47,37 +47,37 @@ impl WasmType {
 }
 
 pub struct TypeMapping {
-    giulio_to_wasm: HashMap<String, WasmType>,
-    wasm_to_giulio: HashMap<WasmType, String>,
+    g_to_wasm: HashMap<String, WasmType>,
+    wasm_to_g: HashMap<WasmType, String>,
 }
 
 impl TypeMapping {
     pub fn new() -> Self {
-        let mut giulio_to_wasm = HashMap::new();
-        let mut wasm_to_giulio = HashMap::new();
+        let mut g_to_wasm = HashMap::new();
+        let mut wasm_to_g = HashMap::new();
 
-        giulio_to_wasm.insert("Int".to_string(), WasmType::I32);
-        giulio_to_wasm.insert("Float".to_string(), WasmType::F64);
-        giulio_to_wasm.insert("Bool".to_string(), WasmType::I32);
-        giulio_to_wasm.insert("String".to_string(), WasmType::I32);
+        g_to_wasm.insert("Int".to_string(), WasmType::I32);
+        g_to_wasm.insert("Float".to_string(), WasmType::F64);
+        g_to_wasm.insert("Bool".to_string(), WasmType::I32);
+        g_to_wasm.insert("String".to_string(), WasmType::I32);
 
-        wasm_to_giulio.insert(WasmType::I32, "Int".to_string());
-        wasm_to_giulio.insert(WasmType::I64, "Int".to_string());
-        wasm_to_giulio.insert(WasmType::F32, "Float".to_string());
-        wasm_to_giulio.insert(WasmType::F64, "Float".to_string());
+        wasm_to_g.insert(WasmType::I32, "Int".to_string());
+        wasm_to_g.insert(WasmType::I64, "Int".to_string());
+        wasm_to_g.insert(WasmType::F32, "Float".to_string());
+        wasm_to_g.insert(WasmType::F64, "Float".to_string());
 
         TypeMapping {
-            giulio_to_wasm,
-            wasm_to_giulio,
+            g_to_wasm,
+            wasm_to_g,
         }
     }
 
-    pub fn get_wasm_type(&self, giulio_type: &str) -> Option<WasmType> {
-        self.giulio_to_wasm.get(giulio_type).copied()
+    pub fn get_wasm_type(&self, g_type: &str) -> Option<WasmType> {
+        self.g_to_wasm.get(g_type).copied()
     }
 
-    pub fn get_giulio_type(&self, wasm_type: WasmType) -> Option<String> {
-        self.wasm_to_giulio.get(&wasm_type).cloned()
+    pub fn get_g_type(&self, wasm_type: WasmType) -> Option<String> {
+        self.wasm_to_g.get(&wasm_type).cloned()
     }
 }
 
@@ -87,7 +87,7 @@ impl Default for TypeMapping {
     }
 }
 
-pub fn giulio_to_wasm_val<T>(
+pub fn g_to_wasm_val<T>(
     obj: &Object,
     memory: Option<&Memory>,
     store: &mut Store<T>,
@@ -121,7 +121,7 @@ pub fn giulio_to_wasm_val<T>(
 
                 for (i, item) in arr.iter().enumerate() {
                     let offset = ptr + (i * element_size);
-                    let val = giulio_to_wasm_val(item, Some(mem), store)?;
+                    let val = g_to_wasm_val(item, Some(mem), store)?;
                     match val {
                         Val::I32(n) => {
                             let bytes = n.to_le_bytes();
@@ -162,7 +162,7 @@ pub fn giulio_to_wasm_val<T>(
     }
 }
 
-pub fn wasm_val_to_giulio(val: &Val) -> Result<Object, RuntimeError> {
+pub fn wasm_val_to_g(val: &Val) -> Result<Object, RuntimeError> {
     match val {
         Val::I32(n) => Ok(Object::Integer(*n as i64)),
         Val::I64(n) => Ok(Object::Integer(*n as i64)),

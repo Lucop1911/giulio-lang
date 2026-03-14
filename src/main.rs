@@ -1,11 +1,11 @@
 use std::env;
 use std::fs;
 
-use giulio_lang::Evaluator;
-use giulio_lang::runners::print_help::print_help;
-use giulio_lang::runners::run_check::run_check;
-use giulio_lang::runners::run_source::run_source;
-use giulio_lang::runners::run_repl_mode::repl;
+use g_lang::Evaluator;
+use g_lang::runners::print_help::print_help;
+use g_lang::runners::run_check::run_check;
+use g_lang::runners::run_source::run_source;
+use g_lang::runners::run_repl_mode::repl;
 
 
 #[tokio::main]
@@ -25,6 +25,10 @@ async fn main() {
 
         Some(flag) if flag == "check" => {
             if let Some(filename) = args.get(2) {
+                if !filename.ends_with(".g") {
+                    eprintln!("Error: File must have .g extension");
+                    return;
+                }
                 let source = match fs::read_to_string(filename) {
                     Ok(s) => s,
                     Err(e) => {
@@ -38,6 +42,10 @@ async fn main() {
 
         Some(flag) if flag == "run" => {
             if let Some(filename) = args.get(2) {
+                if !filename.ends_with(".g") {
+                    eprintln!("Error: File must have .g extension");
+                    return;
+                }
                 let source = match fs::read_to_string(filename) {
                     Ok(s) => s,
                     Err(e) => {

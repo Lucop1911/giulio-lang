@@ -1,5 +1,5 @@
 /target
-*.giu
+*.g
 /notes
 /.vscode
 /tests

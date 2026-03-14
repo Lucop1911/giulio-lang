@@ -9,7 +9,7 @@ mod tests {
     use super::*;
     use crate::errors::RuntimeError;
     use crate::interpreter::obj::Object;
-    use type_conversions::{giulio_to_wasm_val, wasm_val_to_giulio, TypeMapping, WasmType};
+    use type_conversions::{g_to_wasm_val, wasm_val_to_g, TypeMapping, WasmType};
     use wasmtime::{Store, Val};
 
     #[test]
@@ -21,30 +21,30 @@ mod tests {
         assert_eq!(mapping.get_wasm_type("Bool"), Some(WasmType::I32));
 
         assert_eq!(
-            mapping.get_giulio_type(WasmType::I32),
+            mapping.get_g_type(WasmType::I32),
             Some("Int".to_string())
         );
         assert_eq!(
-            mapping.get_giulio_type(WasmType::F64),
+            mapping.get_g_type(WasmType::F64),
             Some("Float".to_string())
         );
     }
 
     #[test]
-    fn test_giulio_int_to_wasm() {
+    fn test_g_int_to_wasm() {
         let obj = Object::Integer(42);
         let mut store: Store<()> = Store::default();
-        let val = giulio_to_wasm_val(&obj, None, &mut store);
+        let val = g_to_wasm_val(&obj, None, &mut store);
 
         assert!(val.is_ok());
         assert_eq!(val.unwrap().i32(), Some(42));
     }
 
     #[test]
-    fn test_giulio_float_to_wasm() {
+    fn test_g_float_to_wasm() {
         let obj = Object::Float(3.14);
         let mut store: Store<()> = Store::default();
-        let val = giulio_to_wasm_val(&obj, None, &mut store);
+        let val = g_to_wasm_val(&obj, None, &mut store);
 
         assert!(val.is_ok());
         let bits = val.unwrap().f64();
@@ -52,31 +52,31 @@ mod tests {
     }
 
     #[test]
-    fn test_giulio_bool_to_wasm() {
+    fn test_g_bool_to_wasm() {
         let obj_true = Object::Boolean(true);
         let obj_false = Object::Boolean(false);
         let mut store: Store<()> = Store::default();
 
-        let val_true = giulio_to_wasm_val(&obj_true, None, &mut store).unwrap();
-        let val_false = giulio_to_wasm_val(&obj_false, None, &mut store).unwrap();
+        let val_true = g_to_wasm_val(&obj_true, None, &mut store).unwrap();
+        let val_false = g_to_wasm_val(&obj_false, None, &mut store).unwrap();
 
         assert_eq!(val_true.i32(), Some(1));
         assert_eq!(val_false.i32(), Some(0));
     }
 
     #[test]
-    fn test_wasm_val_to_giulio_i32() {
+    fn test_wasm_val_to_g_i32() {
         let val = Val::I32(42);
-        let obj = wasm_val_to_giulio(&val);
+        let obj = wasm_val_to_g(&val);
 
         assert!(obj.is_ok());
         assert_eq!(obj.unwrap(), Object::Integer(42));
     }
 
     #[test]
-    fn test_wasm_val_to_giulio_f64() {
+    fn test_wasm_val_to_g_f64() {
         let val = Val::F64(3.14_f64.to_bits());
-        let obj = wasm_val_to_giulio(&val);
+        let obj = wasm_val_to_g(&val);
 
         assert!(obj.is_ok());
         assert_eq!(obj.unwrap(), Object::Float(3.14));
@@ -218,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wasm_call_with_giulio_objects() {
+    fn test_wasm_call_with_g_objects() {
         let wat = r#"
             (module
                 (func $add (param $a i32) (param $b i32) (result i32)
@@ -247,7 +247,7 @@ mod tests {
             let args = vec![Object::Integer(5), Object::Integer(3)];
             let wasm_args: Result<Vec<Val>, RuntimeError> = args
                 .iter()
-                .map(|arg| giulio_to_wasm_val(arg, memory, &mut store))
+                .map(|arg| g_to_wasm_val(arg, memory, &mut store))
                 .collect();
             let wasm_args = wasm_args.unwrap();
             instance
@@ -263,7 +263,7 @@ mod tests {
             let args = vec![Object::Integer(4), Object::Integer(7)];
             let wasm_args: Result<Vec<Val>, RuntimeError> = args
                 .iter()
-                .map(|arg| giulio_to_wasm_val(arg, memory, &mut store))
+                .map(|arg| g_to_wasm_val(arg, memory, &mut store))
                 .collect();
             let wasm_args = wasm_args.unwrap();
             instance
@@ -299,7 +299,7 @@ mod tests {
             let args = vec![Object::Float(1.5), Object::Float(2.5)];
             let wasm_args: Result<Vec<Val>, RuntimeError> = args
                 .iter()
-                .map(|arg| giulio_to_wasm_val(arg, memory, &mut store))
+                .map(|arg| g_to_wasm_val(arg, memory, &mut store))
                 .collect();
             let wasm_args = wasm_args.unwrap();
             instance
@@ -335,7 +335,7 @@ mod tests {
             let args = vec![Object::Boolean(true)];
             let wasm_args: Result<Vec<Val>, RuntimeError> = args
                 .iter()
-                .map(|arg| giulio_to_wasm_val(arg, memory, &mut store))
+                .map(|arg| g_to_wasm_val(arg, memory, &mut store))
                 .collect();
             let wasm_args = wasm_args.unwrap();
             instance

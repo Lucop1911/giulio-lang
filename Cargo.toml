@@ -1,12 +1,16 @@
 [package]
-name = "giulio-lang"
+name = "g-lang"
 version = "0.2.3"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/Lucop1911/giulio-lang"
+repository = "https://github.com/Lucop1911/g-lang"
 
 [package.metadata]
 author = "Lucop1911"
+
+[[bin]]
+name = "gl"
+path = "src/main.rs"
 
 [features]
 default = ["wasm"]

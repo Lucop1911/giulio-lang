@@ -211,7 +211,7 @@ impl ModuleRegistry {
         for part in path {
             file_path.push(part);
         }
-        file_path.set_extension("giu");
+        file_path.set_extension("g");
         
         let source = fs::read_to_string(&file_path).await
             .map_err(|e| RuntimeError::InvalidOperation(

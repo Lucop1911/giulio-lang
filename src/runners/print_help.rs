@@ -1,30 +1,30 @@
 pub fn print_help() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
-    const GITHUB: &str = "https://github.com/Lucop1911/giulio-lang";
-    const DOCUMENTATION: &str = "https://giulio-lang.vercel.app";
+    const GITHUB: &str = "https://github.com/Lucop1911/g-lang";
+    const DOCUMENTATION: &str = "https://g-lang.vercel.app";
 
-    print!("Giulio-lang v");
+    print!("G-lang v");
     println!("{}", VERSION);
     println!("A dynamically-typed interpreted programming language\n");
     
     println!("USAGE:");
-    println!("    giulio-lang [COMMAND] [OPTIONS]\n");
+    println!("    gl [COMMAND] [OPTIONS]\n");
     
     println!("COMMANDS:");
     println!("    (no command)       Start the REPL (Read-Eval-Print Loop)");
-    println!("    run <file>         Execute a .giu file");
-    println!("    check <file>       Lex and Parse to check a .giu file for syntax errors\n");
+    println!("    run <file>         Execute a .g file");
+    println!("    check <file>       Lex and Parse to check a .g file for syntax errors\n");
     
     println!("OPTIONS:");
     println!("    -h, --help         Print this help message");
     println!("    -v, --version      Print version information\n");
     
     println!("EXAMPLES:");
-    println!("    giulio-lang                    # Start REPL mode");
-    println!("    giulio-lang run script.giu     # Run a script");
-    println!("    giulio-lang check script.giu   # Check a file");
-    println!("    giulio-lang --version          # Show version");
-    println!("    giulio-lang --help             # Show this help\n");
+    println!("    gl                    # Start REPL mode");
+    println!("    gl run script.g     # Run a script");
+    println!("    gl check script.g   # Check a file");
+    println!("    gl --version          # Show version");
+    println!("    gl --help             # Show this help\n");
     
     println!("REPL COMMANDS:");
     println!("    exit, quit         Exit the REPL\n");

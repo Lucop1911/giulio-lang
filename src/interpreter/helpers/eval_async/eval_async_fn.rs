@@ -6,7 +6,7 @@ use crate::{
     interpreter::{
         env::Environment, obj::{BuiltinFunction, Object, StdFunction}
     },
-    wasm::{WasmInstance, giulio_to_wasm_val, wasm_val_to_giulio},
+    wasm::{WasmInstance, g_to_wasm_val, wasm_val_to_g},
 };
 use futures::stream::{FuturesUnordered, StreamExt};
 use super::super::super::eval::Evaluator;
@@ -293,7 +293,7 @@ impl Evaluator {
             
             let wasm_args: Result<Vec<Val>, RuntimeError> = args
                 .iter()
-                .map(|arg| giulio_to_wasm_val(arg, memory, store))
+                .map(|arg| g_to_wasm_val(arg, memory, store))
                 .collect();
             
             let wasm_args = match wasm_args {
@@ -307,7 +307,7 @@ impl Evaluator {
                     if results.is_empty() {
                         Ok(Object::Null)
                     } else {
-                        wasm_val_to_giulio(&results[0])
+                        wasm_val_to_g(&results[0])
                     }
                 })
         };
