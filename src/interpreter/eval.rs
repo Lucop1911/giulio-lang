@@ -212,6 +212,14 @@ impl Evaluator {
         })
     }
 
+    /* 
+    eval_expr_sync is used for simple expressions in which i know there's no async code like:
+        - c-style for loops init, conditions and updates,
+        - prefix and infix operations
+        - array, hash and index accesses)
+    everything else is async and wrapped in async move
+    */
+
     pub fn eval_expr_sync(&mut self, expr: Expr) -> Object {
         match expr {
             Expr::IdentExpr(i) => self.eval_ident(i),
@@ -306,6 +314,11 @@ impl Evaluator {
                     o => Object::Error(RuntimeError::NotHashable(o.type_name())),
                 }
             }
+            Expr::ThisExpr => self.eval_this(),
+
+            /* Safety nets for expressions that aren't expected in sync 
+            contexts like method calls and for-loop init clauses */
+
             Expr::MethodCallExpr { .. } => {
                 Object::Error(RuntimeError::InvalidOperation(
                     "method calls not allowed in sync context".to_string()
@@ -316,7 +329,6 @@ impl Evaluator {
                     "struct literals not allowed in sync context".to_string()
                 ))
             }
-            Expr::ThisExpr => self.eval_this(),
             Expr::FieldAccessExpr { .. } => {
                 Object::Error(RuntimeError::InvalidOperation(
                     "field access not allowed in sync context".to_string()
