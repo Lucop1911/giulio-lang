@@ -82,7 +82,11 @@ impl Environment {
         let slot = ident.slot;
 
         if !slot.is_unset() {
-            self.set_slot(slot, val);
+            // Write to both slot (for O(1) access) and store
+            //(so that closures capturing this variable can find it by name when
+            // their slot indices are UNSET to avoid cross-frame collisions).
+            self.set_slot(slot, val.clone());
+            self.store.insert(name.clone(), val);
             return;
         }
 

@@ -122,9 +122,18 @@ impl Scope {
             }
         }
 
-        // Compose visible names. Later entries shadow earlier ones;
-        // process_expr searches with .rev().
-        let mut expr_locals: Vec<(String, SlotIndex)> = parent_locals.to_vec();
+        /* 
+        Compose visible names. Later entries shadow earlier ones;
+        process_expr searches with .rev().
+        Parent locals are captured via the closure env chain at runtime, so
+        they must be looked up by NAME (slot = UNSET). If we kept their slot
+        indices here, a parent's slot 0 would collide with this function's
+        slot 0 and the wrong value would be read from the current frame.
+        */
+        let mut expr_locals: Vec<(String, SlotIndex)> = parent_locals
+            .iter()
+            .map(|(n, _)| (n.clone(), SlotIndex::UNSET))
+            .collect();
         for (n, s) in fn_params.iter() {
             expr_locals.push((n.clone(), *s));
         }
