@@ -6,12 +6,14 @@ pub fn compute_slots(program: &mut Program) {
 }
 
 struct Scope {
-    depth: usize,
+    // depth: usize, // For debugging
 }
 
 impl Scope {
+    
     fn new() -> Self {
-        Scope { depth: 0 }
+         // Scope { depth: 0 } For debugging
+         Scope {  }
     }
 
     fn process_program(&mut self, program: &mut Program) {
@@ -98,7 +100,7 @@ impl Scope {
         parent_locals: &[(String, SlotIndex)],
         fn_params: &[(String, SlotIndex)],
     ) {
-        self.depth += 1;
+        // self.depth += 1; // For debugging
 
         let mut local_slot_idx = fn_params.len();
 
@@ -192,7 +194,7 @@ impl Scope {
             }
         }
 
-        self.depth -= 1;
+        // self.depth -= 1; // For debugging
     }
 
     fn process_expr(&mut self, expr: &mut Expr, locals: &[(String, SlotIndex)]) {
