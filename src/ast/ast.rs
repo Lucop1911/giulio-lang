@@ -6,7 +6,15 @@ pub type Program = Vec<Stmt>;
 #[derive(PartialEq, Debug, Clone, Hash)]
 pub enum Stmt {
     LetStmt(Ident, Expr),
+    MultiLetStmt {
+        idents: Vec<Ident>,
+        values: Vec<Expr>,
+    },
     AssignStmt(Ident, Expr),
+    TupleAssignStmt {
+        targets: Vec<Ident>,
+        values: Vec<Expr>,
+    },
     FieldAssignStmt {
         object: Box<Expr>,
         field: String,
@@ -83,7 +91,7 @@ pub enum Expr {
         body: Program,
     },
     ForExpr {
-        ident: Ident,
+        ident: Vec<Ident>,
         iterable: Box<Expr>,
         body: Program,
     },

@@ -522,7 +522,7 @@ mod tests {
             body,
         }) = stmt
         {
-            assert_eq!(*ident, Ident::new("item".to_string()));
+            assert_eq!(*ident, vec![Ident::new("item".to_string())]);
             assert_eq!(**iterable, Expr::IdentExpr(Ident::new("items".to_string())));
             assert_eq!(body.len(), 1);
             assert_eq!(
@@ -531,6 +531,61 @@ mod tests {
             );
         } else {
             panic!("Expected Stmt::ExprStmt(Expr::ForExpr), got {:?}", stmt);
+        }
+    }
+
+    #[test]
+    fn test_destructuring_for_in_loop() {
+        let input = "for (pair in pairs) { pair; }";
+        let program = parse_test_helper(input);
+        assert_eq!(program.len(), 1);
+
+        let stmt = &program[0];
+        if let Stmt::ExprStmt(Expr::ForExpr {
+            ident,
+            iterable,
+            body: _,
+        }) = stmt
+        {
+            assert_eq!(ident.len(), 1);
+            assert_eq!(ident[0], Ident::new("pair".to_string()));
+            assert_eq!(**iterable, Expr::IdentExpr(Ident::new("pairs".to_string())));
+        } else {
+            panic!("Expected Stmt::ExprStmt(Expr::ForExpr), got {:?}", stmt);
+        }
+    }
+
+    #[test]
+    fn test_multi_let_with_parens() {
+        let input = "let (a, b) = (10, 20);";
+        let program = parse_test_helper(input);
+        assert_eq!(program.len(), 1);
+
+        let stmt = &program[0];
+        if let Stmt::MultiLetStmt { idents, values } = stmt {
+            assert_eq!(idents.len(), 2);
+            assert_eq!(idents[0], Ident::new("a".to_string()));
+            assert_eq!(idents[1], Ident::new("b".to_string()));
+            assert_eq!(values.len(), 2);
+        } else {
+            panic!("Expected MultiLetStmt, got {:?}", stmt);
+        }
+    }
+
+    #[test]
+    fn test_tuple_assign() {
+        let input = "(a, b) = (10, 20);";
+        let program = parse_test_helper(input);
+        assert_eq!(program.len(), 1);
+
+        let stmt = &program[0];
+        if let Stmt::TupleAssignStmt { targets, values } = stmt {
+            assert_eq!(targets.len(), 2);
+            assert_eq!(targets[0], Ident::new("a".to_string()));
+            assert_eq!(targets[1], Ident::new("b".to_string()));
+            assert_eq!(values.len(), 2);
+        } else {
+            panic!("Expected TupleAssignStmt, got {:?}", stmt);
         }
     }
 }

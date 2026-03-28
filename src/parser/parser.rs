@@ -61,6 +61,10 @@ fn parse_ident(input: Tokens) -> IResult<Tokens, Ident> {
     }
 }
 
+fn parse_tuple_of_idents(input: Tokens) -> IResult<Tokens, Vec<Ident>> {
+    parens(comma_separated1(parse_ident))(input)
+}
+
 // TOKEN TAGS
 
 tag_token!(let_tag, Token::Let);
@@ -143,6 +147,7 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     alt((
         parse_import_stmt,
         parse_let_stmt,
+        parse_tuple_assign_stmt,
         parse_fn_declaration, // Async and Sync fn handler
         parse_return_stmt,
         parse_struct_stmt,
@@ -257,46 +262,109 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     }
 }
 
+fn parse_tuple_of_exprs(input: Tokens) -> IResult<Tokens, Vec<Expr>> {
+    parens(comma_separated1(parse_expr))(input)
+}
+
 // STATEMENT PARSERS
 
 fn parse_let_stmt_no_semicolon(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        tuple((let_tag, parse_ident, assign_tag, parse_expr)),
-        |(_, ident, _, expr)| Stmt::LetStmt(ident, expr),
-    )(input)
+    let (i1, _) = let_tag(input)?;
+
+    let (i2, mut idents) = alt((
+        map(parse_tuple_of_idents, |i| i),
+        map(comma_separated1(parse_ident), |i| i),
+    ))(i1)?;
+
+    let (i3, _) = assign_tag(i2)?;
+
+    let (i4, mut values): (_, Vec<Expr>) = if peek_matches(i3, Token::LParen) {
+        let (rem, vals) = parse_tuple_of_exprs(i3)?;
+        (rem, vals)
+    } else {
+        let (rem, expr) = parse_expr(i3)?;
+        (rem, vec![expr])
+    };
+
+    if idents.len() == 1 && values.len() == 1 {
+        Ok((i4, Stmt::LetStmt(idents.remove(0), values.remove(0))))
+    } else {
+        Ok((i4, Stmt::MultiLetStmt { idents, values }))
+    }
+}
+
+fn parse_tuple_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
+    if peek_matches(input, Token::LParen) {
+        let (i2, targets) = parse_tuple_of_idents(input)?;
+        let (i3, _) = assign_tag(i2)?;
+        let (i4, values) = parse_tuple_of_exprs(i3)?;
+        let (i5, _) = opt(semicolon_tag)(i4)?;
+        Ok((i5, Stmt::TupleAssignStmt { targets, values }))
+    } else {
+        Err(Err::Error(Error::new(input, ErrorKind::Tag)))
+    }
 }
 
 fn parse_assign_stmt_no_semicolon(input: Tokens) -> IResult<Tokens, Stmt> {
-    let (i1, ident) = parse_ident(input)?;
-    let (i2, op) = alt((
-        map(assign_tag, |_| "=".to_string()),
-        map(plus_assign_tag, |_| "+".to_string()),
-        map(minus_assign_tag, |_| "-".to_string()),
-        map(multiply_assign_tag, |_| "*".to_string()),
-        map(divide_assign_tag, |_| "/".to_string()),
-        map(modulo_assign_tag, |_| "%".to_string()),
-    ))(i1)?;
-    let (i3, expr) = parse_expr(i2)?;
-
-    let stmt = if op == "=" {
-        Stmt::AssignStmt(ident, expr)
+    if peek_matches(input, Token::LParen) {
+        let (i2, targets) = parse_tuple_of_idents(input)?;
+        let (i3, op) = peek_assign_op(i2)?;
+        if op == "=" {
+            let (i4, values) = parse_tuple_of_exprs(i3)?;
+            Ok((i4, Stmt::TupleAssignStmt { targets, values }))
+        } else {
+            let (i4, values) = parse_tuple_of_exprs(i3)?;
+            let mut stmts = targets
+                .iter()
+                .zip(values.iter())
+                .map(|(id, ex)| {
+                    Stmt::AssignStmt(
+                        id.clone(),
+                        Expr::InfixExpr(
+                            assign_op_to_infix(&op),
+                            Box::new(Expr::IdentExpr(id.clone())),
+                            Box::new(ex.clone()),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
+            if stmts.len() == 1 {
+                Ok((i4, stmts.remove(0)))
+            } else {
+                Ok((
+                    i4,
+                    Stmt::MultiLetStmt {
+                        idents: targets,
+                        values,
+                    },
+                ))
+            }
+        }
     } else {
-        let binop_expr = Expr::InfixExpr(
-            match op.as_str() {
-                "+" => Infix::Plus,
-                "-" => Infix::Minus,
-                "*" => Infix::Multiply,
-                "/" => Infix::Divide,
-                "%" => Infix::Modulo,
-                _ => unreachable!(),
-            },
-            Box::new(Expr::IdentExpr(ident.clone())),
-            Box::new(expr),
-        );
-        Stmt::AssignStmt(ident, binop_expr)
-    };
+        let (i1, ident) = parse_ident(input)?;
+        let (i2, op) = alt((
+            map(assign_tag, |_| "=".to_string()),
+            map(plus_assign_tag, |_| "+=".to_string()),
+            map(minus_assign_tag, |_| "-=".to_string()),
+            map(multiply_assign_tag, |_| "*=".to_string()),
+            map(divide_assign_tag, |_| "/=".to_string()),
+            map(modulo_assign_tag, |_| "%=".to_string()),
+        ))(i1)?;
+        let (i3, expr) = parse_expr(i2)?;
 
-    Ok((i3, stmt))
+        let stmt = if op == "=" {
+            Stmt::AssignStmt(ident, expr)
+        } else {
+            let binop_expr = Expr::InfixExpr(
+                assign_op_to_infix(&op),
+                Box::new(Expr::IdentExpr(ident.clone())),
+                Box::new(expr),
+            );
+            Stmt::AssignStmt(ident, binop_expr)
+        };
+
+        Ok((i3, stmt))
+    }
 }
 
 fn parse_break_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -317,10 +385,30 @@ fn parse_throw_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
 }
 
 fn parse_let_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
-    map(
-        tuple((let_tag, parse_ident, assign_tag, parse_expr, semicolon_tag)),
-        |(_, ident, _, expr, _)| Stmt::LetStmt(ident, expr),
-    )(input)
+    let (i1, _) = let_tag(input)?;
+
+    let (i2, mut idents) = alt((
+        map(parse_tuple_of_idents, |i| i),
+        map(comma_separated1(parse_ident), |i| i),
+    ))(i1)?;
+
+    let (i3, _) = assign_tag(i2)?;
+
+    let (i4, mut values): (_, Vec<Expr>) = if peek_matches(i3, Token::LParen) {
+        let (remaining, vals) = parse_tuple_of_exprs(i3)?;
+        (remaining, vals)
+    } else {
+        let (remaining, expr) = parse_expr(i3)?;
+        (remaining, vec![expr])
+    };
+
+    let (i5, _) = semicolon_tag(i4)?;
+
+    if idents.len() == 1 && values.len() == 1 {
+        Ok((i5, Stmt::LetStmt(idents.remove(0), values.remove(0))))
+    } else {
+        Ok((i5, Stmt::MultiLetStmt { idents, values }))
+    }
 }
 
 fn parse_return_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
@@ -650,12 +738,17 @@ fn parse_for_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                 parse_c_style_for(i2)
             }
         }
+        Some(Token::LParen) => parse_for_in_loop(i2),
         _ => parse_c_style_for(i2),
     }
 }
 
 fn parse_for_in_loop(input: Tokens) -> IResult<Tokens, Stmt> {
-    let (i1, ident) = parse_ident(input)?;
+    let (i1, idents) = alt((
+        map(parse_tuple_of_idents, |idents| idents),
+        map(parse_ident, |i| vec![i]),
+    ))(input)?;
+
     let (i2, _) = in_tag(i1)?;
     let (i3, iterable) = parse_expr(i2)?;
     let (i4, _) = rparen_tag(i3)?;
@@ -664,7 +757,7 @@ fn parse_for_in_loop(input: Tokens) -> IResult<Tokens, Stmt> {
     Ok((
         i5,
         Stmt::ExprStmt(Expr::ForExpr {
-            ident,
+            ident: idents,
             iterable: Box::new(iterable),
             body,
         }),

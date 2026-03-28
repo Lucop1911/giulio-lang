@@ -53,7 +53,7 @@ impl Evaluator {
         }
     }
 
-    pub fn async_eval_for(&mut self, ident: Ident, iterable: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_  {
+    pub fn async_eval_for(&mut self, ident: Vec<Ident>, iterable: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_  {
         let mut self_clone = self.clone();
         async move {
             let iter_obj = self_clone.eval_expr(*iterable).await;
@@ -68,10 +68,23 @@ impl Evaluator {
                 }
             };
 
-            let Ident { name: var_name, .. } = ident;
-
             for item in items {
-                self_clone.env.lock().unwrap().set_by_name(&var_name, item);
+                let Object::Array(values) = item else {
+                    return Object::Error(RuntimeError::TypeMismatch {
+                        expected: "array".to_string(),
+                        got: item.type_name(),
+                    });
+                };
+                
+                if values.len() != ident.len() {
+                    return Object::Error(RuntimeError::InvalidOperation(
+                        format!("destructuring mismatch: {} variables, {} values", ident.len(), values.len())
+                    ));
+                }
+                
+                for (id, value) in ident.iter().zip(values.into_iter()) {
+                    self_clone.env.lock().unwrap().set_by_name(&id.name, value);
+                }
 
                 let result = self_clone.eval_blockstmt(&body).await;
                 match result {

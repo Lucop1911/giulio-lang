@@ -24,6 +24,18 @@ fn verify_await_in_stmt(stmt: &Stmt, in_async: bool) -> Result<(), ParserError> 
             }
             Ok(())
         }
+        Stmt::TupleAssignStmt { targets: _, values } => {
+            for expr in values {
+                verify_await_in_expr(expr, in_async)?;
+            }
+            Ok(())
+        }
+        Stmt::MultiLetStmt { idents: _, values } => {
+            for expr in values {
+                verify_await_in_expr(expr, in_async)?;
+            }
+            Ok(())
+        }
         Stmt::BreakStmt | Stmt::ContinueStmt => Ok(()),
         Stmt::ImportStmt { .. } | Stmt::FieldAssignStmt { .. } | Stmt::IndexAssignStmt { .. } => {
             Ok(())

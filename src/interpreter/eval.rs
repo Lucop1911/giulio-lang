@@ -107,6 +107,15 @@ impl Evaluator {
                     let object = self_clone.eval_expr(expr).await;
                     self_clone.register_ident(ident, object)
                 }
+                Stmt::MultiLetStmt { idents, values } => {
+                    let mut objects = Vec::new();
+                    for (id, expr) in idents.into_iter().zip(values.into_iter()) {
+                        let object = self_clone.eval_expr(expr).await;
+                        self_clone.register_ident(id, object.clone());
+                        objects.push(object);
+                    }
+                    Object::Array(objects)
+                }
                 Stmt::FnStmt { name, mut params, body } => {
                     for (i, param) in params.iter_mut().enumerate() {
                         if param.slot.is_unset() {
@@ -125,6 +134,9 @@ impl Evaluator {
                     // Reassign the variable
                     let object = self_clone.eval_expr(expr).await;
                     self_clone.register_ident(ident, object)
+                }
+                Stmt::TupleAssignStmt { targets, values } => {
+                    self_clone.async_eval_tuple_assign(targets, values).await
                 }
                 Stmt::FieldAssignStmt { object, field, value } => {
                     self_clone.async_eval_field_assign(*object, field, *value).await
@@ -385,6 +397,14 @@ impl Evaluator {
             Stmt::LetStmt(ident, expr) => {
                 let object = self.eval_expr_sync(expr);
                 self.register_ident(ident, object)
+            }
+            Stmt::MultiLetStmt { idents, values } => {
+                let mut result = Object::Null;
+                for (id, expr) in idents.into_iter().zip(values.into_iter()) {
+                    let object = self.eval_expr_sync(expr);
+                    result = self.register_ident(id, object);
+                }
+                result
             }
             Stmt::FnStmt { name, mut params, body } => {
                 for (i, param) in params.iter_mut().enumerate() {

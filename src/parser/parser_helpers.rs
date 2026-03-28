@@ -2,6 +2,7 @@ use crate::ast::ast::Infix;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::parser::*;
 use nom::bytes::complete::take;
+use nom::combinator::map;
 use nom::error::Error;
 use nom::sequence::*;
 use nom::{branch::alt, multi::many0, IResult};
@@ -17,6 +18,17 @@ pub fn peek_token(input: Tokens<'_>) -> Option<&'_ Token> {
 #[inline]
 pub fn peek_matches(input: Tokens, expected: Token) -> bool {
     peek_token(input).map_or(false, |t| *t == expected)
+}
+
+pub fn peek_assign_op(input: Tokens) -> IResult<Tokens, String> {
+    alt((
+        map(assign_tag, |_| "=".to_string()),
+        map(plus_assign_tag, |_| "+=".to_string()),
+        map(minus_assign_tag, |_| "-=".to_string()),
+        map(multiply_assign_tag, |_| "*=".to_string()),
+        map(divide_assign_tag, |_| "/=".to_string()),
+        map(modulo_assign_tag, |_| "%=".to_string()),
+    ))(input)
 }
 
 // Parse comma-separated items (at least one)
@@ -91,5 +103,16 @@ pub fn aug_assign_to_infix<'a>(input: Tokens<'a>) -> IResult<Tokens<'a>, Infix> 
             input,
             nom::error::ErrorKind::Tag,
         ))),
+    }
+}
+
+pub fn assign_op_to_infix(op: &str) -> Infix {
+    match op {
+        "+=" => Infix::Plus,
+        "-=" => Infix::Minus,
+        "*=" => Infix::Multiply,
+        "/=" => Infix::Divide,
+        "%=" => Infix::Modulo,
+        _ => unreachable!(),
     }
 }

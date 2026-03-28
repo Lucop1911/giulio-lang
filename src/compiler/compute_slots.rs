@@ -10,20 +10,19 @@ struct Scope {
 }
 
 impl Scope {
-    
     fn new() -> Self {
-         // Scope { depth: 0 } For debugging
-         Scope {  }
+        // Scope { depth: 0 } For debugging
+        Scope {}
     }
 
     fn process_program(&mut self, program: &mut Program) {
-        /* 
+        /*
         Top-level variables live in the global Environment which uses a
         HashMap (not a slots vec), so all top-level idents stay UNSET and
         the evaluator falls back to name-based lookup for them.
-        
+
         We still recurse into function bodies so that param/local idents
-        inside those bodies get correct 0-based slot indices. 
+        inside those bodies get correct 0-based slot indices.
         */
 
         let mut running_locals: Vec<(String, SlotIndex)> = Vec::new();
@@ -50,7 +49,7 @@ impl Scope {
                             (p.name.clone(), p.slot)
                         })
                         .collect();
-                    // running_locals has UNSET slots for top-level lets, which is fine: 
+                    // running_locals has UNSET slots for top-level lets, which is fine:
                     // process_expr will mark those idents UNSET too so
                     // the evaluator uses name lookup for them.
                     self.process_fn_body(body, &running_locals, &fn_params_locals);
@@ -106,25 +105,42 @@ impl Scope {
 
         let mut let_slots: Vec<(String, SlotIndex)> = Vec::new();
         for stmt in body.iter() {
-            if let Stmt::LetStmt(ident, _) = stmt {
-                let_slots.push((ident.name.clone(), SlotIndex(local_slot_idx as u16)));
-                local_slot_idx += 1;
+            match stmt {
+                Stmt::LetStmt(ident, _) => {
+                    let_slots.push((ident.name.clone(), SlotIndex(local_slot_idx as u16)));
+                    local_slot_idx += 1;
+                }
+                Stmt::MultiLetStmt { idents, values: _ } => {
+                    for ident in idents {
+                        let_slots.push((ident.name.clone(), SlotIndex(local_slot_idx as u16)));
+                        local_slot_idx += 1;
+                    }
+                }
+                _ => {}
             }
         }
 
         // Write let slots back into the ident nodes.
-        {
-            let mut let_iter = let_slots.iter();
-            for stmt in body.iter_mut() {
-                if let Stmt::LetStmt(ident, _) = stmt {
+        let mut let_iter = let_slots.iter();
+        for stmt in body.iter_mut() {
+            match stmt {
+                Stmt::LetStmt(ident, _) => {
                     if let Some((_, slot)) = let_iter.next() {
                         ident.slot = *slot;
                     }
                 }
+                Stmt::MultiLetStmt { idents, values: _ } => {
+                    for ident in idents {
+                        if let Some((_, slot)) = let_iter.next() {
+                            ident.slot = *slot;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
-
-        /* 
+    
+        /*
         Compose visible names. Later entries shadow earlier ones;
         process_expr searches with .rev().
         Parent locals are captured via the closure env chain at runtime, so
@@ -190,6 +206,23 @@ impl Scope {
                     self.process_expr(index, &expr_locals);
                     self.process_expr(value, &expr_locals);
                 }
+                Stmt::MultiLetStmt { idents: _, values } => {
+                    for val in values {
+                        self.process_expr(val, &expr_locals);
+                    }
+                }
+                Stmt::TupleAssignStmt { targets, values } => {
+                    for val in values {
+                        self.process_expr(val, &expr_locals);
+                    }
+                    for trgt in targets {
+                        if let Some((_, slot)) =
+                            expr_locals.iter().rev().find(|(n, _)| n == &trgt.name)
+                        {
+                            trgt.slot = *slot;
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -254,10 +287,12 @@ impl Scope {
                 body,
             } => {
                 self.process_expr(iterable, locals);
-                let loop_slot = SlotIndex(locals.len() as u16);
-                ident.slot = loop_slot;
                 let mut for_locals = locals.to_vec();
-                for_locals.push((ident.name.clone(), loop_slot));
+                for id in ident {
+                    let loop_slot = SlotIndex(for_locals.len() as u16);
+                    id.slot = loop_slot;
+                    for_locals.push((id.name.clone(), loop_slot));
+                }
                 self.process_fn_body(body, &for_locals, &[]);
             }
 
@@ -331,9 +366,7 @@ impl Scope {
                 self.process_expr(index, locals);
             }
             Expr::MethodCallExpr {
-                object,
-                arguments,
-                ..
+                object, arguments, ..
             } => {
                 self.process_expr(object, locals);
                 for a in arguments {
@@ -353,11 +386,7 @@ impl Scope {
         }
     }
 
-    fn process_stmt_extending(
-        &mut self,
-        stmt: &mut Stmt,
-        locals: &mut Vec<(String, SlotIndex)>,
-    ) {
+    fn process_stmt_extending(&mut self, stmt: &mut Stmt, locals: &mut Vec<(String, SlotIndex)>) {
         match stmt {
             Stmt::LetStmt(ident, expr) => {
                 self.process_expr(expr, locals);

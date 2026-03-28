@@ -503,4 +503,444 @@ mod tests {
         let err = parse_program_expect_error(input);
         assert_eq!(err, ErrorKind::Verify);
     }
+
+    #[tokio::test]
+    async fn test_closures() {
+        let input = r#"
+            let new_adder = fn(x) {
+                fn(y) {
+                    x + y
+                }
+            };
+            let add_two = new_adder(2);
+            add_two(3)
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(5));
+
+        let input2 = r#"
+            let make_multiplier = fn(x) {
+                fn(y) {
+                    x * y
+                }
+            };
+            let double = make_multiplier(2);
+            let triple = make_multiplier(3);
+            let result = double(4) + triple(4);
+            result
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(20));
+
+        let input3 = r#"
+            let x = 10;
+            let add_to_x = fn(y) {
+                x + y
+            };
+            add_to_x(5)
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(15));
+
+        let input4 = r#"
+            let create_counter = fn(start) {
+                let count = start;
+                fn() {
+                    count = count + 1;
+                    count
+                }
+            };
+            let counter = create_counter(0);
+            counter()
+        "#;
+        assert_eq!(eval_test_helper(input4).await, Object::Integer(1));
+    }
+
+    #[tokio::test]
+    async fn test_recursion() {
+        let input = r#"
+            let factorial = fn(n) {
+                if (n <= 1) {
+                    1
+                } else {
+                    n * factorial(n - 1)
+                }
+            };
+            factorial(5)
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(120));
+
+        let input2 = r#"
+            let sum_to = fn(n) {
+                if (n == 0) {
+                    0
+                } else {
+                    n + sum_to(n - 1)
+                }
+            };
+            sum_to(10)
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(55));
+
+        let input3 = r#"
+            let fib = fn(n) {
+                if (n <= 1) {
+                    n
+                } else {
+                    fib(n - 1) + fib(n - 2)
+                }
+            };
+            fib(10)
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(55));
+
+        let input4 = r#"
+            let countdown = fn(n) {
+                if (n <= 0) {
+                    0
+                } else {
+                    countdown(n - 1)
+                }
+            };
+            countdown(10)
+        "#;
+        assert_eq!(eval_test_helper(input4).await, Object::Integer(0));
+    }
+
+    #[tokio::test]
+    async fn test_fibonacci() {
+        let input = r#"
+            let fib = fn(n) {
+                if (n == 0) {
+                    0
+                } else {
+                    if (n == 1) {
+                        1
+                    } else {
+                        fib(n - 1) + fib(n - 2)
+                    }
+                }
+            };
+            fib(0)
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(0));
+
+        let input1 = r#"
+            let fib = fn(n) {
+                if (n == 0) {
+                    0
+                } else {
+                    if (n == 1) {
+                        1
+                    } else {
+                        fib(n - 1) + fib(n - 2)
+                    }
+                }
+            };
+            fib(1)
+        "#;
+        assert_eq!(eval_test_helper(input1).await, Object::Integer(1));
+
+        let input2 = r#"
+            let fib = fn(n) {
+                if (n == 0) {
+                    0
+                } else {
+                    if (n == 1) {
+                        1
+                    } else {
+                        fib(n - 1) + fib(n - 2)
+                    }
+                }
+            };
+            fib(7)
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(13));
+
+        let input3 = r#"
+            let fib = fn(n) {
+                if (n == 0) {
+                    0
+                } else {
+                    if (n == 1) {
+                        1
+                    } else {
+                        fib(n - 1) + fib(n - 2)
+                    }
+                }
+            };
+            fib(15)
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(610));
+    }
+
+    #[tokio::test]
+    async fn test_mutual_recursion() {
+        let input = r#"
+            let is_even = fn(n) {
+                if (n == 0) {
+                    true
+                } else {
+                    is_odd(n - 1)
+                }
+            };
+            let is_odd = fn(n) {
+                if (n == 0) {
+                    false
+                } else {
+                    is_even(n - 1)
+                }
+            };
+            is_even(4)
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Boolean(true));
+
+        let input2 = r#"
+            let is_even = fn(n) {
+                if (n == 0) {
+                    true
+                } else {
+                    is_odd(n - 1)
+                }
+            };
+            let is_odd = fn(n) {
+                if (n == 0) {
+                    false
+                } else {
+                    is_even(n - 1)
+                }
+            };
+            is_odd(7)
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Boolean(true));
+    }
+
+    #[tokio::test]
+    async fn test_higher_order_functions() {
+        let input = r#"
+            let apply_twice = fn(f, x) {
+                f(f(x))
+            };
+            let add_one = fn(x) { x + 1 };
+            apply_twice(add_one, 0)
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(2));
+
+        let input2 = r#"
+            let compose = fn(f, g) {
+                fn(x) {
+                    f(g(x))
+                }
+            };
+            let double = fn(x) { x * 2 };
+            let add_one = fn(x) { x + 1 };
+            let double_then_add_one = compose(add_one, double);
+            double_then_add_one(5)
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(11));
+
+        let input3 = r#"
+            let apply_three_times = fn(f, x) {
+                f(f(f(x)))
+            };
+            let square = fn(x) { x * x };
+            apply_three_times(square, 2)
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(256));
+    }
+
+    #[tokio::test]
+    async fn test_closure_with_counter() {
+        let input = r#"
+            let make_counter = fn() {
+                let count = 0;
+                let increment = fn() {
+                    count = count + 1;
+                    count
+                };
+                increment
+            };
+            let counter = make_counter();
+            let first = counter();
+            let second = counter();
+            let third = counter();
+            first + second + third
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(6));
+    }
+
+    #[tokio::test]
+    async fn test_nested_closures() {
+        let input = r#"
+            let outer = fn(x) {
+                let middle = fn(y) {
+                    let inner = fn(z) {
+                        x + y + z
+                    };
+                    inner
+                };
+                middle
+            };
+            outer(1)(2)(3)
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(6));
+
+        let input2 = r#"
+            let factory = fn(x) {
+                fn(y) {
+                    fn(z) {
+                        x * y + z
+                    }
+                }
+            };
+            factory(2)(3)(4)
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(10));
+    }
+
+    #[tokio::test]
+    async fn test_multi_let() {
+        let input = r#"
+            let (a, b) = (10, 20);
+            a + b
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(30));
+
+        let input2 = r#"
+            let (a, b) = (1, 2);
+            a * b
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(2));
+
+        let input3 = r#"
+            let (x, y, z) = (5, 10, 15);
+            x + y + z
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(30));
+
+        let input4 = r#"
+            let a = 5;
+            let (b, c) = (10, 20);
+            a + b + c
+        "#;
+        assert_eq!(eval_test_helper(input4).await, Object::Integer(35));
+    }
+
+    #[tokio::test]
+    async fn test_tuple_assign() {
+        let input = r#"
+            let a = 0;
+            let b = 0;
+            (a, b) = (10, 20);
+            a
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(10));
+
+        let input2 = r#"
+            let a = 0;
+            let b = 0;
+            (a, b) = (10, 20);
+            b
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(20));
+
+        let input3 = r#"
+            let a = 0;
+            let b = 0;
+            let c = 0;
+            (a, b, c) = (1, 2, 3);
+            a + b + c
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(6));
+    }
+
+    #[tokio::test]
+    async fn test_swap_variables() {
+        let input = r#"
+            let a = 10;
+            let b = 20;
+            (a, b) = (b, a);
+            a
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(20));
+
+        let input2 = r#"
+            let a = 10;
+            let b = 20;
+            (a, b) = (b, a);
+            b
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(10));
+
+        let input3 = r#"
+            let x = 1;
+            let y = 2;
+            let z = 3;
+            (x, y, z) = (z, x, y);
+            x
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(3));
+
+        let input4 = r#"
+            let x = 1;
+            let y = 2;
+            let z = 3;
+            (x, y, z) = (z, x, y);
+            y
+        "#;
+        assert_eq!(eval_test_helper(input4).await, Object::Integer(1));
+
+        let input5 = r#"
+            let x = 1;
+            let y = 2;
+            let z = 3;
+            (x, y, z) = (z, x, y);
+            z
+        "#;
+        assert_eq!(eval_test_helper(input5).await, Object::Integer(2));
+    }
+
+    #[tokio::test]
+    async fn test_destructuring_for_in_loop() {
+        let input = r#"
+            let sum = 0;
+            for ((a, b) in [[1, 2], [3, 4], [5, 6]]) {
+                sum = sum + a + b;
+            }
+            sum
+        "#;
+        assert_eq!(eval_test_helper(input).await, Object::Integer(21));
+
+        let input2 = r#"
+            let first_sum = 0;
+            let second_sum = 0;
+            for ((a, b) in [[1, 2], [3, 4]]) {
+                first_sum = first_sum + a;
+                second_sum = second_sum + b;
+            }
+            first_sum + second_sum
+        "#;
+        assert_eq!(eval_test_helper(input2).await, Object::Integer(10));
+
+        let input3 = r#"
+            let first = 0;
+            let second = 0;
+            for ((num, _) in [[1, 2], [3, 4]]) {
+                if (first == 0) {
+                    first = num;
+                } else {
+                    second = num;
+                }
+            }
+            first + second
+        "#;
+        assert_eq!(eval_test_helper(input3).await, Object::Integer(4));
+
+        let input4 = r#"
+            let sum = 0;
+            for ((x, y, z) in [[1, 2, 3], [4, 5, 6]]) {
+                sum = sum + x + y + z;
+            }
+            sum
+        "#;
+        assert_eq!(eval_test_helper(input4).await, Object::Integer(21));
+    }
+
 }
