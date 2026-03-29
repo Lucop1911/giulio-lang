@@ -44,6 +44,16 @@ impl Environment {
         }
     }
 
+    pub fn new_with_slots(num_slots: usize) -> Self {
+        let mut hashmap = HashMap::new();
+        Self::fill_env_with_builtins(&mut hashmap);
+        Environment {
+            store: hashmap,
+            slots: vec![Object::Null; num_slots],
+            parent: None,
+        }
+    }
+
     // Creates a new function environment with pre-allocated slots.
     // num_slots = params.len() + number of let-bindings in the body.
     // Use count_slots(params, body) to compute the correct value.
@@ -126,8 +136,15 @@ impl Environment {
 
     pub fn set_slot(&mut self, slot: SlotIndex, val: Object) {
         let idx = slot.0 as usize;
-        if idx < self.slots.len() {
-            self.slots[idx] = val;
+        if idx >= self.slots.len() {
+            self.slots.resize(idx + 1, Object::Null);
+        }
+        self.slots[idx] = val;
+    }
+
+    pub fn ensure_slots(&mut self, min_slots: usize) {
+        if self.slots.len() < min_slots {
+            self.slots.resize(min_slots, Object::Null);
         }
     }
 

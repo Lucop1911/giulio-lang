@@ -1,7 +1,11 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-
+use crate::interpreter::eval_context::EvalContext;
+use crate::interpreter::helpers::eval_sync::eval_expressions::{
+    eval_ident_sync, eval_infix_sync, eval_prefix_sync, register_ident_sync,
+};
+use crate::interpreter::helpers::type_converters::{obj_to_bool, obj_to_hash, obj_to_int};
 use crate::{
     ast::ast::{Expr, Ident, Program, Stmt},
     errors::RuntimeError,
@@ -16,6 +20,7 @@ pub struct Evaluator {
     pub(crate) env: Arc<Mutex<Environment>>,
     pub(crate) module_registry: Arc<Mutex<ModuleRegistry>>,
     pub(crate) in_async_context: bool,
+    pub(crate) context: EvalContext,
 }
 
 impl Clone for Evaluator {
@@ -24,6 +29,7 @@ impl Clone for Evaluator {
             env: Arc::clone(&self.env),
             module_registry: Arc::clone(&self.module_registry),
             in_async_context: self.in_async_context,
+            context: self.context.clone(),
         }
     }
 }
@@ -37,20 +43,26 @@ impl Default for Evaluator {
             ModuleRegistry::new(base_path),
         ));
 
+        let env = Arc::new(Mutex::new(Environment::new()));
+        let context = EvalContext::new(Arc::clone(&env), Arc::clone(&registry));
         Evaluator {
-            env: Arc::new(Mutex::new(Environment::new())),
+            env,
             module_registry: registry,
             in_async_context: false,
+            context,
         }
     }
 }
 
 impl Evaluator {
     pub fn new(module_registry: Arc<Mutex<ModuleRegistry>>) -> Self {
+        let env = Arc::new(Mutex::new(Environment::new()));
+        let context = EvalContext::new(Arc::clone(&env), Arc::clone(&module_registry));
         Evaluator {
-            env: Arc::new(Mutex::new(Environment::new())),
+            env,
             module_registry,
             in_async_context: false,
+            context,
         }
     }
 
@@ -61,20 +73,21 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_program(&mut self, prog: Program) -> impl Future<Output = Object> + Send + '_  {
+    pub fn eval_program(&self, prog: Program) -> EvalFuture {
         let mut self_clone = self.clone();
-        async move {
+        Box::pin(async move {
             let return_data = self_clone.eval_blockstmt(&prog).await;
             self_clone.returned(return_data)
-        }
+        })
     }
 
-    pub fn eval_blockstmt<'a>(&'a mut self, prog: &'a Program) -> impl Future<Output = Object> + Send + 'a {
-        let mut self_clone = self.clone();
-        async move {
+    pub fn eval_blockstmt(&self, prog: &Program) -> impl Future<Output = Object> + Send + '_ {
+        let self_clone = self.clone();
+        let prog_clone = (*prog).clone();
+        Box::pin(async move {
             let mut result = Object::Null;
 
-            for stmt in prog.iter() {
+            for stmt in prog_clone.iter() {
                 result = self_clone.eval_statement(stmt.clone()).await;
                 match result {
                     Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) | Object::ThrownValue(_) => {
@@ -84,19 +97,18 @@ impl Evaluator {
                 }
             }
             result
-        }
+        })
     }
 
-    pub fn eval_statement(&mut self, stmt: Stmt) -> EvalFuture {
+    pub fn eval_statement(&self, stmt: Stmt) -> EvalFuture {
         let mut self_clone = self.clone();
         Box::pin(async move {
             match stmt {
                 Stmt::ExprStmt(expr) => {
                     let result = self_clone.eval_expr(expr).await;
-                    // Propagate control flow objects (return, break, continue, error, thrown)
                     match result {
                         Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) | Object::ThrownValue(_) => result,
-                        _ => result  // Expression statements now produce values in normal flow
+                        _ => result
                     }
                 }
                 Stmt::ExprValueStmt(expr) => {
@@ -126,12 +138,10 @@ impl Evaluator {
                     self_clone.register_ident(name, fn_obj)
                 }
                 Stmt::AssignStmt(ident, expr) => {
-                    // Check if variable exists
                     let Ident { ref name, .. } = ident;
-                    if self_clone.env.lock().unwrap().get_by_name(name).is_none() {
+                    if self_clone.context.env.lock().unwrap().get_by_name(name).is_none() {
                         return Object::Error(RuntimeError::UndefinedVariable(name.clone()));
                     }
-                    // Reassign the variable
                     let object = self_clone.eval_expr(expr).await;
                     self_clone.register_ident(ident, object)
                 }
@@ -157,14 +167,21 @@ impl Evaluator {
         })
     }
 
-    pub fn eval_expr(&mut self, expr: Expr) -> EvalFuture {
+    pub fn eval_expr(&self, expr: Expr) -> EvalFuture {
         let mut self_clone = self.clone();
         Box::pin(async move {
             match expr {
                 Expr::IdentExpr(i) => self_clone.eval_ident(i),
-                Expr::LitExpr(l) => self_clone.eval_literal(l),
-                Expr::PrefixExpr(prefix, expr) => self_clone.async_eval_prefix(prefix, *expr).await,
-                Expr::InfixExpr(infix, expr1, expr2) => self_clone.async_eval_infix(infix, *expr1, *expr2).await,
+                Expr::LitExpr(l) => self_clone.eval_literal(&l),
+                Expr::PrefixExpr(prefix, expr) => {
+                    let obj = self_clone.eval_expr(*expr).await;
+                    self_clone.eval_prefix(prefix, obj)
+                }
+                Expr::InfixExpr(infix, expr1, expr2) => {
+                    let obj1 = self_clone.eval_expr(*expr1).await;
+                    let obj2 = self_clone.eval_expr(*expr2).await;
+                    self_clone.eval_infix(infix, obj1, obj2)
+                }
                 Expr::IfExpr {
                     cond,
                     consequence,
@@ -181,7 +198,7 @@ impl Evaluator {
                             let future_to_await = {
                                 let mut future_opt_guard = future_arc.lock().unwrap();
                                 let future = future_opt_guard.take();
-                                drop(future_opt_guard); // Explicitly drop the guard
+                                drop(future_opt_guard);
                                 if let Some(f) = future { f } else {
                                     return Object::Error(RuntimeError::InvalidOperation(
                                         "Cannot await a future that has already been awaited".to_string()
@@ -237,28 +254,35 @@ impl Evaluator {
     everything else is async and wrapped in async move
     */
 
-    pub fn eval_expr_sync(&mut self, expr: Expr) -> Object {
+    pub fn eval_expr_sync(&self, env: &mut Environment, expr: &Expr) -> Object {
         match expr {
-            Expr::IdentExpr(i) => self.eval_ident(i),
+            Expr::IdentExpr(i) => eval_ident_sync(env, i),
             Expr::LitExpr(l) => self.eval_literal(l),
-            Expr::PrefixExpr(prefix, expr) => self.eval_prefix(prefix, *expr),
-            Expr::InfixExpr(infix, expr1, expr2) => self.eval_infix(infix, *expr1, *expr2),
+            Expr::PrefixExpr(prefix, expr) => {
+                let obj = Self::eval_expr_sync(self, env, expr);
+                eval_prefix_sync(env, prefix, obj)
+            }
+            Expr::InfixExpr(infix, expr1, expr2) => {
+                let obj1 = Self::eval_expr_sync(self, env, expr1);
+                let obj2 = Self::eval_expr_sync(self, env, expr2);
+                eval_infix_sync(env, infix, obj1, obj2)
+            }
             Expr::IfExpr { cond, consequence, alternative } => {
-                let cond_result = self.eval_expr_sync(*cond);
-                match self.obj_to_bool(cond_result) {
-                    Ok(true) => self.eval_blockstmt_sync(&consequence),
+                let cond_result = Self::eval_expr_sync(self, env, cond);
+                match obj_to_bool(cond_result) {
+                    Ok(true) => Self::eval_blockstmt_sync(self, env, consequence),
                     Ok(false) => {
                         match alternative {
-                            Some(alt) => self.eval_blockstmt_sync(&alt),
+                            Some(alt) => Self::eval_blockstmt_sync(self, env, alt),
                             None => Object::Null,
                         }
                     }
                     Err(e) => e,
                 }
             }
-            Expr::FnExpr { params, body } => self.eval_fn(params, body),
+            Expr::FnExpr { params, body } => self.eval_fn(params.clone(), body.clone()),
             Expr::AsyncFnExpr { params, body } => {
-                Object::AsyncFunction(params, body, Arc::clone(&self.env))
+                Object::AsyncFunction(params.clone(), body.clone(), Arc::clone(&self.context.env))
             },
             Expr::AwaitExpr(_) => {
                 Object::Error(RuntimeError::InvalidOperation(
@@ -273,7 +297,7 @@ impl Evaluator {
             Expr::ArrayExpr(exprs) => {
                 let mut new_vec = Vec::new();
                 for e in exprs {
-                    new_vec.push(self.eval_expr_sync(e));
+                    new_vec.push(Self::eval_expr_sync(self, env, e));
                 }
                 Object::Array(new_vec)
             }
@@ -284,8 +308,8 @@ impl Evaluator {
                 let mut hashmap = HashMap::new();
                 
                 for (key_expr, val_expr) in hash_exprs {
-                    let key = self.eval_expr_sync(key_expr);
-                    let val = self.eval_expr_sync(val_expr);
+                    let key = Self::eval_expr_sync(self, env, key_expr);
+                    let val = Self::eval_expr_sync(self, env, val_expr);
                     
                     match &key {
                         Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
@@ -299,10 +323,10 @@ impl Evaluator {
                 Object::Hash(hashmap)
             }
             Expr::IndexExpr { array, index } => {
-                let target = self.eval_expr_sync(*array);
-                let idx = self.eval_expr_sync(*index);
+                let target = Self::eval_expr_sync(self, env, array);
+                let idx = Self::eval_expr_sync(self, env, index);
                 match target {
-                    Object::Array(arr) => match self.obj_to_int(idx) {
+                    Object::Array(arr) => match obj_to_int(idx) {
                         Ok(index_number) => {
                             if index_number < 0 {
                                 return Object::Error(RuntimeError::IndexOutOfBounds {
@@ -322,7 +346,7 @@ impl Evaluator {
                         Err(err) => err,
                     },
                     Object::Hash(mut hash) => {
-                        let name = self.obj_to_hash(idx);
+                        let name = obj_to_hash(idx);
                         match name {
                             Object::Error(_) => name,
                             _ => hash.remove(&name).unwrap_or(Object::Null),
@@ -374,11 +398,11 @@ impl Evaluator {
         }
     }
 
-    pub fn eval_blockstmt_sync(&mut self, prog: &Program) -> Object {
+    pub fn eval_blockstmt_sync(&self, env: &mut Environment, prog: &Program) -> Object {
         let mut result = Object::Null;
 
         for stmt in prog.iter() {
-            result = self.eval_statement_sync(stmt.clone());
+            result = Self::eval_statement_sync(self, env, stmt);
             match result {
                 Object::ReturnValue(_) | Object::Break | Object::Continue | Object::Error(_) | Object::ThrownValue(_) => {
                     return result;
@@ -389,39 +413,40 @@ impl Evaluator {
         result
     }
 
-    pub fn eval_statement_sync(&mut self, stmt: Stmt) -> Object {
+    pub fn eval_statement_sync(&self, env: &mut Environment, stmt: &Stmt) -> Object {
         match stmt {
-            Stmt::ExprStmt(expr) => self.eval_expr_sync(expr),
-            Stmt::ExprValueStmt(expr) => self.eval_expr_sync(expr),
-            Stmt::ReturnStmt(expr) => Object::ReturnValue(Box::new(self.eval_expr_sync(expr))),
+            Stmt::ExprStmt(expr) => Self::eval_expr_sync(self, env, expr),
+            Stmt::ExprValueStmt(expr) => Self::eval_expr_sync(self, env, expr),
+            Stmt::ReturnStmt(expr) => Object::ReturnValue(Box::new(Self::eval_expr_sync(self, env, expr))),
             Stmt::LetStmt(ident, expr) => {
-                let object = self.eval_expr_sync(expr);
-                self.register_ident(ident, object)
+                let object = Self::eval_expr_sync(self, env, expr);
+                register_ident_sync(env, ident.clone(), object)
             }
             Stmt::MultiLetStmt { idents, values } => {
                 let mut result = Object::Null;
-                for (id, expr) in idents.into_iter().zip(values.into_iter()) {
-                    let object = self.eval_expr_sync(expr);
-                    result = self.register_ident(id, object);
+                for (id, expr) in idents.iter().zip(values.iter()) {
+                    let object = Self::eval_expr_sync(self, env, expr);
+                    result = register_ident_sync(env, id.clone(), object);
                 }
                 result
             }
-            Stmt::FnStmt { name, mut params, body } => {
+            Stmt::FnStmt { name, params, body } => {
+                let mut params = params.clone();
                 for (i, param) in params.iter_mut().enumerate() {
                     if param.slot.is_unset() {
                         param.slot = crate::ast::ast::SlotIndex(i as u16);
                     }
                 }
-                let fn_obj = Object::Function(params, body, Arc::clone(&self.env));
-                self.register_ident(name, fn_obj)
+                let fn_obj = Object::Function(params, body.clone(), Arc::clone(&self.context.env));
+                register_ident_sync(env, name.clone(), fn_obj)
             }
             Stmt::AssignStmt(ident, expr) => {
-                let Ident { ref name, .. } = ident;
-                if self.env.lock().unwrap().get_by_name(name).is_none() {
-                    return Object::Error(RuntimeError::UndefinedVariable(name.clone()));
+                let name = ident.name.clone();
+                if env.get_by_name(&name).is_none() {
+                    return Object::Error(RuntimeError::UndefinedVariable(name));
                 }
-                let object = self.eval_expr_sync(expr);
-                self.register_ident(ident, object)
+                let object = Self::eval_expr_sync(self, env, expr);
+                register_ident_sync(env, ident.clone(), object)
             }
             _ => Object::Error(RuntimeError::InvalidOperation(
                 "statement not allowed in sync context".to_string()

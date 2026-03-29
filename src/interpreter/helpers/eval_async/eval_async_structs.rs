@@ -12,7 +12,7 @@ use super::super::super::eval::Evaluator;
 
 impl Evaluator {
     pub fn async_eval_struct_def(&mut self, name: Ident, fields: Vec<(Ident, Expr)>, methods: Vec<(Ident, Expr)>) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let Ident { name: struct_name, .. } = name.clone();
             
@@ -41,7 +41,7 @@ impl Evaluator {
     }
 
     pub fn async_eval_struct_literal(&mut self, name: Ident, field_assignments: Vec<(Ident, Expr)>) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let Ident { name: struct_name, .. } = name;
             
@@ -70,7 +70,7 @@ impl Evaluator {
     }
 
     pub fn async_eval_field_access(&mut self, object_expr: Expr, field_name: String) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let object = self_clone.eval_expr(object_expr).await;
             
@@ -99,7 +99,7 @@ impl Evaluator {
     }
 
     pub fn async_eval_field_assign(&mut self, object_expr: Expr, field_name: String, value_expr: Expr) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let value = self_clone.eval_expr(value_expr).await;
             

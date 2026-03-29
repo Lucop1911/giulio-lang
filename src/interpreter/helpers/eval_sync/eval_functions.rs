@@ -6,7 +6,7 @@ use crate::{
 use std::sync::Arc;
 
 impl Evaluator {
-    pub fn eval_fn(&mut self, params: Vec<Ident>, body: Program) -> Object {
+    pub fn eval_fn(&self, params: Vec<Ident>, body: Program) -> Object {
         let params_with_slots = Self::ensure_param_slots(params);
         let body = Self::ensure_body_slots(
             params_with_slots
@@ -15,10 +15,10 @@ impl Evaluator {
                 .collect(),
             body,
         );
-        Object::Function(params_with_slots, body, Arc::clone(&self.env))
+        Object::Function(params_with_slots, body, Arc::clone(&self.context.env))
     }
 
-    pub fn eval_method(&mut self, params: Vec<Ident>, body: Program) -> Object {
+    pub fn eval_method(&self, params: Vec<Ident>, body: Program) -> Object {
         let params_with_slots = Self::ensure_param_slots(params);
         let body = Self::ensure_body_slots(
             params_with_slots
@@ -27,7 +27,7 @@ impl Evaluator {
                 .collect(),
             body,
         );
-        Object::Method(params_with_slots, body, Arc::clone(&self.env))
+        Object::Method(params_with_slots, body, Arc::clone(&self.context.env))
     }
 
     fn ensure_param_slots(mut params: Vec<Ident>) -> Vec<Ident> {
@@ -65,13 +65,20 @@ impl Evaluator {
             Expr::PrefixExpr(_, e) => {
                 Self::process_expr_for_slots(locals, e);
             }
-            Expr::CallExpr { function, arguments } => {
+            Expr::CallExpr {
+                function,
+                arguments,
+            } => {
                 Self::process_expr_for_slots(locals, function);
                 for a in arguments {
                     Self::process_expr_for_slots(locals, a);
                 }
             }
-            Expr::IfExpr { cond, consequence, alternative } => {
+            Expr::IfExpr {
+                cond,
+                consequence,
+                alternative,
+            } => {
                 Self::process_expr_for_slots(locals, cond);
                 for s in consequence.iter_mut() {
                     Self::process_stmt_for_slots(locals, s);
@@ -97,7 +104,9 @@ impl Evaluator {
                 Self::process_expr_for_slots(locals, array);
                 Self::process_expr_for_slots(locals, index);
             }
-            Expr::MethodCallExpr { object, arguments, .. } => {
+            Expr::MethodCallExpr {
+                object, arguments, ..
+            } => {
                 Self::process_expr_for_slots(locals, object);
                 for a in arguments {
                     Self::process_expr_for_slots(locals, a);
@@ -128,7 +137,10 @@ impl Evaluator {
     fn process_stmt_for_slots(locals: &[(String, SlotIndex)], stmt: &mut crate::ast::ast::Stmt) {
         use crate::ast::ast::Stmt;
         match stmt {
-            Stmt::ExprStmt(e) | Stmt::ExprValueStmt(e) | Stmt::ReturnStmt(e) | Stmt::ThrowStmt(e) => {
+            Stmt::ExprStmt(e)
+            | Stmt::ExprValueStmt(e)
+            | Stmt::ReturnStmt(e)
+            | Stmt::ThrowStmt(e) => {
                 Self::process_expr_for_slots(locals, e);
             }
             Stmt::LetStmt(ident, e) => {

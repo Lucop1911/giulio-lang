@@ -4,6 +4,7 @@ pub mod obj;
 pub mod builtins;
 pub mod module_registry;
 pub mod helpers;
+pub mod eval_context;
 
 #[cfg(test)]
 mod tests {
@@ -42,7 +43,7 @@ mod tests {
 
     pub async fn eval_test_helper(input: &str) -> Object {
         let program = parse_test_helper(input);
-        let mut evaluator = Evaluator::default();
+        let evaluator = Evaluator::default();
         evaluator.eval_program(program).await
     }
 

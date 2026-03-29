@@ -4,7 +4,7 @@ use crate::{
     ast::ast::{Expr, Ident, Program},
     errors::RuntimeError,
     interpreter::{
-        env::Environment, obj::{BuiltinFunction, Object, StdFunction}
+        env::Environment, obj::{BuiltinFunction, Object, StdFunction}, helpers::type_converters::obj_to_func
     },
     wasm::{WasmInstance, g_to_component_val, component_val_to_g},
 };
@@ -15,7 +15,7 @@ use wasmtime::component::Val;
 impl Evaluator {
     pub async fn async_eval_call(&mut self, fn_expr: Expr, args_expr: Vec<Expr>) -> Object {
         let fn_object = self.eval_expr(fn_expr).await;
-        let fn_ = self.obj_to_func(fn_object);
+        let fn_ = obj_to_func(fn_object);
 
         match fn_ {
             Object::Function(params, body, f_env) => {
@@ -109,14 +109,20 @@ impl Evaluator {
             }
 
             let old_env = Arc::clone(&self_clone.env);
+            let old_context_env = Arc::clone(&self_clone.context.env);
             let num_slots = Environment::count_slots(&params, &body);
             let mut new_env = Environment::new_function_env(f_env_clone, num_slots);
+
             for (param, arg) in params.iter().zip(args) {
                 new_env.set(param, arg);
             }
-            self_clone.env = Arc::new(Mutex::new(new_env));
+
+            let new_env_arc = Arc::new(Mutex::new(new_env));
+            self_clone.env = Arc::clone(&new_env_arc);
+            self_clone.context.env = Arc::clone(&new_env_arc);
             let object = self_clone.eval_blockstmt(&body).await;
             self_clone.env = old_env;
+            self_clone.context.env = old_context_env;
             self_clone.returned(object)
         }
     }
@@ -138,7 +144,7 @@ impl Evaluator {
     
         let mut args_futures = FuturesUnordered::new();
         for e in args_expr {
-            let mut evaluator = self.clone();
+            let evaluator = self.clone();
             args_futures.push(async move {
                 evaluator.eval_expr(e).await
             });
@@ -160,7 +166,9 @@ impl Evaluator {
             for (param, arg) in params_clone.iter().zip(args_clone) {
                 new_env.set(param, arg);
             }
-            evaluator.env = Arc::new(Mutex::new(new_env));
+            let new_env_arc = Arc::new(Mutex::new(new_env));
+            evaluator.env = Arc::clone(&new_env_arc);
+            evaluator.context.env = Arc::clone(&new_env_arc);
             evaluator.in_async_context = true;
 
             let result = evaluator.eval_blockstmt(&body).await;
@@ -184,7 +192,7 @@ impl Evaluator {
         max_params: usize,
         b_fn: BuiltinFunction,
     ) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             if args_expr.len() < min_params || args_expr.len() > max_params {
                 return Object::Error(RuntimeError::WrongNumberOfArguments {
@@ -213,7 +221,7 @@ impl Evaluator {
         max_params: usize,
         s_fn: StdFunction,
     ) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             if args_expr.len() < min_params || args_expr.len() > max_params {
                 return Object::Error(RuntimeError::WrongNumberOfArguments {
@@ -271,7 +279,7 @@ impl Evaluator {
         func_name: String,
         instance: Arc<Mutex<Option<WasmInstance>>>,
     ) -> Object {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         
         let mut args = Vec::new();
         for e in args_expr {

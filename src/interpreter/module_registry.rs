@@ -275,7 +275,7 @@ impl ModuleRegistry {
     async fn extract_exports(program: Program, registry: Arc<Mutex<Self>>) -> Result<HashMap<String, Object>, RuntimeError> {
         use crate::interpreter::eval::Evaluator;
         
-        let mut evaluator = Evaluator::new(registry);
+        let evaluator = Evaluator::new(registry);
         let mut exports = HashMap::new();
         
         for stmt in program {

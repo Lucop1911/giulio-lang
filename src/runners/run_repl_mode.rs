@@ -4,7 +4,7 @@ use crate::{Evaluator, Lexer, Parser, Tokens, interpreter::obj::Object};
 use crate::parser_errors::{convert_nom_error, show_error_context};
 use crate::compiler::compute_slots::compute_slots;
 
-pub async fn repl(mut evaluator: Evaluator) {
+pub async fn repl(evaluator: Evaluator) {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     println!("g-lang v{}", VERSION);
     println!("Type 'exit' or 'quit' to quit\n");

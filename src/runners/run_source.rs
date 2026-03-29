@@ -1,4 +1,4 @@
-use crate::{Parser, Evaluator, Lexer, Tokens, interpreter::obj::Object};
+use crate::{Parser, Evaluator, Lexer, Tokens, interpreter::obj::Object, compiler::compute_slots::count_global_lets};
 use crate::parser_errors::{convert_nom_error, show_error_context};
 use crate::compiler::compute_slots::compute_slots;
 
@@ -42,6 +42,12 @@ pub async fn run_source(input: &str, evaluator: &mut Evaluator) {
     };
 
     compute_slots(&mut program);
+
+    // Allocate slots for top-level let statements
+    let global_let_count = count_global_lets(&program);
+    if global_let_count > 0 {
+        evaluator.env.lock().unwrap().ensure_slots(global_let_count);
+    }
 
     // Evaluate
     let result = evaluator.eval_program(program).await;

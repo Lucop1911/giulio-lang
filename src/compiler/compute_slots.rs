@@ -5,6 +5,13 @@ pub fn compute_slots(program: &mut Program) {
     scope.process_program(program);
 }
 
+pub fn count_global_lets(program: &Program) -> usize {
+    program
+        .iter()
+        .filter(|s| matches!(s, Stmt::LetStmt(..)))
+        .count()
+}
+
 struct Scope {
     // depth: usize, // For debugging
 }
@@ -17,9 +24,8 @@ impl Scope {
 
     fn process_program(&mut self, program: &mut Program) {
         /*
-        Top-level variables live in the global Environment which uses a
-        HashMap (not a slots vec), so all top-level idents stay UNSET and
-        the evaluator falls back to name-based lookup for them.
+        Top-level variables now use slots for O(1) lookup in the global
+        Environment. Slots are assigned sequentially (0, 1, 2, ...).
 
         We still recurse into function bodies so that param/local idents
         inside those bodies get correct 0-based slot indices.
@@ -31,9 +37,10 @@ impl Scope {
             match stmt {
                 Stmt::LetStmt(ident, expr) => {
                     self.process_expr(expr, &running_locals);
-                    // Top-level let: leave slot UNSET, use name lookup at runtime.
-                    ident.slot = SlotIndex::UNSET;
-                    running_locals.push((ident.name.clone(), SlotIndex::UNSET));
+                    // Top-level let: assign slot for O(1) global lookup.
+                    let slot_idx = running_locals.len();
+                    ident.slot = SlotIndex(slot_idx as u16);
+                    running_locals.push((ident.name.clone(), ident.slot));
                 }
                 Stmt::FnStmt {
                     params: fn_params,
@@ -50,8 +57,7 @@ impl Scope {
                         })
                         .collect();
                     // running_locals has UNSET slots for top-level lets, which is fine:
-                    // process_expr will mark those idents UNSET too so
-                    // the evaluator uses name lookup for them.
+                    // process_expr will mark those idents UNSET too so the evaluator uses name lookup for them.
                     self.process_fn_body(body, &running_locals, &fn_params_locals);
                 }
                 Stmt::AssignStmt(ident, expr) => {
@@ -139,7 +145,7 @@ impl Scope {
                 _ => {}
             }
         }
-    
+
         /*
         Compose visible names. Later entries shadow earlier ones;
         process_expr searches with .rev().

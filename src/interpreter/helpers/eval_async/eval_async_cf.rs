@@ -3,7 +3,7 @@ use crate::{
     ast::ast::{Expr, Ident, Program, Stmt},
     errors::RuntimeError,
     interpreter::{
-        env::Environment, obj::Object
+        env::Environment, obj::Object, helpers::type_converters::obj_to_bool
     },
 };
 
@@ -11,10 +11,10 @@ use super::super::super::eval::Evaluator;
 
 impl Evaluator {
     pub fn async_eval_if(&mut self, cond: Expr, conse: Program, maybe_alter: Option<Program>) -> impl Future<Output = Object> + Send + '_ {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let object = self_clone.eval_expr(cond).await;
-            match self_clone.obj_to_bool(object) {
+            match obj_to_bool(object) {
                 Ok(b) => {
                     if b {
                         self_clone.eval_blockstmt(&conse).await
@@ -31,11 +31,11 @@ impl Evaluator {
     }
 
     pub fn async_eval_while(&mut self, cond: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_ {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             loop {
                 let cond_result = self_clone.eval_expr((*cond).clone()).await;
-                match self_clone.obj_to_bool(cond_result) {
+                match obj_to_bool(cond_result) {
                     Ok(true) => {
                         let result = self_clone.eval_blockstmt(&body).await;
                         match result {
@@ -54,7 +54,7 @@ impl Evaluator {
     }
 
     pub fn async_eval_for(&mut self, ident: Vec<Ident>, iterable: Box<Expr>, body: Program) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let iter_obj = self_clone.eval_expr(*iterable).await;
 
@@ -106,37 +106,50 @@ impl Evaluator {
         update: Option<Box<Stmt>>,
         body: Program,
     ) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
+        
         async move {
-            // sync eval for init
-            if let Some(init_stmt) = init {
-                let result = self_clone.eval_statement_sync(*init_stmt);
-                if let Object::Error(_) = result {
-                    return result;
+            let result = self_clone.eval_c_style_for_sync(init, cond, update, body);
+            result
+        }
+    }
+
+    pub fn eval_c_style_for_sync(
+        &self,
+        init: Option<Box<Stmt>>,
+        cond: Option<Box<Expr>>,
+        update: Option<Box<Stmt>>,
+        body: Program,
+    ) -> Object {
+        let mut env_guard = self.env.lock().unwrap();
+        
+        if let Some(init_stmt) = init {
+            let result = self.eval_statement_sync(&mut env_guard, &init_stmt);
+            if let Object::Error(_) = result {
+                return result;
+            }
+        }
+        
+        loop {
+            let should_continue = if let Some(ref cond_expr) = cond {
+                match self.eval_expr_sync(&mut env_guard, cond_expr) {
+                    Object::Boolean(b) => b,
+                    Object::Error(e) => return Object::Error(e),
+                    _ => return Object::Error(RuntimeError::TypeMismatch {
+                        expected: "boolean".to_string(),
+                        got: "non-boolean".to_string(),
+                    }),
                 }
+            } else {
+                true
+            };
+            
+            if !should_continue {
+                break;
             }
             
-            loop {
-                // sync eval for condition
-                let should_continue = if let Some(ref cond_expr) = cond {
-                    match self_clone.eval_expr_sync(cond_expr.as_ref().clone()) {
-                        Object::Boolean(b) => b,
-                        Object::Error(e) => return Object::Error(e),
-                        _ => return Object::Error(RuntimeError::TypeMismatch {
-                            expected: "boolean".to_string(),
-                            got: "non-boolean".to_string(),
-                        }),
-                    }
-                } else {
-                    true
-                };
-                
-                if !should_continue {
-                    break;
-                }
-                
-                // async for body as it might contain async code
-                let result = self_clone.eval_blockstmt(&body).await;
+            if !body.is_empty() {
+                let result = self.eval_blockstmt_sync(&mut env_guard, &body);
                 match result {
                     Object::Break => return Object::Null,
                     Object::Continue => {},
@@ -144,18 +157,17 @@ impl Evaluator {
                     Object::Error(_) => return result,
                     _ => {}
                 }
-                
-                // sync eval for update
-                if let Some(ref update_stmt) = update {
-                    let result = self_clone.eval_statement_sync(update_stmt.as_ref().clone());
-                    if let Object::Error(_) = result {
-                        return result;
-                    }
-                }
             }
             
-            Object::Null
+            if let Some(ref update_stmt) = update {
+                let result = self.eval_statement_sync(&mut env_guard, update_stmt);
+                if let Object::Error(_) = result {
+                    return result;
+                }
+            }
         }
+        
+        Object::Null
     }
 
     pub fn async_eval_try_catch_expr(
@@ -180,15 +192,19 @@ impl Evaluator {
                 if let Some(Ident { name: e_name, .. }) = catch_ident {
                     if let Some(c_body) = catch_body {
                         let old_env = Arc::clone(&self_clone.env);
+                        let old_context_env = Arc::clone(&self_clone.context.env);
                         // Allocate slots for any let-bindings in the catch body.
                         // The catch variable itself is stored by name.
                         let num_slots = Environment::count_slots(&[], &c_body);
                         let mut new_env = Environment::new_function_env(Arc::clone(&self_clone.env), num_slots);
                         new_env.set_by_name(&e_name, exception);
-                        self_clone.env = Arc::new(Mutex::new(new_env));
+                        let new_env_arc = Arc::new(Mutex::new(new_env));
+                        self_clone.env = Arc::clone(&new_env_arc);
+                        self_clone.context.env = Arc::clone(&new_env_arc);
 
                         try_result = self_clone.eval_blockstmt(&c_body).await;
                         self_clone.env = old_env;
+                        self_clone.context.env = old_context_env;
                     }
                 }
             }

@@ -3,7 +3,7 @@ use ahash::{AHasher, HashMapExt};
 use crate::{
     ast::ast::{Expr, Ident},
     errors::RuntimeError,
-    interpreter::obj::Object
+    interpreter::{obj::Object, helpers::type_converters::{obj_to_int, obj_to_hash}}
 };
 use super::super::super::eval::{Evaluator};
 
@@ -11,7 +11,7 @@ type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>
 
 impl Evaluator {
     pub fn async_eval_index_assign(&mut self, target_expr: Expr, index_expr: Expr, value_expr: Expr) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let index = self_clone.eval_expr(index_expr).await;
             let value = self_clone.eval_expr(value_expr).await;
@@ -25,7 +25,7 @@ impl Evaluator {
                     
                     let updated_value = match current_value {
                         Object::Array(mut arr) => {
-                            match self_clone.obj_to_int(index.clone()) {
+                            match obj_to_int(index.clone()) {
                                 Ok(idx_num) => {
                                     if idx_num < 0 {
                                         return Object::Error(RuntimeError::IndexOutOfBounds {
@@ -47,7 +47,7 @@ impl Evaluator {
                             }
                         }
                         Object::Hash(mut hash) => {
-                            let key = self_clone.obj_to_hash(index.clone());
+                            let key = obj_to_hash(index.clone());
                             if let Object::Error(_) = key {
                                 return key;
                             }
@@ -68,7 +68,7 @@ impl Evaluator {
                     let current_this = self_clone.env.lock().unwrap().get_by_name("this");
                     match current_this {
                         Some(Object::Array(mut arr)) => {
-                            match self_clone.obj_to_int(index.clone()) {
+                            match obj_to_int(index.clone()) {
                                 Ok(idx_num) => {
                                     if idx_num < 0 {
                                         return Object::Error(RuntimeError::IndexOutOfBounds {
@@ -91,7 +91,7 @@ impl Evaluator {
                             }
                         }
                         Some(Object::Hash(mut hash)) => {
-                            let key = self_clone.obj_to_hash(index.clone());
+                            let key = obj_to_hash(index.clone());
                             if let Object::Error(_) = key {
                                 return key;
                             }
@@ -121,7 +121,7 @@ impl Evaluator {
     }
 
     pub fn async_eval_array(&mut self, exprs: Vec<Expr>) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let mut new_vec = Vec::new();
             for e in exprs {
@@ -132,7 +132,7 @@ impl Evaluator {
     }
 
     pub fn async_eval_hash(&mut self, hs: Vec<(Expr, Expr)>) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let mut hashmap = HashMap::new();
             
@@ -154,12 +154,12 @@ impl Evaluator {
     }
 
     pub fn async_eval_index(&mut self, target_exp: Expr, id_exp: Expr) -> impl Future<Output = Object> + Send + '_  {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         async move {
             let target = self_clone.eval_expr(target_exp).await;
             let index = self_clone.eval_expr(id_exp).await;
             match target {
-                Object::Array(arr) => match self_clone.obj_to_int(index) {
+                Object::Array(arr) => match obj_to_int(index) {
                     Ok(index_number) => {
                         if index_number < 0 {
                             return Object::Error(RuntimeError::IndexOutOfBounds {
@@ -179,7 +179,7 @@ impl Evaluator {
                     Err(err) => err,
                 },
                 Object::Hash(mut hash) => {
-                    let name = self_clone.obj_to_hash(index);
+                    let name = obj_to_hash(index);
                     match name {
                         Object::Error(_) => name,
                         _ => hash.remove(&name).unwrap_or(Object::Null),
