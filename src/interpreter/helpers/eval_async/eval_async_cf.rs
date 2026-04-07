@@ -109,8 +109,7 @@ impl Evaluator {
         let self_clone = self.clone();
         
         async move {
-            let result = self_clone.eval_c_style_for_sync(init, cond, update, body);
-            result
+            self_clone.eval_c_style_for_sync(init, cond, update, body)
         }
     }
 

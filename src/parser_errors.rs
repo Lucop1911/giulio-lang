@@ -1,8 +1,33 @@
+//! Diagnostic-quality parser error reporting.
+//!
+//! This module translates raw `nom` parse errors into human-readable
+//! [`ParserError`](crate::errors::ParserError) messages. Rather than
+//! reporting a generic "unexpected token", it performs contextual
+//! analysis of the remaining token stream to produce actionable
+//! diagnostics such as "expected ';' after statement, found '}'".
+//!
+//! # Error resolution pipeline
+//!
+//! 1. [`convert_nom_error`] — entry point; classifies the nom error kind
+//! 2. [`is_incomplete_statement`] — detects whether the input starts with
+//!    a statement keyword that is likely truncated
+//! 3. [`detect_incomplete_error`] — per-statement-type heuristic analysis
+//!    (e.g. `let` without `=`, `fn` without `(`, etc.)
+//! 4. [`infer_context_from_tokens`] — fallback that checks bracket balance,
+//!    trailing operators, and common two-token patterns
+//! 5. [`create_contextual_error`] — maps a known parser context string to
+//!    a specific error message
+
 use crate::errors::ParserError;
 use crate::lexer::token::{Token, Tokens};
-use nom::error::{Error, ErrorKind};
 use nom::Err;
+use nom::error::{Error, ErrorKind};
 
+/// Translates a `nom` parse error into a user-friendly [`ParserError`].
+///
+/// The `context` parameter is a string tag identifying which parser
+/// combinator failed (e.g. `"let_stmt"`, `"if_expr_lparen"`). When
+/// empty, the function falls back to token-pattern inference.
 pub fn convert_nom_error<'a>(err: &Err<Error<Tokens<'a>>>, context: &str) -> ParserError {
     match err {
         Err::Error(e) | Err::Failure(e) => {
@@ -43,6 +68,8 @@ pub fn convert_nom_error<'a>(err: &Err<Error<Tokens<'a>>>, context: &str) -> Par
     }
 }
 
+/// Heuristic: does the token stream start with a statement keyword
+/// that is likely part of a truncated/incomplete statement?
 fn is_incomplete_statement(tokens: &Tokens) -> bool {
     if tokens.token.is_empty() {
         return false;
@@ -61,6 +88,12 @@ fn is_incomplete_statement(tokens: &Tokens) -> bool {
     )
 }
 
+/// Per-statement-type diagnostic for incomplete code.
+///
+/// Walks the token stream looking for structural issues:
+/// missing delimiters, wrong token types, truncated expressions.
+/// Each statement kind (`let`, `fn`, `for`, `if`, `while`, `struct`, `return`)
+/// has its own set of expected patterns.
 fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
     if tokens.token.is_empty() {
         return ParserError::UnexpectedEOF;
@@ -71,28 +104,27 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
     if let Some(return_pos) = find_token_position(tokens, &Token::Return) {
         if return_pos == 0
             || (return_pos > 0 && tokens.token.get(return_pos - 1) == Some(&Token::LBrace))
+            && return_pos + 1 < tokens.token.len()
         {
-            if return_pos + 1 < tokens.token.len() {
-                let after_return = &tokens.token[return_pos + 1];
-                return match after_return {
-                    Token::EOF => ParserError::ExpectedToken {
-                        expected: "expression after 'return'".to_string(),
-                        found: "end of input".to_string(),
-                    },
-                    Token::SemiColon => ParserError::ExpectedToken {
-                        expected: "expression before ';'".to_string(),
-                        found: "';'".to_string(),
-                    },
-                    Token::RParen | Token::RBracket | Token::RBrace => ParserError::ExpectedToken {
-                        expected: "expression after 'return'".to_string(),
-                        found: describe_token(after_return),
-                    },
-                    _ => ParserError::ExpectedToken {
-                        expected: "expression after 'return'".to_string(),
-                        found: describe_token(after_return),
-                    },
-                };
-            }
+            let after_return = &tokens.token[return_pos + 1];
+            return match after_return {
+                Token::EOF => ParserError::ExpectedToken {
+                    expected: "expression after 'return'".to_string(),
+                    found: "end of input".to_string(),
+                },
+                Token::SemiColon => ParserError::ExpectedToken {
+                    expected: "expression before ';'".to_string(),
+                    found: "';'".to_string(),
+                },
+                Token::RParen | Token::RBracket | Token::RBrace => ParserError::ExpectedToken {
+                    expected: "expression after 'return'".to_string(),
+                    found: describe_token(after_return),
+                },
+                _ => ParserError::ExpectedToken {
+                    expected: "expression after 'return'".to_string(),
+                    found: describe_token(after_return),
+                },
+            };
         }
     }
 
@@ -125,14 +157,13 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
                             if let Some(pos) = find_token_position(tokens, &Token::Assign) {
                                 // Check if there's an unexpected token before EOF
                                 if let Some(colon_pos) = find_token_position(tokens, &Token::Colon)
+                                    && colon_pos > pos
                                 {
-                                    if colon_pos > pos {
-                                        // "let a = 10:" - colon instead of semicolon
-                                        return ParserError::ExpectedToken {
-                                            expected: "';' after statement".to_string(),
-                                            found: "':'".to_string(),
-                                        };
-                                    }
+                                    // "let a = 10:" - colon instead of semicolon
+                                    return ParserError::ExpectedToken {
+                                        expected: "';' after statement".to_string(),
+                                        found: "':'".to_string(),
+                                    };
                                 }
                                 // We have "let x =", check if we have a value
                                 if pos + 2 >= tokens.token.len()
@@ -323,10 +354,12 @@ fn detect_incomplete_error(tokens: &Tokens) -> ParserError {
     ParserError::UnexpectedToken(describe_token(statement_type))
 }
 
+/// Linear search for a specific token in the stream.
 fn find_token_position(tokens: &Tokens, target: &Token) -> Option<usize> {
     tokens.token.iter().position(|t| t == target)
 }
 
+/// Checks whether all opened parentheses are eventually closed.
 fn has_matching_paren(tokens: &Tokens) -> bool {
     let mut depth = 0;
     for token in tokens.token.iter() {
@@ -340,6 +373,7 @@ fn has_matching_paren(tokens: &Tokens) -> bool {
     depth == 0
 }
 
+/// Checks whether all opened braces are eventually closed.
 fn has_matching_brace(tokens: &Tokens) -> bool {
     let mut depth = 0;
     for token in tokens.token.iter() {
@@ -353,6 +387,8 @@ fn has_matching_brace(tokens: &Tokens) -> bool {
     depth == 0
 }
 
+/// Returns the net nesting depth of `open` minus `close` tokens.
+/// A positive result indicates unmatched openers.
 fn count_unmatched(tokens: &Tokens, open: Token, close: Token) -> i32 {
     let mut depth = 0;
     for token in tokens.token.iter() {
@@ -365,6 +401,14 @@ fn count_unmatched(tokens: &Tokens, open: Token, close: Token) -> i32 {
     depth
 }
 
+/// Fallback error inference when no parser context is available.
+///
+/// Analyzes the first two tokens and bracket balance to produce
+/// a best-guess diagnostic. Handles common patterns like:
+/// - `let =` → missing identifier
+/// - `if {` → missing `(`
+/// - trailing operator before EOF → missing RHS
+/// - empty delimiters → `()` `[]` `{}`
 fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str) -> ParserError {
     if tokens.token.is_empty() {
         return ParserError::UnexpectedToken(token_desc.to_string());
@@ -511,6 +555,10 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str) -> ParserError {
     }
 }
 
+/// Maps a known parser context string to a specific error message.
+///
+/// Each context key corresponds to a specific point in the grammar
+/// where a parse failure occurred, allowing for precise diagnostics.
 fn create_contextual_error(
     context: &str,
     _: &Token,
@@ -591,6 +639,11 @@ fn create_contextual_error(
     }
 }
 
+/// Converts a single token into a human-readable description.
+///
+/// Used throughout the error reporting pipeline to produce messages
+/// like `"identifier 'x'"`, `"string \"hello...\""`, or `"';'"`.
+/// Long strings are truncated to 20 characters.
 pub fn describe_token(token: &Token) -> String {
     match token {
         Token::Illegal => "illegal token".to_string(),

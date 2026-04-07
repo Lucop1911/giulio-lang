@@ -1,3 +1,13 @@
+//! Constant pool for function-local literal optimization.
+//!
+//! During the compiler pass, literal values (`LitExpr`) inside function
+//! bodies are replaced with `LitIndex` references into a per-function
+//! `ConstantPool`. This avoids re-allocating and re-wrapping the same
+//! literal `Object` on every evaluation.
+//!
+//! The pool is stored alongside the function body in the `Object::Function`
+//! variant and accessed via `eval_expr` during interpretation.
+
 use crate::ast::ast::{Expr, Literal, Program, Stmt};
 use crate::interpreter::obj::Object;
 

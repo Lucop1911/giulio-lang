@@ -1,0 +1,457 @@
+# VM Migration Plan: Tree-Walk Interpreter → Stack-Based VM
+
+## Goal
+Replace the current tree-walk AST evaluator (`src/interpreter/eval.rs`) with a
+stack-based bytecode virtual machine while preserving 100% of existing
+functionality and passing every test in `src/interpreter/mod.rs`.
+
+---
+
+## Phase 1: Instruction Set Design
+
+**Scope:** Define the bytecode instruction set that covers every language feature.
+
+### 1.1 Core Instructions
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `PushConstant(u16)` | `→ obj` | Push a constant-pool object onto the stack |
+| `Pop` | `obj →` | Discard top of stack |
+| `Dup` | `obj → obj, obj` | Duplicate top of stack |
+| `Swap` | `a, b → b, a` | Swap top two values |
+
+### 1.2 Variable Access
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `GetLocal(u8)` | `→ obj` | Push local variable by slot index |
+| `SetLocal(u8)` | `obj →` | Pop and store into local slot |
+| `GetGlobal(u16)` | `→ obj` | Push global variable by name/slot |
+| `SetGlobal(u16)` | `obj →` | Pop and store into global |
+| `GetBuiltin(u8)` | `→ obj` | Push a builtin function |
+
+### 1.3 Arithmetic & Comparison
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `Add`, `Sub`, `Mul`, `Div`, `Mod` | `a, b → result` | Binary arithmetic |
+| `Equal`, `NotEqual` | `a, b → bool` | Equality comparison |
+| `LessThan`, `GreaterThan`, `LessEqual`, `GreaterEqual` | `a, b → bool` | Ordering |
+| `Not` | `bool → bool` | Logical negation |
+| `Negate` | `num → num` | Unary minus |
+
+### 1.4 Control Flow
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `Jump(u16)` | `→` | Unconditional forward jump |
+| `JumpBackward(u16)` | `→` | Unconditional backward jump (loops) |
+| `JumpIfFalse(u16)` | `cond →` | Pop; jump if falsey |
+| `JumpIfTruthy(u16)` | `cond →` | Pop; jump if truthy |
+| `PopJumpIfFalse(u16)` | `cond →` | Pop; jump if falsey (for `&&`, `||`) |
+
+### 1.5 Function Calls
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `Call(u8)` | `fn, args... → result` | Call user-defined function (arg count) |
+| `CallBuiltin(u8)` | `builtin, args... → result` | Call builtin (arg count) |
+| `ReturnValue` | `obj →` | Mark top as return value |
+| `Closure(u8, u16)` | `→ closure` | Create closure (param count, body offset) |
+
+### 1.6 Collections
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `BuildArray(u16)` | `elem... → array` | Pop N elements, build array |
+| `BuildHash(u16)` | `k, v... → hash` | Pop N pairs, build hash map |
+| `Index` | `collection, index → value` | Array/hash indexing |
+| `SetIndex` | `collection, index, value →` | Array/hash element assignment |
+
+### 1.7 Structs & Methods
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `BuildStruct(u8)` | `field... → struct` | Build struct from field values |
+| `GetField` | `struct → value` | Access struct field by name |
+| `SetField` | `struct, value →` | Set struct field |
+| `CallMethod(u8)` | `struct, args... → result` | Call struct method |
+
+### 1.8 Async / Await
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `CallAsync(u8)` | `async_fn, args... → future` | Call async function, returns Future |
+| `Await` | `future → result` | Await a future, suspend if needed |
+
+### 1.9 Exception Handling
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `Throw` | `obj →` | Raise exception |
+| `PushCatch(u16, u16)` | `→` | Register catch handler (catch addr, finally addr) |
+| `PopCatch` | `→` | Remove top exception handler |
+| `PushFinally(u16)` | `→` | Register finally block |
+| `EndFinally` | `→` | Resume after finally (re-throw or continue) |
+
+### 1.10 Loops & Control
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `Break(u16)` | `→` | Jump to loop exit (exit address) |
+| `Continue(u16)` | `→` | Jump to loop condition (cond address) |
+
+### 1.11 Modules & Imports
+| Instruction | Stack Effect | Description |
+|---|---|---|
+| `ImportModule(u16)` | `→ module` | Load module by path constant |
+| `GetExport` | `module → obj` | Get named export from module |
+
+---
+
+## Phase 2: Bytecode Data Structures
+
+**New files to create:**
+
+```
+src/vm/
+├── mod.rs              # Module root + re-exports
+├── instruction.rs      # Opcode enum + encode/decode
+├── chunk.rs            # Bytecode chunk (Vec<u8> + constant pool + source map)
+├── compiler.rs         # AST → bytecode compiler
+├── vm.rs               # Stack-based VM execution engine
+├── frame.rs            # Call frame (chunk, ip, slots, closure)
+├── debug.rs            # Bytecode disassembler (for debugging)
+└── tests/
+    └── integration.rs  # Mirrors interpreter/mod.rs tests
+```
+
+### 2.1 `chunk.rs`
+```rust
+pub struct Chunk {
+    pub code: Vec<u8>,          // Bytecode instructions
+    pub constants: Vec<Object>, // Constant pool (literals, strings, builtin refs)
+    pub lines: Vec<u16>,        // Source line mapping (for errors)
+}
+```
+
+### 2.2 `frame.rs`
+```rust
+pub struct CallFrame {
+    pub chunk: Arc<Chunk>,      // Function's bytecode
+    pub ip: usize,              // Instruction pointer
+    pub slots: Arc<Mutex<Vec<Object>>>, // Local variable slots
+    pub closure_env: Option<Arc<Mutex<Environment>>>, // For closures
+}
+```
+
+### 2.3 `vm.rs`
+```rust
+pub struct VirtualMachine {
+    pub stack: Vec<Object>,     // Operand stack
+    pub frames: Vec<CallFrame>, // Call stack
+    pub globals: Arc<Mutex<Environment>>, // Global environment
+    pub module_registry: Arc<Mutex<ModuleRegistry>>,
+    pub exception_handlers: Vec<ExceptionHandler>,
+}
+```
+
+---
+
+## Phase 3: Compiler (AST → Bytecode)
+
+**File:** `src/vm/compiler.rs`
+
+### 3.1 Compilation Strategy
+- Walk the existing AST (reuse `ast::Program`, `ast::Stmt`, `ast::Expr`)
+- Emit bytecode instructions into a `Chunk`
+- Reuse the existing `constant_pool` module — constants are already extracted
+- Slot allocation from `compute_slots` is reused directly
+
+### 3.2 Compilation Rules (examples)
+
+| AST Node | Emitted Bytecode |
+|---|---|
+| `LitExpr(Literal::IntLiteral(5))` | `PushConstant(pool_index_of_5)` |
+| `IdentExpr(slot=3)` | `GetLocal(3)` or `GetGlobal(name)` if UNSET |
+| `InfixExpr(Plus, left, right)` | `compile(left); compile(right); Add` |
+| `IfExpr { cond, cons, alt }` | `compile(cond); JumpIfFalse(else_addr); compile(cons); Jump(end); else_addr: compile(alt); end:` |
+| `FnStmt { params, body }` | Emit body as sub-chunk; `Closure(param_count, chunk_offset)` |
+| `CallExpr { fn, args }` | `compile(fn); compile(args...); Call(arg_count)` |
+| `WhileExpr { cond, body }` | `loop: compile(cond); JumpIfFalse(end); compile(body); JumpBackward(loop); end:` |
+| `ReturnStmt(expr)` | `compile(expr); ReturnValue` |
+| `ThrowStmt(expr)` | `compile(expr); Throw` |
+| `TryCatchExpr` | `PushCatch(catch_addr, finally_addr); compile(try); PopCatch; Jump(end); catch_addr: ...; finally_addr: ...; end:` |
+| `AwaitExpr(expr)` | `compile(expr); Await` |
+
+### 3.3 Compiler Scope Management
+- Reuse `compute_slots` output — slot indices are already on `Ident` nodes
+- Track loop boundaries (for `Break`/`Continue` address patching)
+- Track exception handler boundaries
+- Use a `Label` system for forward-jump address patching (two-pass or backpatching)
+
+---
+
+## Phase 4: VM Execution Engine
+
+**File:** `src/vm/vm.rs`
+
+### 4.1 Execution Model
+- Fetch-decode-execute loop over `Chunk.code`
+- Operand stack for intermediate values
+- Call frames for function invocation (no recursion limit — bounded by memory)
+- Async support via `tokio` — `Await` suspends the frame and returns a future
+
+### 4.2 Key Execution Methods
+```rust
+impl VirtualMachine {
+    pub fn new(globals: Arc<Mutex<Environment>>, modules: Arc<Mutex<ModuleRegistry>>) -> Self;
+    pub async fn run_program(&mut self, chunk: Arc<Chunk>) -> Object;
+    pub async fn run_chunk(&mut self, chunk: Arc<Chunk>) -> Object;
+    
+    // Instruction handlers (one per opcode)
+    fn execute_push_constant(&mut self, index: u16) -> Result<(), RuntimeError>;
+    fn execute_add(&mut self) -> Result<(), RuntimeError>;
+    fn execute_call(&mut self, arg_count: u8) -> Result<ControlFlow, RuntimeError>;
+    fn execute_await(&mut self) -> Result<ControlFlow, RuntimeError>;
+    // ... etc
+}
+```
+
+### 4.3 Control Flow
+```rust
+enum ControlFlow {
+    Continue,   // Normal execution
+    Return,     // Function return
+    Break,      // Loop break
+    Exception,  // Thrown value
+    Suspend,    // Async await (VM yields)
+}
+```
+
+### 4.4 Async Integration
+- The VM's `run_program` is `async`
+- `Await` instruction: if the future is ready, push result; otherwise return
+  `ControlFlow::Suspend` and let tokio poll it
+- Re-entrant: the VM can be resumed after an await completes
+
+---
+
+## Phase 5: Migration Strategy (Zero-Downtime)
+
+### 5.1 Dual-Mode Architecture
+Keep the tree-walk evaluator working alongside the VM during migration:
+
+```
+src/interpreter/
+├── eval.rs          # EXISTING tree-walk evaluator (unchanged initially)
+├── vm/              # NEW: VM implementation
+└── mod.rs           # Tests run against BOTH evaluators
+```
+
+### 5.2 Test Compatibility
+All existing tests in `src/interpreter/mod.rs` use `eval_test_helper(input)` which:
+1. Lexes input → parses to AST → evaluates
+
+For the VM, create a parallel helper:
+```rust
+pub async fn vm_test_helper(input: &str) -> Object {
+    let program = parse_test_helper(input);
+    let mut chunk = Chunk::new();
+    Compiler::compile_program(&program, &mut chunk);
+    let mut vm = VirtualMachine::default();
+    vm.run_chunk(Arc::new(chunk)).await
+}
+```
+
+### 5.3 Migration Steps
+1. **Phase 1-4 in parallel** — build VM alongside tree-walker
+2. **Run both evaluators on every test** — assert identical results
+3. **Switch `eval_test_helper` to use VM** — once all tests pass
+4. **Deprecate tree-walker** — keep as fallback or remove
+
+---
+
+## Phase 6: Feature Coverage Checklist
+
+Every feature must be implemented and tested in the VM:
+
+### Core
+- [ ] Integer arithmetic (+, -, *, /, %)
+- [ ] Float arithmetic
+- [ ] BigInt support
+- [ ] Boolean logic (&&, ||, !)
+- [ ] Comparison operators (<, >, <=, >=, ==, !=)
+- [ ] String concatenation (+)
+- [ ] Unary minus
+
+### Variables
+- [ ] Let statements (global and local)
+- [ ] Assignment statements
+- [ ] Multi-let destructuring: `let (a, b) = (1, 2)`
+- [ ] Tuple assignment: `(a, b) = (b, a)`
+- [ ] Slot-based O(1) lookup (reuse compute_slots)
+
+### Control Flow
+- [ ] If/else expressions
+- [ ] While loops
+- [ ] For-in loops (arrays, hashes, strings)
+- [ ] C-style for loops
+- [ ] Break / Continue
+- [ ] Return statements
+
+### Functions
+- [ ] Function definitions and calls
+- [ ] Multiple parameters
+- [ ] Return values
+- [ ] Closures (capturing outer scope)
+- [ ] Recursion (direct and mutual)
+- [ ] Higher-order functions
+
+### Async
+- [ ] `async fn` definitions
+- [ ] `await` expressions
+- [ ] Chained async calls
+- [ ] Async return types (int, bool, string)
+
+### Exception Handling
+- [ ] `throw` statements
+- [ ] `try/catch` blocks
+- [ ] `try/finally` blocks
+- [ ] `try/catch/finally` blocks
+- [ ] Finally overriding return
+- [ ] Finally overriding thrown value
+- [ ] Nested try/catch
+- [ ] Try expression result (last expression value)
+- [ ] Exception type propagation
+
+### Collections
+- [ ] Array literals and indexing
+- [ ] Hash map literals and indexing
+- [ ] Array length, push, pop, etc. (via builtins)
+
+### Structs
+- [ ] Struct definitions
+- [ ] Struct literals
+- [ ] Field access and assignment
+- [ ] Method calls
+- [ ] `this` reference
+
+### Modules & Imports
+- [ ] `import` statements
+- [ ] Standard library modules (std::string, std::math, std::io, etc.)
+- [ ] User-defined module loading
+- [ ] WASM module integration
+
+### Builtins
+- [ ] All existing builtin functions (print, len, first, last, rest, push, etc.)
+- [ ] Async builtins (HTTP, file I/O, sleep)
+- [ ] Math builtins
+- [ ] String builtins
+
+### Edge Cases
+- [ ] Empty arrays/hashes
+- [ ] Null handling
+- [ ] Error objects
+- [ ] Type mismatch errors
+- [ ] Division/modulo by zero
+- [ ] Index out of bounds
+- [ ] Wrong argument count
+
+---
+
+## Phase 7: File Structure (Final)
+
+```
+src/
+├── main.rs
+├── lib.rs
+├── errors.rs
+├── parser_errors.rs
+│
+├── ast/
+│   ├── mod.rs
+│   └── ast.rs              # Unchanged — AST is the compiler input
+│
+├── lexer/
+│   ├── mod.rs
+│   ├── lexer.rs            # Unchanged
+│   └── token.rs            # Unchanged
+│
+├── parser/
+│   ├── mod.rs
+│   ├── parser.rs           # Unchanged
+│   ├── parser_helpers.rs   # Unchanged
+│   └── await_ctx_helpers.rs # Unchanged
+│
+├── compiler/
+│   ├── mod.rs
+│   └── compute_slots.rs    # Unchanged — reused by VM compiler
+│
+├── interpreter/
+│   ├── mod.rs              # Tests (unchanged — run against VM)
+│   ├── eval.rs             # Tree-walk evaluator (kept for comparison)
+│   ├── env.rs              # Unchanged — reused by VM
+│   ├── obj.rs              # Unchanged — Object is the VM's value type
+│   ├── constant_pool.rs    # Unchanged — reused by VM compiler
+│   ├── module_registry.rs  # Unchanged — reused by VM
+│   ├── builtins/           # Unchanged — builtins called by VM
+│   └── helpers/            # Unchanged
+│
+├── vm/                     # NEW
+│   ├── mod.rs              # Module root
+│   ├── instruction.rs      # Opcode definitions + encoding
+│   ├── chunk.rs            # Bytecode chunk + constant pool
+│   ├── compiler.rs         # AST → bytecode compiler
+│   ├── vm.rs               # Stack-based VM execution
+│   ├── frame.rs            # Call frame management
+│   ├── debug.rs            # Disassembler (cargo feature)
+│   └── tests/
+│       └── integration.rs  # VM-specific tests
+│
+├── runners/
+│   ├── mod.rs
+│   ├── run_source.rs       # Updated: compile + run via VM
+│   ├── run_check.rs        # Unchanged (lex + parse only)
+│   ├── run_repl_mode.rs    # Updated: compile + run via VM
+│   └── print_help.rs       # Unchanged
+│
+├── std/                    # Unchanged
+│   ├── math.rs
+│   ├── string.rs
+│   ├── time.rs
+│   ├── io.rs
+│   ├── json.rs
+│   ├── http.rs
+│   └── env.rs
+│
+└── wasm/                   # Unchanged
+    ├── mod.rs
+    ├── wasm_runtime.rs
+    └── type_conversions.rs
+```
+
+---
+
+## Phase 8: Implementation Order
+
+1. **Week 1:** Instruction set + Chunk + basic compiler (literals, arithmetic, variables)
+2. **Week 2:** Control flow (if/else, while, for, break, continue) + function calls
+3. **Week 3:** Closures, recursion, async/await
+4. **Week 4:** Exception handling (try/catch/finally)
+5. **Week 5:** Collections, structs, methods, modules
+6. **Week 6:** Integration testing — all `interpreter/mod.rs` tests pass
+7. **Week 7:** REPL + file runner migration, performance benchmarking
+8. **Week 8:** Cleanup, debug tooling, documentation
+
+---
+
+## Key Design Decisions
+
+1. **Reuse the AST** — The parser and AST remain unchanged. The VM compiler is a
+   separate pass that consumes the existing AST.
+
+2. **Reuse slot allocation** — `compute_slots` already assigns O(1) slot indices.
+   The VM compiler reads these directly from `Ident.slot`.
+
+3. **Reuse Object** — The VM's operand stack holds `Object` values. No new runtime
+   value type is needed.
+
+4. **Reuse Environment** — Global variables and module state continue to use the
+   existing `Environment` and `ModuleRegistry`.
+
+5. **Async-first VM** — The VM's `run_program` is async from day one, matching
+   the current evaluator's async nature.
+
+6. **No breaking changes** — The public API (`Lexer`, `Parser`, `Evaluator`) is
+   preserved. The VM is an internal implementation detail.

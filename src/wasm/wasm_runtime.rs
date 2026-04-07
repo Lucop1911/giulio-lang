@@ -1,3 +1,10 @@
+//! WASM runtime — loading, instantiation, and execution of WASM modules.
+//!
+//! Supports both WASI Preview 1 (classic modules) and Preview 2 (components)
+//! via `wasmtime`. The [`WasmRuntime`] holds the engine, [`WasmModule`]
+//! represents a compiled module, and [`WasmInstance`] is a runnable
+//! instantiation with unified function-call and memory APIs.
+
 use crate::errors::RuntimeError;
 use std::path::Path;
 use wasmtime::component::types::ComponentItem;
@@ -15,7 +22,10 @@ use super::type_conversions;
 
 pub use type_conversions::*;
 
-// Wasmtime engine wrapper - manages compilation and execution of WASM modules
+/// Wrapper around the `wasmtime::Engine`.
+///
+/// Manages compilation and store creation. The engine is cheaply cloneable
+/// and internally reference-counted.
 #[derive(Default, Clone)]
 pub struct WasmRuntime {
     engine: Engine,
@@ -26,12 +36,13 @@ impl WasmRuntime {
         Ok(Self::default())
     }
 
-    // Get reference to the underlying Wasmtime engine
+    /// Returns a reference to the underlying Wasmtime engine.
     pub fn engine(&self) -> &Engine {
         &self.engine
     }
 
-    // WASI preview 2 context (Component Model)
+    /// Constructs a WASI Preview 2 context with inherited stdio, env, args,
+    /// network access, and the current directory preopened.
     pub fn create_wasi_ctx() -> WasiCtx {
         WasiCtxBuilder::new()
             .inherit_stdio()
@@ -44,7 +55,8 @@ impl WasmRuntime {
             .build()
     }
 
-    // WASI preview 1 context (classic WASI)
+    /// Constructs a WASI Preview 1 context (classic WASI) with the same
+    /// permissions as `create_wasi_ctx`.
     pub fn create_wasi_p1_ctx() -> WasiP1Ctx {
         WasiCtxBuilder::new()
             .inherit_stdio()
@@ -57,7 +69,8 @@ impl WasmRuntime {
             .build_p1()
     }
 
-    // New store (execution context) with WASI support
+    /// Creates a new `Store<WasmContext>` with both WASI P1 and P2 contexts
+    /// and a fresh resource table.
     pub fn create_store(&self) -> Store<WasmContext> {
         let context = WasmContext {
             wasi: Self::create_wasi_ctx(),
@@ -67,20 +80,26 @@ impl WasmRuntime {
         Store::new(&self.engine, context)
     }
 
-    // Alias for create_store (for backwards compatibility)
+    /// Backwards-compatible alias for [`Self::create_store`].
     pub fn create_store_with_ctx(&self) -> Store<WasmContext> {
         self.create_store()
     }
 }
 
-// Represents a loaded WASM module or component
+/// A compiled WASM module — either a WASI Preview 2 component or a
+/// WASI Preview 1 classic module.
+///
+/// Loading is format-agnostic: `load_from_bytes` auto-detects the binary
+/// magic header (classic vs component) and also supports WAT text format.
 pub enum WasmModule {
-    Component { component: Component }, // WASI Preview 2 component
-    Classic { module: Module },         // WASI Preview 1 classic module
+    /// WASI Preview 2 component
+    Component { component: Component },
+    /// WASI Preview 1 classic module
+    Classic { module: Module },
 }
 
 impl WasmModule {
-    // Load a module from a file path
+    /// Loads a module from a file path. Auto-detects format by magic header.
     pub fn load(engine: &Engine, path: &Path) -> Result<Self, RuntimeError> {
         let wasm_bytes = std::fs::read(path).map_err(|e| {
             RuntimeError::InvalidOperation(format!(
@@ -100,7 +119,8 @@ impl WasmModule {
         Self::load_from_binary(engine, &name, &wasm_bytes)
     }
 
-    // Load from raw bytes - auto-detects binary format (classic vs component) or WAT text
+    /// Loads from raw bytes — auto-detects WASM binary magic header
+    /// (classic vs component) or parses WAT text format.
     fn load_from_binary(
         engine: &Engine,
         name: &str,
@@ -148,7 +168,7 @@ impl WasmModule {
         )))
     }
 
-    // Load a WASI preview 2 component
+    /// Compiles a WASI Preview 2 component from bytes.
     fn load_component(
         engine: &Engine,
         name: &str,
@@ -164,7 +184,7 @@ impl WasmModule {
         Ok(WasmModule::Component { component })
     }
 
-    // Load a WASI preview 1 classic module
+    /// Compiles a WASI Preview 1 classic module from bytes.
     fn load_classic_module(
         engine: &Engine,
         name: &str,
@@ -180,7 +200,7 @@ impl WasmModule {
         Ok(WasmModule::Classic { module })
     }
 
-    // Load from bytes (wrapper)
+    /// Public wrapper around `load_from_binary`.
     pub fn load_from_bytes(
         engine: &Engine,
         name: &str,
@@ -189,7 +209,10 @@ impl WasmModule {
         Self::load_from_binary(engine, name, bytes)
     }
 
-    // Instantiate the module into a runnable instance
+    /// Instantiates the compiled module into a runnable [`WasmInstance`].
+    ///
+    /// Links WASI imports (P1 or P2) automatically and captures exported
+    /// memory for classic modules.
     pub fn instantiate(
         &self,
         store: &mut Store<WasmContext>,
@@ -244,7 +267,7 @@ impl WasmModule {
         }
     }
 
-    // Get the type name of this module for debugging
+    /// Returns a human-readable type name for debugging (`"component"` or `"classic"`).
     pub fn name(&self) -> &'static str {
         match self {
             WasmModule::Component { .. } => "component",
@@ -252,6 +275,7 @@ impl WasmModule {
         }
     }
 
+    /// Returns the inner `Component` if this is a component module, `None` otherwise.
     pub fn component(&self) -> Option<&Component> {
         match self {
             WasmModule::Component { component } => Some(component),
@@ -260,24 +284,30 @@ impl WasmModule {
     }
 }
 
-// Instantiated WASM module - can be called and queried
+/// An instantiated WASM module — ready for function calls and memory access.
+///
+/// Provides a unified API over both WASI Preview 1 (classic) and
+/// Preview 2 (component) instances, handling value conversions internally.
 pub enum WasmInstance {
     Component(WasmComponentInstance),
     Classic(WasmClassicInstance),
 }
 
-// WASI Preview 2 component instance wrapper
+/// Wrapper around an instantiated WASI Preview 2 component.
 pub struct WasmComponentInstance {
     instance: Instance,
 }
 
 impl WasmComponentInstance {
-    // Get an exported function by name
+    /// Looks up an exported function by name.
     fn get_export(&self, store: &mut Store<WasmContext>, name: &str) -> Option<Func> {
         self.instance.get_func(store, name)
     }
 
-    // Call an exported function with component values
+    /// Calls an exported function using component-model `Val` types.
+    ///
+    /// Pre-allocates the result vector based on the function's declared
+    /// return arity.
     pub fn call_func_with_args(
         &self,
         store: &mut Store<WasmContext>,
@@ -307,26 +337,27 @@ impl WasmComponentInstance {
     }
 }
 
-// WASI Preview 1 classic module instance wrapper
+/// Wrapper around an instantiated WASI Preview 1 classic module.
 pub struct WasmClassicInstance {
     instance: wasmtime::Instance,
-    memory: Option<Memory>, // Optional exported memory
+    /// Exported linear memory, if the module exports one named "memory".
+    memory: Option<Memory>,
 }
 
 impl WasmClassicInstance {
-    // Get exported memory if available
+    /// Returns the exported linear memory, if available.
     pub fn get_memory(&self) -> Option<&Memory> {
         self.memory.as_ref()
     }
 
-    // Get an exported function by name
+    /// Looks up an exported function by name.
     fn get_export(&self, store: &mut Store<WasmContext>, name: &str) -> Option<wasmtime::Func> {
         self.instance
             .get_export(&mut *store, name)
             .and_then(|e| e.into_func())
     }
 
-    // Call an exported function with classic (non-component) values
+    /// Calls an exported function using classic (non-component) `Val` types.
     pub fn call_func_with_args(
         &self,
         store: &mut Store<WasmContext>,
@@ -354,7 +385,10 @@ impl WasmClassicInstance {
 }
 
 impl WasmInstance {
-    // Get names of all exported functions
+    /// Returns the names of all exported functions.
+    ///
+    /// For classic modules this is a flat list. For components, nested
+    /// instance exports are flattened with `instance#function` notation.
     pub fn get_export_names(
         &self,
         store: &mut Store<WasmContext>,
@@ -393,12 +427,14 @@ impl WasmInstance {
                         }
                     }
                     names
-                } else { Vec::new() }
+                } else {
+                    Vec::new()
+                }
             }
         }
     }
 
-    // Check if a function with the given name exists
+    /// Checks whether an exported function with the given name exists.
     pub fn has_func(&self, store: &mut Store<WasmContext>, name: &str) -> bool {
         match self {
             WasmInstance::Component(i) => i.get_export(store, name).is_some(),
@@ -406,7 +442,8 @@ impl WasmInstance {
         }
     }
 
-    // Get exported memory (only available for classic modules)
+    /// Returns exported linear memory (only available for classic modules).
+    /// Components handle memory through the resource table instead.
     pub fn get_memory(&self) -> Option<&Memory> {
         match self {
             // Components handle memory differently through the resource table

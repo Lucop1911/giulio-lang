@@ -387,7 +387,8 @@ impl Scope {
                 self.process_expr(object, locals);
             }
             Expr::AwaitExpr(e) => self.process_expr(e, locals),
-            Expr::LitExpr(_) | Expr::ThisExpr => {} | Expr::LitIndex(_) => {}
+            Expr::LitExpr(_) | Expr::ThisExpr => {}
+            Expr::LitIndex(_) => {}
         }
     }
 

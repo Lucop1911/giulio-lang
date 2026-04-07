@@ -13,6 +13,10 @@ use std::str::Utf8Error;
 
 use crate::lexer::token::*;
 
+/// Generates a parser for a fixed syntactic token (e.g. operators, punctuation).
+///
+/// Each invocation produces a function `fn $func_name(s: &[u8]) -> IResult<&[u8], Token>`
+/// that matches `$tag_string` and returns `$output_token`.
 macro_rules! syntax {
     ($func_name: ident, $tag_string: literal, $output_token: expr) => {
         fn $func_name(s: &[u8]) -> IResult<&[u8], Token> {
@@ -21,7 +25,9 @@ macro_rules! syntax {
     };
 }
 
-// operators
+// ─── Operator parsers ───────────────────────────────────────────────
+// Compound operators (e.g. `+=`) must appear before their prefix (`+`)
+// in the `alt` chain to ensure longest-match semantics.
 syntax! {plus_assign_operator, "+=", Token::PlusAssign}
 syntax! {minus_assign_operator, "-=", Token::MinusAssign}
 syntax! {multiply_assign_operator, "*=", Token::MultiplyAssign}
@@ -68,6 +74,8 @@ pub fn lex_operator(input: &[u8]) -> IResult<&[u8], Token> {
     ))(input)
 }
 
+// ─── Punctuation parsers ────────────────────────────────────────────
+
 syntax! {comma_punctuation, ",", Token::Comma}
 syntax! {semicolon_punctuation, ";", Token::SemiColon}
 syntax! {colon_punctuation, ":", Token::Colon}
@@ -80,6 +88,9 @@ syntax! {rbracket_punctuation, "]", Token::RBracket}
 syntax! {dot_punctuation, ".", Token::Dot}
 syntax! {double_colon_punctuation, "::", Token::DoubleColon}
 
+/// Dispatches to individual punctuation parsers.
+/// Order matters only for correctness — all punctuation tokens are
+/// mutually exclusive, so no longest-match concerns apply.
 pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
     alt((
         comma_punctuation,
@@ -96,7 +107,7 @@ pub fn lex_punctuations(input: &[u8]) -> IResult<&[u8], Token> {
     ))(input)
 }
 
-// String parsing
+// ─── String literal parsing ─────────────────────────────────────────
 fn parse_escaped_char(input: &[u8]) -> IResult<&[u8], char> {
     preceded(
         tag("\\"),
@@ -146,7 +157,11 @@ fn complete_byte_slice_str_from_utf8(c: &[u8]) -> Result<&str, Utf8Error> {
     str::from_utf8(c)
 }
 
-// Reserved or ident
+/// Matches reserved keywords and identifiers.
+///
+/// Keywords are recognised by comparing the lexed text against a fixed set.
+/// Anything that matches the identifier pattern but is not a keyword becomes
+/// an `Ident` token.
 fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
     map_res(
         recognize(pair(
@@ -184,7 +199,12 @@ fn lex_reserved_ident(input: &[u8]) -> IResult<&[u8], Token> {
     )(input)
 }
 
-// Numbers parsing
+/// Numeric literal parser.
+///
+/// Handles integers, floats, and arbitrarily large integers (BigInt).
+/// The parser distinguishes floats by checking for a decimal point
+/// followed by at least one digit — this prevents `123.to_string()` from
+/// being misinterpreted as a float literal.
 fn lex_number(input: &[u8]) -> IResult<&[u8], Token, nom::error::Error<&[u8]>> {
     let (remaining, digits) = map_res(digit1, complete_byte_slice_str_from_utf8)(input)?;
 
@@ -230,11 +250,17 @@ fn lex_number(input: &[u8]) -> IResult<&[u8], Token, nom::error::Error<&[u8]>> {
     Ok((remaining, token))
 }
 
-// Illegal tokens
+/// Matches a single unrecognised byte as an `Illegal` token.
 fn lex_illegal(input: &[u8]) -> IResult<&[u8], Token> {
     map(take(1usize), |_| Token::Illegal)(input)
 }
 
+/// Top-level token dispatcher.
+///
+/// Tries each lexer in order: strings → operators → punctuation →
+/// keywords/identifiers → numbers → illegal. The order is critical for
+/// compound operators (e.g. `+=` before `+`) which is handled inside
+/// `lex_operator`.
 fn lex_token(input: &[u8]) -> IResult<&[u8], Token> {
     alt((
         lex_string,

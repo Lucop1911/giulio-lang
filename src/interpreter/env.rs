@@ -1,3 +1,18 @@
+//! Scoped variable environment for the interpreter.
+//!
+//! The [`Environment`] stores bindings using a dual strategy:
+//!
+//! 1. **Slot-based** (`slots: Vec<Object>`) — O(1) indexed access for
+//!    function parameters and local `let` bindings. Slot indices are
+//!    assigned by the compiler pass in `compute_slots`.
+//! 2. **Name-based** (`store: HashMap<String, Object>`) — fallback for
+//!    builtins, top-level globals, and variables captured from enclosing
+//!    scopes whose slot indices would collide with the current frame.
+//!
+//! Environments form a parent chain (`Option<Arc<Mutex<Environment>>>`)
+//! that implements lexical scoping. Closures capture their defining
+//! environment via `Arc<Mutex<Environment>>`.
+
 use crate::ast::ast::{Ident, Program, SlotIndex, Stmt};
 use crate::interpreter::builtins::functions::BuiltinsFunctions;
 use crate::interpreter::obj::Object;
@@ -7,9 +22,12 @@ use std::sync::{Arc, Mutex};
 
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
-// The environment stores variables in two ways:
-// - store: HashMap for name-based lookups (builtins, top-level lets, globals)
-// - slots: Vec for O(1) slot-based lookups (function params and locals)
+/// The environment stores variables in two ways:
+/// - `store`: HashMap for name-based lookups (builtins, top-level lets, globals)
+/// - `slots`: Vec for O(1) slot-based lookups (function params and locals)
+///
+/// Environments form a parent chain that implements lexical scoping.
+/// Closures capture their defining environment via `Arc<Mutex<Environment>>`.
 #[derive(Debug, Clone)]
 pub struct Environment {
     store: HashMap<String, Object>,

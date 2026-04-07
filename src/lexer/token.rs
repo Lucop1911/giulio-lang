@@ -3,6 +3,11 @@ use num_bigint::BigInt;
 use std::iter::Enumerate;
 use std::ops::{Range, RangeFrom, RangeFull, RangeTo};
 
+/// Lexical tokens produced by the [`Lexer`](super::lexer::Lexer).
+///
+/// Keywords, operators, literals, and punctuation are all represented here.
+/// The `Tokens` wrapper below adapts a slice of these into a `nom`-compatible
+/// input type so that parser combinators can consume them.
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Illegal,
@@ -76,6 +81,10 @@ pub enum Token {
     Await,
 }
 
+/// A `nom`-compatible input wrapper over a slice of [`Token`]s.
+///
+/// Tracks `start` and `end` offsets so that error messages can reference
+/// the original position in the token stream.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Tokens<'a> {
     pub token: &'a [Token],
@@ -84,6 +93,7 @@ pub struct Tokens<'a> {
 }
 
 impl<'a> Tokens<'a> {
+    /// Creates a new `Tokens` wrapper over the full slice.
     pub fn new(vec: &'a [Token]) -> Self {
         Tokens {
             token: vec,
@@ -92,6 +102,9 @@ impl<'a> Tokens<'a> {
         }
     }
 }
+
+// nom trait implementations — these allow `Tokens` to be used as the
+// input type for nom parser combinators.
 
 impl<'a> InputLength for Tokens<'a> {
     #[inline]

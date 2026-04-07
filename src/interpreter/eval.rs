@@ -1,3 +1,10 @@
+//! Tree-walk interpreter that evaluates an AST into [`Object`] values.
+//!
+//! The evaluator is async-first to support `async fn`, `await`, and
+//! async stdlib functions (HTTP, file I/O, etc.). A synchronous
+//! evaluation path (`eval_expr_sync`) is also available for contexts
+//! where async is not needed (e.g. C-style for-loop conditions).
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -13,8 +20,17 @@ use crate::{
     },
 };
 
+/// A boxed, `Send` future that resolves to an [`Object`].
+///
+/// This is the return type of all async evaluation methods, allowing
+/// the evaluator to be used in multi-threaded async runtimes.
 pub type EvalFuture = Pin<Box<dyn Future<Output = Object> + Send + 'static>>;
 
+/// The core interpreter.
+///
+/// Holds the current environment (variable store + slot vector), a module
+/// registry for imports, and a flag tracking whether we are inside an
+/// async context (to reject bare `await` outside async functions).
 pub struct Evaluator {
     pub(crate) env: Arc<Mutex<Environment>>,
     pub(crate) module_registry: Arc<Mutex<ModuleRegistry>>,

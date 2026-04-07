@@ -1,5 +1,8 @@
 use std::fmt;
 
+/// Top-level error enum that covers every compilation and runtime phase.
+///
+/// This is the primary error type exposed to users of the library.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LangError {
     Lexer(LexerError),
@@ -7,6 +10,7 @@ pub enum LangError {
     Runtime(RuntimeError),
 }
 
+/// Errors produced during lexical analysis.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LexerError {
     InvalidToken(String),
@@ -14,6 +18,7 @@ pub enum LexerError {
     UnterminatedString,
 }
 
+/// Errors produced during syntactic analysis (parsing).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParserError {
     UnexpectedToken(String),
@@ -23,6 +28,7 @@ pub enum ParserError {
     AwaitOutsideAsync,
 }
 
+/// Errors produced during program execution.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
     TypeMismatch { expected: String, got: String },

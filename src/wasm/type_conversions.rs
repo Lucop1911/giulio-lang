@@ -1,3 +1,16 @@
+//! Type conversions between G-lang [`Object`]s and WASM values.
+//!
+//! This module handles the FFI boundary between the interpreter and
+//! the WASM runtime. It provides:
+//!
+//! - [`WasmType`] — enumeration of core WASM primitive types
+//! - [`TypeMapping`] — bidirectional mapping between G-lang type names
+//!   (`"Int"`, `"Float"`, `"Bool"`) and WASM types
+//! - [`g_to_component_val`] / [`component_val_to_g`] — conversion between
+//!   G-lang `Object` and WASM component-model `Val`
+//! - [`WasmMemoryManager`] — bump allocator and string read/write helpers
+//!   for interacting with WASM linear memory
+
 use crate::errors::RuntimeError;
 use crate::interpreter::obj::Object;
 use std::cell::RefCell;
@@ -8,6 +21,7 @@ use wasmtime::{Memory, Store, ValType};
 #[cfg(feature = "wasm")]
 use wasmtime::component::Val as ComponentVal;
 
+/// Core WASM primitive types supported by the FFI layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WasmType {
     I32,
@@ -49,6 +63,12 @@ impl WasmType {
     }
 }
 
+/// Bidirectional type name mapping between G-lang and WASM.
+///
+/// Maps G-lang type names (`"Int"`, `"Float"`, `"Bool"`, `"String"`)
+/// to their closest WASM equivalents and vice versa. Used when
+/// introspecting WASM module signatures to determine how to marshal
+/// arguments and return values.
 pub struct TypeMapping {
     g_to_wasm: HashMap<String, WasmType>,
     wasm_to_g: HashMap<WasmType, String>,
@@ -90,6 +110,15 @@ impl Default for TypeMapping {
     }
 }
 
+/// Converts a G-lang [`Object`] to a WASM component-model `Val`.
+///
+/// Supported conversions:
+/// - `Object::Integer` → `Val::S32` (truncated to 32-bit)
+/// - `Object::Float` → `Val::Float64`
+/// - `Object::Boolean` → `Val::S32` (1 or 0)
+///
+/// All other object types return an error, as WASM has no native
+/// representation for arrays, strings, or hash maps.
 pub fn g_to_component_val(obj: &Object) -> Result<ComponentVal, RuntimeError> {
     match obj {
         Object::Integer(n) => Ok(ComponentVal::S32(*n as i32)),
@@ -102,11 +131,15 @@ pub fn g_to_component_val(obj: &Object) -> Result<ComponentVal, RuntimeError> {
     }
 }
 
+/// Converts a WASM component-model `Val` back to a G-lang [`Object`].
+///
+/// All integer variants (signed/unsigned, 32/64-bit) are unified into
+/// `Object::Integer`. Float variants map to `Object::Float`.
 pub fn component_val_to_g(val: &ComponentVal) -> Result<Object, RuntimeError> {
     match val {
         ComponentVal::S32(n) => Ok(Object::Integer(*n as i64)),
         ComponentVal::U32(n) => Ok(Object::Integer(*n as i64)),
-        ComponentVal::S64(n) => Ok(Object::Integer(*n as i64)),
+        ComponentVal::S64(n) => Ok(Object::Integer(*n)),
         ComponentVal::U64(n) => Ok(Object::Integer(*n as i64)),
         ComponentVal::Float32(n) => Ok(Object::Float(*n as f64)),
         ComponentVal::Float64(n) => Ok(Object::Float(*n)),
@@ -117,6 +150,10 @@ pub fn component_val_to_g(val: &ComponentVal) -> Result<Object, RuntimeError> {
     }
 }
 
+/// Finds the first contiguous free region of `size` bytes in WASM linear memory.
+///
+/// This is a naive first-fit allocator that scans from address 0. Suitable
+/// for small allocations but O(n × size) in the worst case.
 pub fn allocate_in_wasm_memory<T>(
     memory: &Memory,
     store: &mut Store<T>,
@@ -150,6 +187,10 @@ pub fn allocate_in_wasm_memory<T>(
     ))
 }
 
+/// Reads a null-terminated C string from WASM linear memory.
+///
+/// Reads up to `max_len` bytes starting at `ptr` and stops at the first
+/// null byte. Returns an error if the bytes are not valid UTF-8.
 pub fn read_string_from_wasm<T>(
     memory: &Memory,
     store: &mut Store<T>,
@@ -175,8 +216,15 @@ pub fn read_string_from_wasm<T>(
     }
 }
 
+/// Bump allocator and string I/O helpers for WASM linear memory.
+///
+/// Manages a monotonic allocation pointer (`next_ptr`) starting at 4096
+/// (leaving the low addresses free for WASM internals). Provides methods
+/// to allocate raw regions and write/read null-terminated strings.
 pub struct WasmMemoryManager {
     pub memory: Memory,
+    /// Monotonic bump-allocation pointer wrapped in `Arc<RefCell>` so
+    /// it can be shared across multiple calls.
     pub next_ptr: Arc<RefCell<usize>>,
 }
 

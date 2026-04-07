@@ -1,3 +1,10 @@
+//! Pratt-parser implementation built on `nom` combinators.
+//!
+//! The parser consumes a stream of [`Token`]s and produces an
+//! [`ast::Program`](crate::ast::ast::Program). Expression parsing uses a
+//! precedence-climbing (Pratt) strategy so that operator precedence and
+//! associativity are handled correctly without grammar ambiguity.
+
 use nom::bytes::complete::take;
 use nom::combinator::{cut, map, opt, verify};
 use nom::error::{Error, ErrorKind};
@@ -14,8 +21,10 @@ use crate::lexer::token::{Token, Tokens};
 use crate::parser::await_ctx_helpers::validate_await_usage;
 use crate::parser::parser_helpers::*;
 
-// TOKEN TAG MACRO
-
+/// Generates a parser that consumes exactly one token matching `$tag`.
+///
+/// Each invocation produces a function `fn $func_name(tokens: Tokens) -> IResult<Tokens, Tokens>`
+/// that peeks the first token, checks equality, and advances the stream on success.
 macro_rules! tag_token {
     ($func_name:ident, $tag:expr) => {
         #[inline]
@@ -27,7 +36,7 @@ macro_rules! tag_token {
     };
 }
 
-// LITERAL/IDENTIFIER PARSING
+// ─── Literal and identifier parsers ─────────────────────────────────
 
 fn parse_literal(input: Tokens) -> IResult<Tokens, Literal> {
     let (i1, t1) = take(1usize)(input)?;
@@ -65,7 +74,9 @@ fn parse_tuple_of_idents(input: Tokens) -> IResult<Tokens, Vec<Ident>> {
     parens(comma_separated1(parse_ident))(input)
 }
 
-// TOKEN TAGS
+// ─── Token tag parsers ──────────────────────────────────────────────
+// Each macro invocation generates a `fn(tag: Tokens) -> IResult<Tokens, Tokens>`
+// that consumes one token if it matches the expected variant.
 
 tag_token!(let_tag, Token::Let);
 tag_token!(assign_tag, Token::Assign);
@@ -108,7 +119,10 @@ tag_token!(throw_tag, Token::Throw);
 tag_token!(async_tag, Token::Async);
 tag_token!(await_tag, Token::Await);
 
-// OPERATOR PRECEDENCE
+// ─── Operator precedence table ──────────────────────────────────────
+// Maps a token to its (precedence, infix_operator) pair.
+// Used by the Pratt parser to decide whether to continue binding
+// or return the current left-hand side.
 
 fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     match *t {
@@ -133,7 +147,7 @@ fn infix_op(t: &Token) -> (Precedence, Option<Infix>) {
     }
 }
 
-// PROGRAM AND STATEMENTS
+// ─── Program, expression, and statement parsers ─────────────────────
 
 fn parse_program(input: Tokens) -> IResult<Tokens, Program> {
     terminated(many0(parse_stmt), eof_tag)(input)
@@ -143,12 +157,17 @@ fn parse_expr(input: Tokens) -> IResult<Tokens, Expr> {
     parse_pratt_expr(input, Precedence::PLowest)
 }
 
+/// Top-level statement dispatcher.
+///
+/// Tries each statement parser in order via `alt`. The final fallback
+/// `parse_expr_or_assign_stmt` catches anything that looks like an
+/// expression or assignment.
 fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     alt((
         parse_import_stmt,
         parse_let_stmt,
         parse_tuple_assign_stmt,
-        parse_fn_declaration, // Async and Sync fn handler
+        parse_fn_declaration,
         parse_return_stmt,
         parse_struct_stmt,
         parse_while_stmt,
@@ -160,7 +179,10 @@ fn parse_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     ))(input)
 }
 
-// Helper to parse both sync and async function declarations
+/// Parses both sync and async function declarations.
+///
+/// An `async fn` is desugared into a `LetStmt` binding an `AsyncFnExpr`,
+/// while a plain `fn` becomes a `FnStmt`.
 fn parse_fn_declaration(input: Tokens) -> IResult<Tokens, Stmt> {
     map(
         tuple((
@@ -181,8 +203,17 @@ fn parse_fn_declaration(input: Tokens) -> IResult<Tokens, Stmt> {
     )(input)
 }
 
-// ASSIGNMENT/EXPRESSION PARSING
+// ─── Assignment and expression parsing ──────────────────────────────
 
+/// Parses an expression, then determines whether it forms a statement.
+///
+/// Three outcomes are possible:
+/// 1. A simple `=` assignment (`x = expr`)
+/// 2. A compound assignment (`x += expr`)
+/// 3. An expression statement (`expr;` or trailing expr in a block)
+///
+/// Block expressions (if, fn, while, for, try-catch) do not require a
+/// trailing semicolon when they appear at the end of a block.
 fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     let (i1, lhs_expr) = parse_expr(input)?;
 
@@ -465,6 +496,17 @@ fn parse_atom_expr(input: Tokens) -> IResult<Tokens, Expr> {
     ))(input)
 }
 
+// ─── Pratt parser (precedence climbing) ─────────────────────────────
+
+/// Core expression parser using Pratt's precedence-climbing algorithm.
+///
+/// The algorithm works in two phases:
+/// 1. Parse an atom (literal, identifier, parenthesised expr, etc.)
+/// 2. Loop: while the next infix operator has higher precedence than
+///    the current `precedence` threshold, consume it and recurse.
+///
+/// This correctly handles precedence and left-associativity without
+/// the grammar ambiguity issues of a naive recursive approach.
 fn parse_pratt_expr(input: Tokens, precedence: Precedence) -> IResult<Tokens, Expr> {
     let (mut i, mut left) = parse_atom_expr(input)?;
 
@@ -817,7 +859,7 @@ pub struct Parser;
 impl Parser {
     pub fn parse_tokens(tokens: Tokens) -> IResult<Tokens, Program> {
         let (rest, program) = parse_program(tokens)?;
-        if let Err(_) = validate_await_usage(&program) {
+        if validate_await_usage(&program).is_err() {
             return Err(Err::Error(Error::new(tokens, ErrorKind::Verify)));
         }
 

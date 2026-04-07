@@ -7,7 +7,17 @@ use g_lang::runners::run_check::run_check;
 use g_lang::runners::run_source::run_source;
 use g_lang::runners::run_repl_mode::repl;
 
-
+/// CLI entry point.
+///
+/// Dispatches to one of four execution modes based on the first CLI argument:
+///
+/// | Argument            | Mode                                  |
+/// |---------------------|---------------------------------------|
+/// | *(none)*            | REPL (interactive read-eval-print)    |
+/// | `run <file>`        | Execute a `.g` script                 |
+/// | `check <file>`      | Parse-only syntax validation          |
+/// | `-v` / `--version`  | Print version and exit                |
+/// | `-h` / `--help`     | Print usage and exit                  |
 #[tokio::main]
 async fn main() {
     let mut evaluator = Evaluator::default();

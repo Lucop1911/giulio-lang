@@ -1,3 +1,11 @@
+//! Runtime value representation for the G-lang interpreter.
+//!
+//! [`Object`] is the central type that every expression evaluates to.
+//! It covers primitives (integers, floats, strings, booleans), collections
+//! (arrays, hash maps), first-class functions (sync and async), builtin
+//! functions, structs, modules, and control-flow sentinels (Break, Continue,
+//! ReturnValue, ThrownValue).
+
 use ahash::AHasher;
 use num_bigint::BigInt;
 use std::fmt;
@@ -15,6 +23,11 @@ pub type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHas
 
 pub use crate::interpreter::constant_pool::ConstantPool;
 
+/// The universal value type of the G-lang runtime.
+///
+/// Every expression in a G-lang program evaluates to one of these variants.
+/// The enum is deliberately flat — there is no deep inheritance hierarchy,
+/// just a single match on the shape of the value.
 #[derive(Clone)]
 pub enum Object {
     Integer(i64),
@@ -24,33 +37,51 @@ pub enum Object {
     String(String),
     Array(Vec<Object>),
     Hash(HashMap<Object, Object>),
+    /// User-defined function: (params, body, closure_env, constant_pool)
     Function(Vec<Ident>, Program, Arc<Mutex<Environment>>, ConstantPool),
+    /// Async user-defined function: (params, body, closure_env)
     AsyncFunction(Vec<Ident>, Program, Arc<Mutex<Environment>>),
+    /// Builtin function implemented in Rust (simple variant).
     Builtin(String, usize, usize, BuiltinFunction),
+    /// Builtin function with RuntimeError-based error handling.
     BuiltinStd(String, usize, usize, StdFunction),
+    /// Async builtin function.
     BuiltinStdAsync(String, usize, usize, AsyncStdFunction),
+    /// A function imported from a WASM module.
     WasmImportedFunction {
         module_name: String,
         func_name: String,
         instance: Arc<Mutex<Option<WasmInstance>>>,
     },
+    /// A struct value with named fields and methods.
     Struct {
         name: String,
         fields: HashMap<String, Object>,
         methods: HashMap<String, Object>,
         constants: ConstantPool,
     },
+    /// A loaded module with its exported bindings.
     Module {
         name: String,
         exports: HashMap<String, Object>,
     },
     Null,
+    /// Wraps a value that was returned from a function.
+    /// Used as a control-flow sentinel to short-circuit evaluation.
     ReturnValue(Box<Object>),
     Error(RuntimeError),
+    /// A method bound to a struct instance.
     Method(Vec<Ident>, Program, Arc<Mutex<Environment>>, ConstantPool),
+    /// Control-flow sentinel: exits the innermost loop.
     Break,
+    /// Control-flow sentinel: skips to the next loop iteration.
     Continue,
+    /// Wraps a value passed to `throw`. Propagates up the call stack
+    /// until caught by a `try/catch` or reaches the top level.
     ThrownValue(Box<Object>),
+    /// An async computation that has not yet been awaited.
+    /// The inner future is `Option`-wrapped so that `await` can
+    /// take ownership exactly once (double-await is an error).
     Future(
         Arc<
             Mutex<

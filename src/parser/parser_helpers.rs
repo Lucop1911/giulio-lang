@@ -1,3 +1,11 @@
+//! Shared parser combinators and utilities used throughout the Pratt parser.
+//!
+//! This module provides:
+//! - Peek helpers (`peek_token`, `peek_matches`) for lookahead without consuming
+//! - Delimited combinators (`parens`, `braced`, `bracketed`)
+//! - Comma-separated list parsers (`comma_separated0`, `comma_separated1`)
+//! - Assignment operator conversion helpers
+
 use crate::ast::ast::Infix;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::parser::*;
@@ -17,7 +25,7 @@ pub fn peek_token(input: Tokens<'_>) -> Option<&'_ Token> {
 // Check if next token matches expected
 #[inline]
 pub fn peek_matches(input: Tokens, expected: Token) -> bool {
-    peek_token(input).map_or(false, |t| *t == expected)
+    peek_token(input).is_some_and(|t| *t == expected)
 }
 
 pub fn peek_assign_op(input: Tokens) -> IResult<Tokens, String> {
@@ -84,7 +92,7 @@ where
 }
 
 pub fn aug_assign_to_infix<'a>(input: Tokens<'a>) -> IResult<Tokens<'a>, Infix> {
-    let (i1, t1) = take(1usize)(input).map_err(|e| e)?;
+    let (i1, t1) = take(1usize)(input)?;
 
     if t1.token.is_empty() {
         return Err(nom::Err::Error(Error::new(

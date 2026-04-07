@@ -24,7 +24,7 @@ pub async fn async_time_sleep(args: Vec<Object>) -> Result<Object, RuntimeError>
             Ok(Object::Null)
         }
         Some(Object::BigInteger(bi)) => {
-            sleep(Duration::from_millis(bi.to_u64().unwrap_or(std::u64::MAX))).await;
+            sleep(Duration::from_millis(bi.to_u64().unwrap_or(u64::MAX))).await;
             Ok(Object::Null)
         }
         Some(o) => Err(RuntimeError::TypeMismatch { expected: "integer".to_string(), got: o.type_name() }),
