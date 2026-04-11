@@ -27,8 +27,8 @@ fn parse_test_helper(input: &str) -> Program {
 }
 
 async fn vm_test_helper(input: &str) -> Object {
-    let program = parse_test_helper(input);
-    let chunk = Compiler::compile_program(&program);
+    let mut program = parse_test_helper(input);
+    let chunk = Compiler::compile_program(&mut program);
     let globals = Arc::new(Mutex::new(Environment::new()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     let mut vm = VirtualMachine::new(globals, module_registry);

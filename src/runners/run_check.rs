@@ -1,5 +1,5 @@
-use crate::compiler::compute_slots::compute_slots;
 use crate::parser_errors::{convert_nom_error, show_error_context};
+use crate::vm::compiler::compute_slots::compute_slots;
 use crate::{Lexer, Parser, Tokens};
 
 pub fn run_check(input: &str) {

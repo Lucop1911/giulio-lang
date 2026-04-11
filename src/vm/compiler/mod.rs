@@ -17,6 +17,7 @@
 //! - `collections.rs` — arrays, hashes, indexing, struct literals
 
 pub mod collections;
+pub mod compute_slots;
 pub mod control_flow;
 pub mod exceptions;
 pub mod expressions;
@@ -24,9 +25,9 @@ pub mod functions;
 pub mod statements;
 
 use crate::ast::ast::{Expr, Ident, Program, Stmt};
-use crate::compiler::compute_slots::compute_slots;
 use crate::runtime::obj::Object;
 use crate::vm::chunk::Chunk;
+use crate::vm::compiler::compute_slots::compute_slots;
 use crate::vm::instruction::Instruction;
 
 /// A forward-jump placeholder that needs backpatching once the target
@@ -65,11 +66,10 @@ pub struct Compiler {
 impl Compiler {
     /// Compiles a program into a bytecode chunk.
     ///
-    /// Runs `compute_slots` on a clone of the program first so that
-    /// slot indices are available on every `Ident`.
-    pub fn compile_program(program: &Program) -> Chunk {
-        let mut program = program.clone();
-        compute_slots(&mut program);
+    /// Runs `compute_slots` on the program to populate slot indices on every `Ident`.
+    /// The program is passed by mutable reference to avoid cloning the entire AST.
+    pub fn compile_program(program: &mut Program) -> Chunk {
+        compute_slots(program);
 
         let mut compiler = Compiler {
             chunk: Chunk::new(),
@@ -77,7 +77,7 @@ impl Compiler {
             finally_depth: 0,
         };
 
-        compiler.compile_program_body(&program);
+        compiler.compile_program_body(program, false);
         compiler.chunk
     }
 
@@ -134,12 +134,10 @@ impl Compiler {
             finally_depth: 0,
         };
 
-        compiler.compile_program_body(&program);
+        compiler.compile_program_body(&program, false);
 
-        // Emit ReturnValue for the last expression's result
-        if !program.is_empty() {
-            compiler.emit(Instruction::ReturnValue, 0);
-        }
+        // Always emit ReturnValue to ensure the stack is cleaned up correctly
+        compiler.emit(Instruction::ReturnValue, 0);
 
         let param_count = params.len();
 
@@ -160,20 +158,35 @@ impl Compiler {
 
     // ─── Program-level compilation ──────────────────────────────────
 
-    fn compile_program_body(&mut self, program: &Program) {
+    pub fn compile_program_body(&mut self, program: &Program, discard_last: bool) {
+        if program.is_empty() {
+            if !discard_last {
+                self.emit_constant(Object::Null, 0);
+            }
+            return;
+        }
+
         for (i, stmt) in program.iter().enumerate() {
             let line = self.statement_line(stmt);
             self.compile_statement(stmt, line);
 
-            // If this is not the last statement and it's an expression
-            // statement (ends with `;`), pop the result.
-            // ExprValueStmt (no semicolon) keeps its value on the stack.
-            if i < program.len() - 1 {
+            let is_last = i == program.len() - 1;
+            if !is_last || discard_last {
                 match stmt {
-                    Stmt::ExprStmt(_) => {
+                    Stmt::ExprStmt(_) | Stmt::ExprValueStmt(_) => {
                         self.emit(Instruction::Pop, line);
                     }
                     _ => {}
+                }
+            } else {
+                // Last statement and we need its value
+                match stmt {
+                    Stmt::ExprStmt(_) | Stmt::ExprValueStmt(_) => {
+                        // Keeps value on stack
+                    }
+                    _ => {
+                        self.emit_constant(Object::Null, line);
+                    }
                 }
             }
         }

@@ -23,7 +23,6 @@
 //! - **Exception handlers**: A stack of `ExceptionHandler` records for
 //!   try/catch/finally semantics.
 
-
 use std::sync::{Arc, Mutex};
 
 use crate::errors::RuntimeError;
@@ -177,12 +176,222 @@ impl VirtualMachine {
         result
     }
 
-    /// The main execution loop.
+    /// The main execution loop - optimized for sync operations on hot path.
     ///
-    /// Fetches, decodes, and dispatches instructions until the program
-    /// finishes, a return is encountered, or an error occurs.
+    /// This loop is designed to minimize overhead for the common case of synchronous opcodes.
+    /// Only opcodes that require async (Call, CallBuiltin, CallAsync, Await, ImportModule, CallMethod)
+    /// fall through to the async dispatcher.
     async fn execute(&mut self) -> Result<Object, RuntimeError> {
-        loop {
+        'outer_loop: loop {
+            // Get current frame once per iteration
+            let frame = match self.frames.last_mut() {
+                Some(f) => f,
+                None => {
+                    return Ok(self.stack.pop().unwrap_or(Object::Null));
+                }
+            };
+            
+            let mut ip = frame.ip;
+            let chunk = Arc::clone(&frame.chunk);
+            
+            // Main execution path for common opcodes (sync, no async overhead)
+            'sync_loop: loop {
+                if ip >= chunk.code.len() {
+                    // Frame exhausted, pop and continue outer loop
+                    self.frames.pop();
+                    if self.frames.is_empty() {
+                        return Ok(self.stack.pop().unwrap_or(Object::Null));
+                    }
+                    continue 'outer_loop;
+                }
+
+                let opcode_byte = chunk.code[ip];
+                
+                // Inline operand reading for most common opcodes to avoid closures
+                match opcode_byte {
+                    // ─── Stack operations ───
+                    0x00 => { // OpConstant
+                        let idx = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]);
+                        let value = match &chunk.constants[idx as usize] {
+                            Object::Integer(i) => Object::Integer(*i),
+                            Object::Float(f) => Object::Float(*f),
+                            Object::Boolean(b) => Object::Boolean(*b),
+                            Object::Null => Object::Null,
+                            other => other.clone(),
+                        };
+                        self.stack.push(value);
+                        ip += 3;
+                        continue 'sync_loop;
+                    }
+                    0x01 => { // OpPop
+                        self.stack.pop();
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x02 => { // OpDup
+                        if let Some(top) = self.stack.last() {
+                            let value = match top {
+                                Object::Integer(i) => Object::Integer(*i),
+                                Object::Float(f) => Object::Float(*f),
+                                Object::Boolean(b) => Object::Boolean(*b),
+                                Object::Null => Object::Null,
+                                other => other.clone(),
+                            };
+                            self.stack.push(value);
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x03 => { // OpSwap
+                        let len = self.stack.len();
+                        if len >= 2 {
+                            self.stack.swap(len - 1, len - 2);
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x10 => { // OpGetLocal
+                        let slot = chunk.code[ip + 1];
+                        if let Some(frame) = self.frames.last() {
+                            let idx = frame.slots_base + slot as usize;
+                            if idx < self.stack.len() {
+                                let value = match &self.stack[idx] {
+                                    Object::Integer(i) => Object::Integer(*i),
+                                    Object::Float(f) => Object::Float(*f),
+                                    Object::Boolean(b) => Object::Boolean(*b),
+                                    Object::Null => Object::Null,
+                                    other => other.clone(),
+                                };
+                                self.stack.push(value);
+                            } else {
+                                self.stack.push(Object::Null);
+                            }
+                        }
+                        ip += 2;
+                        continue 'sync_loop;
+                    }
+                    0x11 => { // OpSetLocal
+                        let slot = chunk.code[ip + 1];
+                        if let Some(frame) = self.frames.last() {
+                            let idx = frame.slots_base + slot as usize;
+                            if let Some(value) = self.stack.pop() {
+                                if idx >= self.stack.len() {
+                                    self.stack.resize(idx + 1, Object::Null);
+                                }
+                                self.stack[idx] = value;
+                            }
+                        }
+                        ip += 2;
+                        continue 'sync_loop;
+                    }
+                    // ─── Arithmetic (hot path) ───
+                    0x20 => { // OpAdd
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        let a = self.stack.pop().unwrap_or(Object::Null);
+                        let result = match (&a, &b) {
+                            (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_add(*ib)),
+                            (Object::Float(fa), Object::Float(fb)) => Object::Float(fa + fb),
+                            (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
+                            (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
+                            (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
+                            _ => {
+                                match (a, b) {
+                                    (Object::Array(mut arr), val) => {
+                                        arr.push(val);
+                                        Object::Array(arr)
+                                    }
+                                    (a, b) => ops::arithmetic::add(a, b),
+                                }
+                            }
+                        };
+                        self.stack.push(result);
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x21 => { // OpSubtract
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        let a = self.stack.pop().unwrap_or(Object::Null);
+                        let result = match (&a, &b) {
+                            (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_sub(*ib)),
+                            (Object::Float(fa), Object::Float(fb)) => Object::Float(fa - fb),
+                            _ => ops::arithmetic::subtract(a, b),
+                        };
+                        self.stack.push(result);
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x22 => { // OpMultiply
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        let a = self.stack.pop().unwrap_or(Object::Null);
+                        let result = match (&a, &b) {
+                            (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_mul(*ib)),
+                            (Object::Float(fa), Object::Float(fb)) => Object::Float(fa * fb),
+                            _ => ops::arithmetic::multiply(a, b),
+                        };
+                        self.stack.push(result);
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x27 => { // OpLessThan (CRITICAL FOR LOOPS)
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        let a = self.stack.pop().unwrap_or(Object::Null);
+                        let result = match (&a, &b) {
+                            (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia < ib),
+                            (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa < fb),
+                            _ => ops::arithmetic::less_than(a, b),
+                        };
+                        self.stack.push(result);
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x34 => { // OpPopJumpIfFalse (LOOP CONTROL)
+                        let offset = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]);
+                        let value = match self.stack.pop() {
+                            Some(v) => v,
+                            None => {
+                                ip += 3;
+                                continue 'sync_loop;
+                            }
+                        };
+                        let should_jump = match value {
+                            Object::Boolean(b) => !b,
+                            Object::Null => true,
+                            Object::Integer(i) => i == 0,
+                            Object::Float(f) => f == 0.0,
+                            Object::String(s) => s.is_empty(),
+                            Object::Array(a) => a.is_empty(),
+                            Object::Hash(h) => h.is_empty(),
+                            _ => false,
+                        };
+                        if should_jump {
+                            ip = offset as usize;
+                        } else {
+                            ip += 3;
+                        }
+                        continue 'sync_loop;
+                    }
+                    0x30 => { // OpJump
+                        ip = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]) as usize;
+                        continue 'sync_loop;
+                    }
+                    0x31 => { // OpJumpBackward
+                        ip = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]) as usize;
+                        continue 'sync_loop;
+                    }
+                    // For all other opcodes, fall through to async dispatcher
+                    _ => {
+                        // Break out of sync loop to handle with async dispatcher
+                        break 'sync_loop;
+                    }
+                };
+            }
+            
+            // Update IP in frame before async dispatch
+            if let Some(frame) = self.frames.last_mut() {
+                frame.ip = ip;
+            }
+            
+            // Async dispatch path for non-trivial opcodes
             let frame = match self.frames.last() {
                 Some(f) => f,
                 None => {
@@ -191,7 +400,7 @@ impl VirtualMachine {
             };
             let ip = frame.ip;
             let chunk = Arc::clone(&frame.chunk);
-            
+
             if ip >= chunk.code.len() {
                 self.frames.pop();
                 if self.frames.is_empty() {
@@ -207,7 +416,7 @@ impl VirtualMachine {
                     return Err(RuntimeError::InvalidOperation(format!(
                         "Unknown opcode: 0x{:02X} at IP {}",
                         opcode_byte, ip
-                    )));
+                    )))
                 }
             };
 
@@ -229,8 +438,6 @@ impl VirtualMachine {
 
             match result {
                 ExecResult::Continue => {
-                    // Only advance IP if no new frames were added
-                    // (function calls add a new frame, so we don't advance)
                     if self.frames.len() == frame_count_before {
                         if let Some(frame) = self.frames.last_mut() {
                             frame.ip = ip + 1 + width;
@@ -239,7 +446,6 @@ impl VirtualMachine {
                 }
                 ExecResult::ContinueWith(obj) => {
                     self.stack.push(obj);
-                    // Only advance IP if no new frames were added
                     if self.frames.len() == frame_count_before {
                         if let Some(frame) = self.frames.last_mut() {
                             frame.ip = ip + 1 + width;
@@ -247,16 +453,21 @@ impl VirtualMachine {
                     }
                 }
                 ExecResult::Return => {
+                    let frame_count_after = self.frames.len();
                     let return_value = self.stack.pop().unwrap_or(Object::Null);
-                    // Get the callee's slots_base BEFORE popping the frame.
-                    // This is where the callee's stack region starts, and we
-                    // truncate back to it to remove all callee locals/padding.
                     let callee_slots_base = self.frames.last().map(|f| f.slots_base).unwrap_or(0);
-                    self.frames.pop();
-                    self.stack.truncate(callee_slots_base);
-                    self.stack.push(return_value);
-                    if self.frames.is_empty() {
-                        return Ok(self.stack.pop().unwrap_or(Object::Null));
+
+                    if frame_count_after > 0 {
+                        self.frames.pop();
+                        self.stack.truncate(callee_slots_base);
+                        self.stack.push(return_value);
+                        if self.frames.is_empty() {
+                            return Ok(self.stack.pop().unwrap_or(Object::Null));
+                        }
+                    } else {
+                        if let Some(frame) = self.frames.last_mut() {
+                            frame.ip = ip + 1 + width;
+                        }
                     }
                 }
                 ExecResult::Throw => {
@@ -266,18 +477,12 @@ impl VirtualMachine {
                         &mut self.frames,
                     );
                     match result {
-                        Ok(ExecResult::Continue) => {
-                            // The handler has already set frame.ip to the catch/finally address.
-                            // Do NOT advance IP.
-                        }
+                        Ok(ExecResult::Continue) => {},
                         Ok(ExecResult::Throw) => {
-                            // No handler found - this is an uncaught exception at top level.
-                            // Return the ThrownValue on the stack as the result.
                             return Ok(self.stack.pop().unwrap_or(Object::Null));
                         }
                         Ok(_) => {}
                         Err(RuntimeError::UncaughtException(msg)) => {
-                            // Return the uncaught exception as a ThrownValue
                             return Ok(Object::ThrownValue(Box::new(Object::String(msg))));
                         }
                         Err(e) => {
@@ -420,15 +625,22 @@ impl VirtualMachine {
             Opcode::OpAdd => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (a, b) {
+                let result = match (&a, &b) {
+                    (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_add(*ib)),
+                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa + fb),
                     (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
                     (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
                     (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
-                    (Object::Array(mut arr), val) => {
-                        arr.push(val);
-                        Object::Array(arr)
+                    _ => {
+                        // Handle Array and other cases using owned values
+                        match (a, b) {
+                            (Object::Array(mut arr), val) => {
+                                arr.push(val);
+                                Object::Array(arr)
+                            }
+                            (a, b) => ops::arithmetic::add(a, b),
+                        }
                     }
-                    (a, b) => ops::arithmetic::add(a, b),
                 };
                 self.stack.push(result);
                 Ok(ExecResult::Continue)
@@ -436,25 +648,56 @@ impl VirtualMachine {
             Opcode::OpSubtract => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                self.stack.push(ops::arithmetic::subtract(a, b));
+                let result = match (&a, &b) {
+                    (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_sub(*ib)),
+                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa - fb),
+                    _ => ops::arithmetic::subtract(a, b),
+                };
+                self.stack.push(result);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpMultiply => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                self.stack.push(ops::arithmetic::multiply(a, b));
+                let result = match (&a, &b) {
+                    (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_mul(*ib)),
+                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa * fb),
+                    _ => ops::arithmetic::multiply(a, b),
+                };
+                self.stack.push(result);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpDivide => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                self.stack.push(ops::arithmetic::divide(a, b));
+                let result = match (&a, &b) {
+                    (Object::Integer(ia), Object::Integer(ib)) => {
+                        if *ib == 0 {
+                            Object::Error(RuntimeError::DivisionByZero)
+                        } else {
+                            Object::Integer(ia / ib)
+                        }
+                    }
+                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa / fb),
+                    _ => ops::arithmetic::divide(a, b),
+                };
+                self.stack.push(result);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpModulo => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                self.stack.push(ops::arithmetic::modulo(a, b));
+                let result = match (&a, &b) {
+                    (Object::Integer(ia), Object::Integer(ib)) => {
+                        if *ib == 0 {
+                            Object::Error(RuntimeError::DivisionByZero)
+                        } else {
+                            Object::Integer(ia % ib)
+                        }
+                    }
+                    _ => ops::arithmetic::modulo(a, b),
+                };
+                self.stack.push(result);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpEqual => {
@@ -472,7 +715,12 @@ impl VirtualMachine {
             Opcode::OpLessThan => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                self.stack.push(ops::arithmetic::less_than(a, b));
+                let result = match (&a, &b) {
+                    (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia < ib),
+                    (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa < fb),
+                    _ => ops::arithmetic::less_than(a, b),
+                };
+                self.stack.push(result);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpGreaterThan => {
@@ -547,11 +795,26 @@ impl VirtualMachine {
             }
             Opcode::OpPopJumpIfFalse => {
                 let offset = read_u16(1);
-                Ok(ops::stack_vars::execute_pop_jump_if_false(
-                    &mut self.stack,
-                    ops::arithmetic::is_truthy,
-                    offset,
-                ))
+                let value = match self.stack.pop() {
+                    Some(v) => v,
+                    None => return Ok(ExecResult::Continue),
+                };
+                // Inline is_truthy for Boolean (most common case)
+                let should_jump = match value {
+                    Object::Boolean(b) => !b,
+                    Object::Null => true,
+                    Object::Integer(i) => i == 0,
+                    Object::Float(f) => f == 0.0,
+                    Object::String(s) => s.is_empty(),
+                    Object::Array(a) => a.is_empty(),
+                    Object::Hash(h) => h.is_empty(),
+                    _ => false,
+                };
+                if should_jump {
+                    Ok(ExecResult::JumpTo(offset as usize))
+                } else {
+                    Ok(ExecResult::Continue)
+                }
             }
             Opcode::OpCall => {
                 let argc = read_u8(1) as usize;

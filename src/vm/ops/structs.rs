@@ -87,6 +87,7 @@ pub fn execute_get_field(stack: &mut Vec<Object>) {
 
     let result = match struct_obj {
         Object::Struct { fields, .. } => fields.get(&field_name).cloned().unwrap_or(Object::Null),
+        Object::Module { exports, .. } => exports.get(&field_name).cloned().unwrap_or(Object::Null),
         other => Object::Error(RuntimeError::InvalidOperation(format!(
             "Cannot get field from {}",
             other.type_name(),
@@ -158,14 +159,34 @@ pub fn execute_call_method(
     stack: &mut Vec<Object>,
     argc: usize,
 ) -> Result<MethodCallResult, RuntimeError> {
+    // Stack layout before this function:
+    // [... object, method_name, arg1, arg2, ..., argN]
+    //                                          ↑ TOS
+
+    // We need to pop arguments first (they're on top), then method_name, then object
+    let mut args = Vec::new();
+    for _ in 0..argc {
+        match stack.pop() {
+            Some(v) => args.push(v),
+            None => {
+                return Ok(MethodCallResult::Error(Object::Error(
+                    RuntimeError::InvalidOperation("Stack underflow: missing argument".to_string()),
+                )))
+            }
+        }
+    }
+    args.reverse(); // Restore original order
+
+    // Now pop method_name and object
     let method_name_obj = match stack.pop() {
         Some(v) => v,
         None => {
             return Ok(MethodCallResult::Error(Object::Error(
-                RuntimeError::InvalidOperation("Stack underflow on CallMethod".to_string()),
+                RuntimeError::InvalidOperation("Stack underflow: missing method name".to_string()),
             )))
         }
     };
+
     let method_name = match method_name_obj {
         Object::String(s) => s,
         _ => {
@@ -174,11 +195,12 @@ pub fn execute_call_method(
             )))
         }
     };
+
     let struct_obj = match stack.pop() {
         Some(v) => v,
         None => {
             return Ok(MethodCallResult::Error(Object::Error(
-                RuntimeError::InvalidOperation("Stack underflow on CallMethod".to_string()),
+                RuntimeError::InvalidOperation("Stack underflow: missing object".to_string()),
             )))
         }
     };
@@ -187,17 +209,7 @@ pub fn execute_call_method(
         Object::Struct { methods, .. } => {
             if let Some(method) = methods.get(&method_name) {
                 stack.push(method.clone());
-                for _ in 0..argc {
-                    let arg = match stack.pop() {
-                        Some(v) => v,
-                        None => {
-                            return Ok(MethodCallResult::Error(Object::Error(
-                                RuntimeError::InvalidOperation(
-                                    "Stack underflow on CallMethod args".to_string(),
-                                ),
-                            )))
-                        }
-                    };
+                for arg in args {
                     stack.push(arg);
                 }
                 Ok(MethodCallResult::NeedsCall) // caller should dispatch to execute_call
@@ -210,17 +222,7 @@ pub fn execute_call_method(
         Object::Module { exports, .. } => {
             if let Some(method) = exports.get(&method_name) {
                 stack.push(method.clone());
-                for _ in 0..argc {
-                    let arg = match stack.pop() {
-                        Some(v) => v,
-                        None => {
-                            return Ok(MethodCallResult::Error(Object::Error(
-                                RuntimeError::InvalidOperation(
-                                    "Stack underflow on CallMethod args".to_string(),
-                                ),
-                            )))
-                        }
-                    };
+                for arg in args {
                     stack.push(arg);
                 }
                 Ok(MethodCallResult::NeedsCall)
@@ -235,22 +237,6 @@ pub fn execute_call_method(
         }
         _ => {
             // Handle built-in methods for other types
-            let mut args = Vec::new();
-            for _ in 0..argc {
-                let arg = match stack.pop() {
-                    Some(v) => v,
-                    None => {
-                        return Ok(MethodCallResult::Error(Object::Error(
-                            RuntimeError::InvalidOperation(
-                                "Stack underflow on CallMethod args".to_string(),
-                            ),
-                        )))
-                    }
-                };
-                args.push(arg);
-            }
-            args.reverse(); // Arguments were popped in reverse order
-
             match crate::runtime::builtins::methods::BuiltinMethods::call_method(
                 struct_obj,
                 &method_name,

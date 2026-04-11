@@ -25,12 +25,11 @@ pub fn execute_call(
         return Ok(ExecResult::Continue);
     }
 
-    let fn_obj = stack[stack.len() - argc - 1].clone();
+    let fn_idx = stack.len() - argc - 1;
+    let fn_obj = stack[fn_idx].clone();
 
     match fn_obj {
-        Object::Function(ref params, ref body, ref closure_env, ref _constants) => {
-            let params = params.clone();
-            let body = body.clone();
+        Object::Function(params, body, closure_env, _constants) => {
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
@@ -40,16 +39,13 @@ pub fn execute_call(
             let slot_count = params.len().max(argc) + 64;
             stack.resize(slots_base + slot_count, Object::Null);
 
-            // Put args at slots 0, 1, 2... (compiler expects params at slot 0)
             for (i, arg) in args.iter().enumerate() {
                 if i < slot_count {
                     stack[slots_base + i] = arg.clone();
                 }
             }
 
-            // Use the function's captured environment (from OpClosure) as the
-            // base for the new frame. This preserves lexical scoping.
-            let mut new_env = Environment::new_with_outer(Arc::clone(closure_env));
+            let mut new_env = Environment::new_with_outer(Arc::clone(&closure_env));
 
             for (i, param) in params.iter().enumerate() {
                 if i < args.len() {
@@ -57,7 +53,6 @@ pub fn execute_call(
                 }
             }
 
-            // Advance caller's IP past OpCall (1 byte opcode + 1 byte argc operand)
             if let Some(caller) = frames.last_mut() {
                 caller.ip += 2;
             }
@@ -81,7 +76,7 @@ pub fn execute_call(
                 caller.ip += 2;
             }
 
-            let future = call_async_function_vm(params, body, args, closure_env, Arc::clone(module_registry), Arc::clone(globals));
+            let future = call_async_function_vm(params.to_vec(), body.clone(), args, closure_env.clone(), Arc::clone(module_registry), Arc::clone(globals));
             stack.push(Object::Future(Arc::new(Mutex::new(Some(future)))));
             Ok(ExecResult::Continue)
         }
@@ -121,11 +116,15 @@ pub fn execute_call(
                 )));
             }
 
-            let future = async move { func(args) };
-            stack.push(Object::Future(Arc::new(Mutex::new(Some(
-                Box::pin(future),
-            )))));
-            Ok(ExecResult::Continue)
+            match func(args) {
+                Ok(obj) => {
+                    stack.push(obj);
+                    Ok(ExecResult::Continue)
+                }
+                Err(e) => {
+                    Ok(ExecResult::ContinueWith(Object::Error(e)))
+                }
+            }
         }
         Object::Builtin(_name, min_param, max_param, func) => {
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
@@ -149,6 +148,92 @@ pub fn execute_call(
                 Err(e) => Ok(ExecResult::ContinueWith(Object::Error(
                     RuntimeError::InvalidOperation(e),
                 ))),
+            }
+        }
+        #[cfg(feature = "wasm")]
+        Object::WasmImportedFunction {
+            module_name: _,
+            func_name,
+            instance,
+        } => {
+            let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
+            stack.pop();
+
+            // Convert G-lang Objects to WASM values
+            use crate::wasm::type_conversions::g_to_component_val;
+            let wasm_args: Result<Vec<_>, _> = args
+                .iter()
+                .map(|obj| g_to_component_val(obj))
+                .collect();
+
+            match wasm_args {
+                Ok(wasm_args) => {
+                    let mut instance_guard = instance.lock().unwrap();
+                    match instance_guard.as_mut() {
+                        Some(wasm_instance) => {
+                            // Get the runtime and store from the registry
+                            let mut store_opt = {
+                                let mut registry = module_registry.lock().unwrap();
+                                registry.wasm_store.take()
+                            };
+
+                            match store_opt.as_mut() {
+                                Some(store) => {
+                                    match wasm_instance.call_func_with_args(store, &func_name, &wasm_args)
+                                    {
+                                        Ok(results) => {
+                                            use crate::wasm::type_conversions::component_val_to_g;
+                                            // Put the store back
+                                            {
+                                                let mut registry = module_registry.lock().unwrap();
+                                                registry.wasm_store = store_opt.take();
+                                            }
+                                            
+                                            // Convert results back to G-lang Objects
+                                            match results.get(0) {
+                                                Some(val) => {
+                                                    match component_val_to_g(val) {
+                                                        Ok(obj) => {
+                                                            stack.push(obj);
+                                                            Ok(ExecResult::Continue)
+                                                        }
+                                                        Err(e) => {
+                                                            Ok(ExecResult::ContinueWith(Object::Error(e)))
+                                                        }
+                                                    }
+                                                }
+                                                None => {
+                                                    // Function returned nothing
+                                                    stack.push(Object::Null);
+                                                    Ok(ExecResult::Continue)
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            // Put the store back even on error
+                                            {
+                                                let mut registry = module_registry.lock().unwrap();
+                                                registry.wasm_store = store_opt.take();
+                                            }
+                                            Ok(ExecResult::ContinueWith(Object::Error(e)))
+                                        }
+                                    }
+                                }
+                                None => Ok(ExecResult::ContinueWith(Object::Error(
+                                    RuntimeError::InvalidOperation(
+                                        "WASM store not available".to_string(),
+                                    ),
+                                ))),
+                            }
+                        }
+                        None => Ok(ExecResult::ContinueWith(Object::Error(
+                            RuntimeError::InvalidOperation(
+                                "WASM instance has been consumed".to_string(),
+                            ),
+                        ))),
+                    }
+                }
+                Err(e) => Ok(ExecResult::ContinueWith(Object::Error(e))),
             }
         }
         _ => Ok(ExecResult::ContinueWith(Object::Error(

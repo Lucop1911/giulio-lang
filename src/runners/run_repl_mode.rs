@@ -47,7 +47,7 @@ pub async fn repl() {
 
         let tokens = Tokens::new(&token_vec);
 
-        let program = match Parser::parse_tokens(tokens) {
+        let mut program = match Parser::parse_tokens(tokens) {
             Ok((_, program)) => program,
             Err(e) => {
                 if let nom::Err::Error(err) | nom::Err::Failure(err) = &e {
@@ -61,7 +61,7 @@ pub async fn repl() {
             }
         };
 
-        let chunk = Compiler::compile_program(&program);
+        let chunk = Compiler::compile_program(&mut program);
         let result = vm.run(Arc::new(chunk)).await;
 
         match result {

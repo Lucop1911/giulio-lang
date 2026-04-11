@@ -32,7 +32,14 @@ pub fn execute_constant(stack: &mut Vec<Object>, chunk: &Chunk, idx: u16) {
         );
         panic!("constant index out of bounds");
     }
-    let value = chunk.constants[idx_usize].clone();
+    // For small primitives, avoid cloning where possible
+    let value = match &chunk.constants[idx_usize] {
+        Object::Integer(i) => Object::Integer(*i),
+        Object::Float(f) => Object::Float(*f),
+        Object::Boolean(b) => Object::Boolean(*b),
+        Object::Null => Object::Null,
+        other => other.clone(),
+    };
     stack.push(value);
 }
 
@@ -42,7 +49,13 @@ pub fn execute_pop(stack: &mut Vec<Object>) {
 
 pub fn execute_dup(stack: &mut Vec<Object>) {
     if let Some(top) = stack.last() {
-        let value: Object = top.clone();
+        let value = match top {
+            Object::Integer(i) => Object::Integer(*i),
+            Object::Float(f) => Object::Float(*f),
+            Object::Boolean(b) => Object::Boolean(*b),
+            Object::Null => Object::Null,
+            other => other.clone(),
+        };
         stack.push(value);
     }
 }
@@ -58,7 +71,13 @@ pub fn execute_get_local(stack: &mut Vec<Object>, frames: &[CallFrame], slot: u8
     if let Some(frame) = frames.last() {
         let idx = frame.slots_base + slot as usize;
         if idx < stack.len() {
-            let value = stack[idx].clone();
+            let value = match &stack[idx] {
+                Object::Integer(i) => Object::Integer(*i),
+                Object::Float(f) => Object::Float(*f),
+                Object::Boolean(b) => Object::Boolean(*b),
+                Object::Null => Object::Null,
+                other => other.clone(),
+            };
             stack.push(value);
         } else {
             stack.push(Object::Null);

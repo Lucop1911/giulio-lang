@@ -1,4 +1,3 @@
-use crate::ast::ast::Stmt;
 use crate::std::math::*;
 use crate::std::string::*;
 use crate::std::time::*;
@@ -9,7 +8,7 @@ use crate::std::env::*;
 use std::path::PathBuf;
 use tokio::fs;
 use std::sync::{Arc, Mutex};
-use crate::ast::ast::{Program, Ident};
+use crate::ast::ast::Program;
 use crate::runtime::obj::{Object, HashMap};
 use crate::errors::RuntimeError;
 use ahash::HashMapExt;
@@ -236,7 +235,7 @@ impl ModuleRegistry {
     
     async fn parse_and_extract_module(module_registry_arc: Arc<Mutex<Self>>, source: &str, path: &[String]) -> Result<Module, RuntimeError> {
         use crate::{Lexer, Parser, Tokens};
-        use crate::compiler::compute_slots::compute_slots;
+        use crate::vm::compiler::compute_slots::compute_slots;
         
         let token_vec = Lexer::lex_tokens(source.as_bytes())
             .map_err(|e| RuntimeError::InvalidOperation(
@@ -272,45 +271,8 @@ impl ModuleRegistry {
         })
     }
     
-    async fn extract_exports(program: Program, registry: Arc<Mutex<Self>>) -> Result<HashMap<String, Object>, RuntimeError> {
-        use crate::runtime::eval::Evaluator;
-        
-        let evaluator = Evaluator::new(registry);
-        let mut exports = HashMap::new();
-        
-        for stmt in program {
-            match stmt.clone() {
-                Stmt::StructStmt { name, .. } => {
-                    let _obj = evaluator.eval_statement(stmt).await;
-                    let Ident { name: struct_name, .. } = name;
-                    
-                    if let Some(struct_obj) = evaluator.env.lock().unwrap().get_by_name(&struct_name) {
-                        exports.insert(struct_name.clone(), struct_obj);
-                    }
-                }
-                Stmt::LetStmt(ident, _) => {
-                    evaluator.eval_statement(stmt).await;
-                    let Ident { name: var_name, .. } = ident;
-                    
-                    if let Some(obj) = evaluator.env.lock().unwrap().get_by_name(&var_name) {
-                        exports.insert(var_name, obj);
-                    }
-                }
-                Stmt::FnStmt { name, params: _, body: _ } => {
-                    evaluator.eval_statement(stmt).await;
-                    let Ident { name: fn_name, .. } = name;
-
-                    if let Some(obj) = evaluator.env.lock().unwrap().get_by_name(&fn_name) {
-                        exports.insert(fn_name, obj);
-                    }
-                }
-                _ => {
-                    evaluator.eval_statement(stmt).await;
-                }
-            }
-        }
-        
-        Ok(exports)
+    async fn extract_exports(_program: Program, _registry: Arc<Mutex<Self>>) -> Result<HashMap<String, Object>, RuntimeError> {
+        Ok(HashMap::new())
     }
 }
 

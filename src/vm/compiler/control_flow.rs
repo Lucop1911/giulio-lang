@@ -15,12 +15,12 @@ pub fn compile_if_expr(
     compiler.compile_expression(cond, line);
     let else_jump = compiler.emit_jump_if_false(line);
 
-    compile_program_body(compiler, consequence);
+    compiler.compile_program_body(consequence, false);
 
     if let Some(alt) = alternative {
         let end_jump = compiler.emit_jump(line);
         compiler.patch_jump(else_jump);
-        compile_program_body(compiler, alt);
+        compiler.compile_program_body(alt, false);
         compiler.patch_jump(end_jump);
     } else {
         let end_jump = compiler.emit_jump(line);
@@ -44,10 +44,7 @@ pub fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, 
     compiler.compile_expression(cond, line);
     let end_jump = compiler.emit_jump_if_false(line);
 
-    compile_program_body(compiler, body);
-    if !body.is_empty() {
-        compiler.emit(Instruction::Pop, line);
-    }
+    compiler.compile_program_body(body, true);
 
     compiler.emit(Instruction::JumpBackward(loop_start), line);
 
@@ -127,10 +124,7 @@ pub fn compile_for_expr(
         compiler.emit(Instruction::Pop, line);
     }
 
-    compile_program_body(compiler, body);
-    if !body.is_empty() {
-        compiler.emit(Instruction::Pop, line);
-    }
+    compile_program_body(compiler, body, true);
 
     compiler.emit(Instruction::GetLocal(counter_slot), line);
     compiler.emit_constant(Object::Integer(1), line);
@@ -182,10 +176,7 @@ pub fn compile_cstyle_for(
     }
     let end_jump = compiler.emit_jump_if_false(line);
 
-    compile_program_body(compiler, body);
-    if !body.is_empty() {
-        compiler.emit(Instruction::Pop, line);
-    }
+    compile_program_body(compiler, body, true);
 
     let continue_addr = compiler.chunk.current_offset();
 
@@ -244,18 +235,39 @@ pub fn compile_continue(compiler: &mut Compiler, line: u16) {
 }
 
 /// Compiles a sequence of statements for block bodies.
-/// Pops intermediate expression results but keeps the last one.
-fn compile_program_body(compiler: &mut Compiler, program: &Program) {
+/// Pops intermediate expression results. If `discard_last` is true, also pops the last result.
+/// If `discard_last` is false and the last statement was not an expression, pushes `Null`.
+fn compile_program_body(compiler: &mut Compiler, program: &Program, discard_last: bool) {
+    use crate::runtime::obj::Object;
+
+    if program.is_empty() {
+        if !discard_last {
+            compiler.emit_constant(Object::Null, 0);
+        }
+        return;
+    }
+
     for (i, stmt) in program.iter().enumerate() {
         let line = 0u16;
         compiler.compile_statement(stmt, line);
 
-        if i < program.len() - 1 {
+        let is_last = i == program.len() - 1;
+        if !is_last || discard_last {
             match stmt {
-                Stmt::ExprStmt(_) => {
+                Stmt::ExprStmt(_) | Stmt::ExprValueStmt(_) => {
                     compiler.emit(Instruction::Pop, line);
                 }
                 _ => {}
+            }
+        } else {
+            // Last statement and we need its value
+            match stmt {
+                Stmt::ExprStmt(_) | Stmt::ExprValueStmt(_) => {
+                    // Keeps value on stack
+                }
+                _ => {
+                    compiler.emit_constant(Object::Null, line);
+                }
             }
         }
     }

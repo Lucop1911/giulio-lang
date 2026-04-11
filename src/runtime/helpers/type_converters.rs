@@ -1,7 +1,7 @@
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 
-use crate::{ast::ast::Literal, runtime::obj::Object, RuntimeError};
+use crate::{runtime::obj::Object, RuntimeError};
 
 pub fn obj_to_bool(object: Object) -> Result<bool, Object> {
     match object {
@@ -83,14 +83,5 @@ pub fn normalize_int(big: BigInt) -> Object {
     match big.to_i64() {
         Some(i) => Object::Integer(i),
         None => Object::BigInteger(big),
-    }
-}
-
-use crate::Evaluator;
-
-impl Evaluator {
-    pub fn literal_to_hash(&self, literal: Literal) -> Object {
-        let object = self.eval_literal(&literal);
-        obj_to_hash(object)
     }
 }

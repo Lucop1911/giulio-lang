@@ -2,15 +2,13 @@
 //!
 //! # Architecture
 //!
-//! The language pipeline follows a classic interpreter design:
+//! The language pipeline follows a stack-based VM design:
 //!
 //! 1. **Lexer** — tokenises raw source bytes into a stream of [`Token`]s
 //! 2. **Parser** — consumes tokens via a Pratt-parser combinator (built on `nom`)
 //!    and produces an [`ast::Program`] (a vector of [`ast::Stmt`])
-//! 3. **Compiler** — performs a lightweight slot-allocation pass so that variable
-//!    lookups inside function frames resolve in O(1) instead of O(n)
-//! 4. **Interpreter** — walks the AST and evaluates it, maintaining a scoped
-//!    [`interpreter::env::Environment`] and a rich [`interpreter::obj::Object`] type
+//! 3. **Compiler** — compiles AST into bytecode chunks for the VM
+//! 4. **VM** — executes bytecode with a stack-based virtual machine
 //!
 //! # Public API
 //!
@@ -18,7 +16,8 @@
 //!
 //! - [`Lexer`] — entry point for lexical analysis
 //! - [`Parser`] — entry point for syntactic analysis
-//! - [`Evaluator`] — the async tree-walk interpreter
+//! - [`Compiler`] — compiles programs to bytecode
+//! - [`VM`] — the stack-based virtual machine
 //! - [`Token`], [`Tokens`] — the token stream types
 //! - [`LangError`], [`RuntimeError`] — error enumerations
 
@@ -26,7 +25,6 @@ pub mod ast;
 pub mod lexer;
 pub mod parser;
 pub mod runtime;
-pub mod compiler;
 pub mod errors;
 pub mod std;
 pub mod runners;
@@ -39,6 +37,7 @@ mod tests;
 
 pub use crate::lexer::lexer::Lexer;
 pub use crate::parser::parser::Parser;
-pub use crate::runtime::eval::Evaluator;
+pub use crate::vm::compiler::Compiler;
+pub use crate::vm::vm::VirtualMachine;
 pub use crate::lexer::token::{Token, Tokens};
 pub use crate::errors::{LangError, RuntimeError};

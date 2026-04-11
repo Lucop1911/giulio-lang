@@ -23,7 +23,7 @@ pub async fn run_source(input: &str) {
 
     let tokens = Tokens::new(&token_vec);
 
-    let program = match Parser::parse_tokens(tokens) {
+    let mut program = match Parser::parse_tokens(tokens) {
         Ok((_, program)) => program,
         Err(e) => {
             eprintln!("╭─ Parser Error ─────────────────────────────");
@@ -44,7 +44,7 @@ pub async fn run_source(input: &str) {
         }
     };
 
-    let chunk = Compiler::compile_program(&program);
+    let chunk = Compiler::compile_program(&mut program);
     let globals = Arc::new(Mutex::new(Environment::new()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     let mut vm = VirtualMachine::new(globals, module_registry);
