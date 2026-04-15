@@ -13,7 +13,7 @@ pub fn compile_if_expr(
     line: u16,
 ) {
     compiler.compile_expression(cond, line);
-    let else_jump = compiler.emit_jump_if_false(line);
+    let else_jump = compiler.emit_pop_jump_if_false(line);
 
     compiler.compile_program_body(consequence, false);
 
@@ -36,23 +36,26 @@ pub fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, 
 
     compiler.loop_contexts.push(LoopContext {
         break_patches: Vec::new(),
-        continue_patches: vec![JumpPatch {
-            addr: loop_start as usize,
-        }],
+        continue_patches: Vec::new(),
     });
 
     compiler.compile_expression(cond, line);
-    let end_jump = compiler.emit_jump_if_false(line);
+    let end_jump = compiler.emit_pop_jump_if_false(line);
 
     compiler.compile_program_body(body, true);
 
     compiler.emit(Instruction::JumpBackward(loop_start), line);
 
     let loop_ctx = compiler.loop_contexts.pop().unwrap();
+    let continue_addr = loop_start;
+    let break_addr = compiler.chunk.current_offset();
+
+    for patch in loop_ctx.continue_patches {
+        compiler.chunk.patch_u16(patch.addr, continue_addr as u16);
+    }
+
     for patch in loop_ctx.break_patches {
-        compiler
-            .chunk
-            .patch_u16(patch.addr, compiler.chunk.current_offset());
+        compiler.chunk.patch_u16(patch.addr, break_addr as u16);
     }
 
     compiler
@@ -92,16 +95,14 @@ pub fn compile_for_expr(
 
     compiler.loop_contexts.push(LoopContext {
         break_patches: Vec::new(),
-        continue_patches: vec![JumpPatch {
-            addr: loop_start as usize,
-        }],
+        continue_patches: Vec::new(),
     });
 
     compiler.emit(Instruction::GetLocal(counter_slot), line);
     compiler.emit(Instruction::GetLocal(iter_slot), line);
     compiler.emit(Instruction::GetLen, line);
     compiler.emit(Instruction::LessThan, line);
-    let end_jump = compiler.emit_jump_if_false(line);
+    let end_jump = compiler.emit_pop_jump_if_false(line);
 
     compiler.emit(Instruction::GetLocal(iter_slot), line);
     compiler.emit(Instruction::GetLocal(counter_slot), line);
@@ -126,6 +127,8 @@ pub fn compile_for_expr(
 
     compile_program_body(compiler, body, true);
 
+    let continue_addr = compiler.chunk.current_offset();
+
     compiler.emit(Instruction::GetLocal(counter_slot), line);
     compiler.emit_constant(Object::Integer(1), line);
     compiler.emit(Instruction::Add, line);
@@ -133,11 +136,15 @@ pub fn compile_for_expr(
 
     compiler.emit(Instruction::JumpBackward(loop_start), line);
 
+    let break_addr = compiler.chunk.current_offset();
+
     let loop_ctx = compiler.loop_contexts.pop().unwrap();
+    for patch in loop_ctx.continue_patches {
+        compiler.chunk.patch_u16(patch.addr, continue_addr as u16);
+    }
+
     for patch in loop_ctx.break_patches {
-        compiler
-            .chunk
-            .patch_u16(patch.addr, compiler.chunk.current_offset());
+        compiler.chunk.patch_u16(patch.addr, break_addr as u16);
     }
 
     compiler
@@ -174,7 +181,7 @@ pub fn compile_cstyle_for(
     } else {
         compiler.emit_constant(Object::Boolean(true), line);
     }
-    let end_jump = compiler.emit_jump_if_false(line);
+    let end_jump = compiler.emit_pop_jump_if_false(line);
 
     compile_program_body(compiler, body, true);
 

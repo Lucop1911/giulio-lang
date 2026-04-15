@@ -1,4 +1,4 @@
-//! Bytecode instruction set for the G-lang VM.
+//! Bytecode instruction set for the VM.
 //!
 //! Each instruction is encoded as a variable-length byte sequence:
 //! - Byte 0: opcode

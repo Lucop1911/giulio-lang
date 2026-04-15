@@ -1,76 +1,322 @@
-//! Arithmetic and comparison operations using macros.
+//! Arithmetic and comparison operations.
+//!
+//! All arithmetic logic is centralized here for consistency and maintainability.
 
 use crate::errors::RuntimeError;
 use crate::runtime::helpers::type_converters::{normalize_int, obj_to_float, to_bigint};
 use crate::runtime::obj::Object;
 use num_traits::Zero;
 
-macro_rules! gen_numeric_op {
-    ($name:ident, $operator:tt, $is_div:expr) => {
-        pub fn $name(obj1: Object, obj2: Object) -> Object {
-            if let Object::Error(_) = obj1 { return obj1; }
-            if let Object::Error(_) = obj2 { return obj2; }
+pub fn add(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
 
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_add(*ib)),
+        (Object::Float(fa), Object::Float(fb)) => Object::Float(fa + fb),
+        (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
+        (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
+        (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
+        _ => {
             if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
-                let f1 = match obj_to_float(obj1) { Ok(f) => f, Err(e) => return e };
-                let f2 = match obj_to_float(obj2) { Ok(f) => f, Err(e) => return e };
-
-                if $is_div && f2 == 0.0 {
-                    return Object::Error(RuntimeError::DivisionByZero);
-                }
-                return Object::Float(f1 $operator f2);
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Float(f1 + f2);
             }
-
             if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
-                if $is_div && b2.is_zero() {
+                return normalize_int(b1 + b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
+}
+
+pub fn subtract(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
+
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_sub(*ib)),
+        (Object::Float(fa), Object::Float(fb)) => Object::Float(fa - fb),
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Float(f1 - f2);
+            }
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                return normalize_int(b1 - b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
+}
+
+pub fn multiply(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
+
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_mul(*ib)),
+        (Object::Float(fa), Object::Float(fb)) => Object::Float(fa * fb),
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Float(f1 * f2);
+            }
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                return normalize_int(b1 * b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
+}
+
+pub fn divide(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
+
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => {
+            if *ib == 0 {
+                Object::Error(RuntimeError::DivisionByZero)
+            } else {
+                Object::Integer(ia / ib)
+            }
+        }
+        (Object::Float(fa), Object::Float(fb)) => {
+            if *fb == 0.0 {
+                Object::Error(RuntimeError::DivisionByZero)
+            } else {
+                Object::Float(fa / fb)
+            }
+        }
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                if f2 == 0.0 {
                     return Object::Error(RuntimeError::DivisionByZero);
                 }
-                return normalize_int(b1 $operator b2);
+                return Object::Float(f1 / f2);
             }
-
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                if b2.is_zero() {
+                    return Object::Error(RuntimeError::DivisionByZero);
+                }
+                return normalize_int(b1 / b2);
+            }
             type_mismatch_error("number", obj1, obj2)
         }
-    };
+    }
 }
 
-macro_rules! gen_compare_op {
-    ($name:ident, $operator:tt) => {
-        pub fn $name(obj1: Object, obj2: Object) -> Object {
-            if let Object::Error(_) = obj1 { return obj1; }
-            if let Object::Error(_) = obj2 { return obj2; }
+pub fn modulo(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
 
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => {
+            if *ib == 0 {
+                Object::Error(RuntimeError::DivisionByZero)
+            } else {
+                Object::Integer(ia % ib)
+            }
+        }
+        _ => {
             if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
-                let f1 = match obj_to_float(obj1) { Ok(f) => f, Err(e) => return e };
-                let f2 = match obj_to_float(obj2) { Ok(f) => f, Err(e) => return e };
-                return Object::Boolean(f1 $operator f2);
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                if f2 == 0.0 {
+                    return Object::Error(RuntimeError::DivisionByZero);
+                }
+                return Object::Float(f1 % f2);
             }
-
-            if let (Some(b_int1), Some(b_int2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
-                return Object::Boolean(b_int1 $operator b_int2);
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                if b2.is_zero() {
+                    return Object::Error(RuntimeError::DivisionByZero);
+                }
+                return normalize_int(b1 % b2);
             }
-
             type_mismatch_error("number", obj1, obj2)
         }
-    };
+    }
 }
 
-fn type_mismatch_error(expected: &str, obj1: Object, obj2: Object) -> Object {
-    Object::Error(RuntimeError::TypeMismatch {
-        expected: expected.to_string(),
-        got: format!("{} and {}", obj1.type_name(), obj2.type_name()),
-    })
+pub fn less_than(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
+
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia < ib),
+        (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa < fb),
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Boolean(f1 < f2);
+            }
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                return Object::Boolean(b1 < b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
 }
 
-gen_numeric_op!(add, +, false);
-gen_numeric_op!(subtract, -, false);
-gen_numeric_op!(multiply, *, false);
-gen_numeric_op!(divide, /, true);
-gen_numeric_op!(modulo, %, true);
+pub fn greater_than(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
 
-gen_compare_op!(less_than, <);
-gen_compare_op!(greater_than, >);
-gen_compare_op!(less_equal, <=);
-gen_compare_op!(greater_equal, >=);
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia > ib),
+        (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa > fb),
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Boolean(f1 > f2);
+            }
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                return Object::Boolean(b1 > b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
+}
+
+pub fn less_equal(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
+
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia <= ib),
+        (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa <= fb),
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Boolean(f1 <= f2);
+            }
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                return Object::Boolean(b1 <= b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
+}
+
+pub fn greater_equal(obj1: Object, obj2: Object) -> Object {
+    if let Object::Error(_) = obj1 {
+        return obj1;
+    }
+    if let Object::Error(_) = obj2 {
+        return obj2;
+    }
+
+    match (&obj1, &obj2) {
+        (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia >= ib),
+        (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa >= fb),
+        _ => {
+            if matches!(obj1, Object::Float(_)) || matches!(obj2, Object::Float(_)) {
+                let f1 = match obj_to_float(obj1) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                let f2 = match obj_to_float(obj2) {
+                    Ok(f) => f,
+                    Err(e) => return e,
+                };
+                return Object::Boolean(f1 >= f2);
+            }
+            if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
+                return Object::Boolean(b1 >= b2);
+            }
+            type_mismatch_error("number", obj1, obj2)
+        }
+    }
+}
 
 pub fn execute_equal(obj1: Object, obj2: Object) -> Object {
     Object::Boolean(obj1 == obj2)
@@ -107,4 +353,11 @@ pub fn is_truthy(obj: &Object) -> bool {
         Object::Hash(h) => !h.is_empty(),
         _ => true,
     }
+}
+
+fn type_mismatch_error(expected: &str, obj1: Object, obj2: Object) -> Object {
+    Object::Error(RuntimeError::TypeMismatch {
+        expected: expected.to_string(),
+        got: format!("{} and {}", obj1.type_name(), obj2.type_name()),
+    })
 }

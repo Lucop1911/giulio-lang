@@ -43,6 +43,14 @@ impl Default for Environment {
 
 impl Environment {
     pub fn new() -> Self {
+        Environment {
+            store: HashMap::new(),
+            slots: Vec::new(),
+            parent: None,
+        }
+    }
+
+    pub fn new_root() -> Self {
         let mut hashmap = HashMap::new();
         Self::fill_env_with_builtins(&mut hashmap);
         Environment {
@@ -53,20 +61,16 @@ impl Environment {
     }
 
     pub fn new_with_outer(outer: Arc<Mutex<Environment>>) -> Self {
-        let mut hashmap = HashMap::new();
-        Self::fill_env_with_builtins(&mut hashmap);
         Environment {
-            store: hashmap,
+            store: HashMap::new(),
             slots: Vec::new(),
             parent: Some(outer),
         }
     }
 
     pub fn new_with_slots(num_slots: usize) -> Self {
-        let mut hashmap = HashMap::new();
-        Self::fill_env_with_builtins(&mut hashmap);
         Environment {
-            store: hashmap,
+            store: HashMap::new(),
             slots: vec![Object::Null; num_slots],
             parent: None,
         }
@@ -76,10 +80,8 @@ impl Environment {
     // num_slots = params.len() + number of let-bindings in the body.
     // Use count_slots(params, body) to compute the correct value.
     pub fn new_function_env(outer: Arc<Mutex<Environment>>, num_slots: usize) -> Self {
-        let mut hashmap = HashMap::new();
-        Self::fill_env_with_builtins(&mut hashmap);
         Environment {
-            store: hashmap,
+            store: HashMap::new(),
             slots: vec![Object::Null; num_slots],
             parent: Some(outer),
         }

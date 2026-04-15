@@ -159,6 +159,7 @@ impl VirtualMachine {
             let future_to_await = {
                 let mut future_opt_guard = future_arc.lock().unwrap();
                 let future = future_opt_guard.take();
+                drop(future_opt_guard);
                 if let Some(f) = future {
                     f
                 } else {
@@ -168,6 +169,11 @@ impl VirtualMachine {
                 }
             };
             result = future_to_await.await;
+        }
+        
+        // Check if the final result is an Error and convert to Err for proper handling
+        if let Ok(Object::Error(e)) = result {
+            return Err(e);
         }
         
         self.frames.clear();
@@ -224,7 +230,12 @@ impl VirtualMachine {
                         continue 'sync_loop;
                     }
                     0x01 => { // OpPop
-                        self.stack.pop();
+                        if let Some(value) = self.stack.pop() {
+                            // If we're popping an error, stop execution
+                            if matches!(value, Object::Error(_)) {
+                                return Ok(value);
+                            }
+                        }
                         ip += 1;
                         continue 'sync_loop;
                     }
@@ -288,21 +299,23 @@ impl VirtualMachine {
                     0x20 => { // OpAdd
                         let b = self.stack.pop().unwrap_or(Object::Null);
                         let a = self.stack.pop().unwrap_or(Object::Null);
+                        if let Object::Error(_) = &a {
+                            self.stack.push(a);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
+                        if let Object::Error(_) = &b {
+                            self.stack.push(b);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
                         let result = match (&a, &b) {
                             (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_add(*ib)),
                             (Object::Float(fa), Object::Float(fb)) => Object::Float(fa + fb),
                             (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
                             (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
                             (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
-                            _ => {
-                                match (a, b) {
-                                    (Object::Array(mut arr), val) => {
-                                        arr.push(val);
-                                        Object::Array(arr)
-                                    }
-                                    (a, b) => ops::arithmetic::add(a, b),
-                                }
-                            }
+                            _ => ops::arithmetic::add(a, b),
                         };
                         self.stack.push(result);
                         ip += 1;
@@ -311,6 +324,16 @@ impl VirtualMachine {
                     0x21 => { // OpSubtract
                         let b = self.stack.pop().unwrap_or(Object::Null);
                         let a = self.stack.pop().unwrap_or(Object::Null);
+                        if let Object::Error(_) = &a {
+                            self.stack.push(a);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
+                        if let Object::Error(_) = &b {
+                            self.stack.push(b);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
                         let result = match (&a, &b) {
                             (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_sub(*ib)),
                             (Object::Float(fa), Object::Float(fb)) => Object::Float(fa - fb),
@@ -323,6 +346,16 @@ impl VirtualMachine {
                     0x22 => { // OpMultiply
                         let b = self.stack.pop().unwrap_or(Object::Null);
                         let a = self.stack.pop().unwrap_or(Object::Null);
+                        if let Object::Error(_) = &a {
+                            self.stack.push(a);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
+                        if let Object::Error(_) = &b {
+                            self.stack.push(b);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
                         let result = match (&a, &b) {
                             (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_mul(*ib)),
                             (Object::Float(fa), Object::Float(fb)) => Object::Float(fa * fb),
@@ -332,9 +365,19 @@ impl VirtualMachine {
                         ip += 1;
                         continue 'sync_loop;
                     }
-                    0x27 => { // OpLessThan (CRITICAL FOR LOOPS)
+                    0x27 => { // OpLessThan
                         let b = self.stack.pop().unwrap_or(Object::Null);
                         let a = self.stack.pop().unwrap_or(Object::Null);
+                        if let Object::Error(_) = &a {
+                            self.stack.push(a);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
+                        if let Object::Error(_) = &b {
+                            self.stack.push(b);
+                            ip += 1;
+                            continue 'sync_loop;
+                        }
                         let result = match (&a, &b) {
                             (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia < ib),
                             (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa < fb),
@@ -344,7 +387,7 @@ impl VirtualMachine {
                         ip += 1;
                         continue 'sync_loop;
                     }
-                    0x34 => { // OpPopJumpIfFalse (LOOP CONTROL)
+                    0x34 => { // OpPopJumpIfFalse
                         let offset = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]);
                         let value = match self.stack.pop() {
                             Some(v) => v,
@@ -353,6 +396,12 @@ impl VirtualMachine {
                                 continue 'sync_loop;
                             }
                         };
+                        // If value is an Error, don't jump - propagate it
+                        if let Object::Error(_) = &value {
+                            self.stack.push(value);
+                            ip += 3;
+                            continue 'sync_loop;
+                        }
                         let should_jump = match value {
                             Object::Boolean(b) => !b,
                             Object::Null => true,
@@ -540,7 +589,9 @@ impl VirtualMachine {
                 Ok(ExecResult::Continue)
             }
             Opcode::OpPop => {
-                ops::stack_vars::execute_pop(&mut self.stack);
+                if let Some(Object::Error(e)) = ops::stack_vars::execute_pop_check_error(&mut self.stack) {
+                    return Err(e);
+                }
                 Ok(ExecResult::Continue)
             }
             Opcode::OpDup => {
@@ -583,7 +634,7 @@ impl VirtualMachine {
                         &mut self.stack,
                         chunk,
                         &globals,
-                        None,  // Don't pass closure_env separately since it's the same
+                        None,
                         idx,
                     );
                 } else {
@@ -625,79 +676,31 @@ impl VirtualMachine {
             Opcode::OpAdd => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (&a, &b) {
-                    (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_add(*ib)),
-                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa + fb),
-                    (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
-                    (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
-                    (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
-                    _ => {
-                        // Handle Array and other cases using owned values
-                        match (a, b) {
-                            (Object::Array(mut arr), val) => {
-                                arr.push(val);
-                                Object::Array(arr)
-                            }
-                            (a, b) => ops::arithmetic::add(a, b),
-                        }
-                    }
-                };
-                self.stack.push(result);
+                self.stack.push(ops::arithmetic::add(a, b));
                 Ok(ExecResult::Continue)
             }
             Opcode::OpSubtract => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (&a, &b) {
-                    (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_sub(*ib)),
-                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa - fb),
-                    _ => ops::arithmetic::subtract(a, b),
-                };
-                self.stack.push(result);
+                self.stack.push(ops::arithmetic::subtract(a, b));
                 Ok(ExecResult::Continue)
             }
             Opcode::OpMultiply => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (&a, &b) {
-                    (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_mul(*ib)),
-                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa * fb),
-                    _ => ops::arithmetic::multiply(a, b),
-                };
-                self.stack.push(result);
+                self.stack.push(ops::arithmetic::multiply(a, b));
                 Ok(ExecResult::Continue)
             }
             Opcode::OpDivide => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (&a, &b) {
-                    (Object::Integer(ia), Object::Integer(ib)) => {
-                        if *ib == 0 {
-                            Object::Error(RuntimeError::DivisionByZero)
-                        } else {
-                            Object::Integer(ia / ib)
-                        }
-                    }
-                    (Object::Float(fa), Object::Float(fb)) => Object::Float(fa / fb),
-                    _ => ops::arithmetic::divide(a, b),
-                };
-                self.stack.push(result);
+                self.stack.push(ops::arithmetic::divide(a, b));
                 Ok(ExecResult::Continue)
             }
             Opcode::OpModulo => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (&a, &b) {
-                    (Object::Integer(ia), Object::Integer(ib)) => {
-                        if *ib == 0 {
-                            Object::Error(RuntimeError::DivisionByZero)
-                        } else {
-                            Object::Integer(ia % ib)
-                        }
-                    }
-                    _ => ops::arithmetic::modulo(a, b),
-                };
-                self.stack.push(result);
+                self.stack.push(ops::arithmetic::modulo(a, b));
                 Ok(ExecResult::Continue)
             }
             Opcode::OpEqual => {
@@ -715,12 +718,7 @@ impl VirtualMachine {
             Opcode::OpLessThan => {
                 let b = self.stack.pop().unwrap_or(Object::Null);
                 let a = self.stack.pop().unwrap_or(Object::Null);
-                let result = match (&a, &b) {
-                    (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia < ib),
-                    (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa < fb),
-                    _ => ops::arithmetic::less_than(a, b),
-                };
-                self.stack.push(result);
+                self.stack.push(ops::arithmetic::less_than(a, b));
                 Ok(ExecResult::Continue)
             }
             Opcode::OpGreaterThan => {

@@ -12,7 +12,7 @@ use std::fmt;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
-use crate::ast::ast::{Ident, Program};
+use crate::ast::ast::Ident;
 use crate::errors::RuntimeError;
 use crate::runtime::env::Environment;
 
@@ -37,10 +37,10 @@ pub enum Object {
     String(String),
     Array(Vec<Object>),
     Hash(HashMap<Object, Object>),
-    /// User-defined function: (params, body, closure_env, constant_pool)
-    Function(Vec<Ident>, Program, Arc<Mutex<Environment>>, ConstantPool),
-    /// Async user-defined function: (params, body, closure_env)
-    AsyncFunction(Vec<Ident>, Program, Arc<Mutex<Environment>>),
+    /// User-defined function: (params, chunk, closure_env, local_names)
+    Function(Vec<Ident>, Arc<crate::vm::chunk::Chunk>, Arc<Mutex<Environment>>, Vec<String>),
+    /// Async user-defined function: (params, chunk, closure_env, local_names)
+    AsyncFunction(Vec<Ident>, Arc<crate::vm::chunk::Chunk>, Arc<Mutex<Environment>>, Vec<String>),
     /// Builtin function implemented in Rust (simple variant).
     Builtin(String, usize, usize, BuiltinFunction),
     /// Builtin function with RuntimeError-based error handling.
@@ -71,7 +71,7 @@ pub enum Object {
     ReturnValue(Box<Object>),
     Error(RuntimeError),
     /// A method bound to a struct instance.
-    Method(Vec<Ident>, Program, Arc<Mutex<Environment>>, ConstantPool),
+    Method(Vec<Ident>, Arc<crate::vm::chunk::Chunk>, Arc<Mutex<Environment>>, Vec<String>),
     /// Control-flow sentinel: exits the innermost loop.
     Break,
     /// Control-flow sentinel: skips to the next loop iteration.
@@ -119,9 +119,9 @@ impl fmt::Debug for Object {
             Object::String(s) => write!(f, "String(\"{}\")", s),
             Object::Array(a) => write!(f, "Array({:?})", a),
             Object::Hash(h) => write!(f, "Hash({:?})", h),
-            Object::Function(p, b, _, _) => write!(f, "Function(params:{:?}, body:{:?})", p, b),
-            Object::AsyncFunction(p, b, _) => {
-                write!(f, "AsyncFunction(params:{:?}, body:{:?})", p, b)
+            Object::Function(p, _, _, _) => write!(f, "Function(params:{:?})", p),
+            Object::AsyncFunction(p, _, _, _) => {
+                write!(f, "AsyncFunction(params:{:?})", p)
             }
             Object::WasmImportedFunction {
                 module_name,
@@ -152,7 +152,7 @@ impl fmt::Debug for Object {
             Object::Null => write!(f, "Null"),
             Object::ReturnValue(o) => write!(f, "ReturnValue({:?})", o),
             Object::Error(e) => write!(f, "Error({:?})", e),
-            Object::Method(p, b, _, _) => write!(f, "Method(params:{:?}, body:{:?})", p, b),
+            Object::Method(p, _, _, _) => write!(f, "Method(params:{:?})", p),
             Object::Break => write!(f, "Break"),
             Object::Continue => write!(f, "Continue"),
             Object::ThrownValue(o) => write!(f, "ThrownValue({:?})", o),
@@ -195,13 +195,13 @@ impl PartialEq for Object {
                 Object::BuiltinStdAsync(name_b, params_b, params_b1, _),
             ) => name_a == name_b && params_a == params_b && params_a1 == params_b1,
             (
-                Object::Function(params_a, body_a, _, _),
-                Object::Function(params_b, body_b, _, _),
-            ) => params_a == params_b && body_a == body_b,
+                Object::Function(params_a, chunk_a, _, names_a),
+                Object::Function(params_b, chunk_b, _, names_b),
+            ) => params_a == params_b && Arc::ptr_eq(chunk_a, chunk_b) && names_a == names_b,
             (
-                Object::AsyncFunction(params_a, body_a, _),
-                Object::AsyncFunction(params_b, body_b, _),
-            ) => params_a == params_b && body_a == body_b,
+                Object::AsyncFunction(params_a, chunk_a, _, names_a),
+                Object::AsyncFunction(params_b, chunk_b, _, names_b),
+            ) => params_a == params_b && Arc::ptr_eq(chunk_a, chunk_b) && names_a == names_b,
             (
                 Object::WasmImportedFunction {
                     module_name: a,
@@ -267,7 +267,7 @@ impl Object {
             Object::Array(_) => "array".to_string(),
             Object::Hash(_) => "hash".to_string(),
             Object::Function(_, _, _, _) => "function".to_string(),
-            Object::AsyncFunction(_, _, _) => "async function".to_string(),
+            Object::AsyncFunction(_, _, _, _) => "async function".to_string(),
             Object::WasmImportedFunction { .. } => "wasm imported function".to_string(),
             Object::Builtin(_, _, _, _) => "builtin function".to_string(),
             Object::BuiltinStd(_, _, _, _) => "builtin function".to_string(),
@@ -327,7 +327,7 @@ impl fmt::Display for Object {
                 write!(f, "{}", fmt_string)
             }
             Object::Function(_, _, _, _) => write!(f, "[function]"),
-            Object::AsyncFunction(_, _, _) => write!(f, "[async function]"),
+            Object::AsyncFunction(_, _, _, _) => write!(f, "[async function]"),
             Object::WasmImportedFunction {
                 ref module_name,
                 ref func_name,
@@ -377,17 +377,20 @@ impl Hash for Object {
             Object::BigInteger(ref i) => i.hash(state),
             Object::Boolean(ref b) => b.hash(state),
             Object::String(ref s) => s.hash(state),
-            Object::Function(ref params, ref body, _, _) => {
+            Object::Function(ref params, ref chunk, _, ref names) => {
                 params.hash(state);
-                body.hash(state);
+                chunk.code.hash(state);
+                names.hash(state);
             }
-            Object::AsyncFunction(ref params, ref body, _) => {
+            Object::AsyncFunction(ref params, ref chunk, _, ref names) => {
                 params.hash(state);
-                body.hash(state);
+                chunk.code.hash(state);
+                names.hash(state);
             }
-            Object::Method(ref params, ref body, _, _) => {
+            Object::Method(ref params, ref chunk, _, ref names) => {
                 params.hash(state);
-                body.hash(state);
+                chunk.code.hash(state);
+                names.hash(state);
             }
             _ => "".hash(state),
         }

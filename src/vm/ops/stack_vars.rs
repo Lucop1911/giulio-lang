@@ -47,6 +47,19 @@ pub fn execute_pop(stack: &mut Vec<Object>) {
     stack.pop();
 }
 
+pub fn execute_pop_check_error(stack: &mut Vec<Object>) -> Option<Object> {
+    // Pops the value and returns it if it's an error, otherwise returns None
+    if let Some(value) = stack.pop() {
+        if matches!(value, Object::Error(_)) {
+            Some(value)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 pub fn execute_dup(stack: &mut Vec<Object>) {
     if let Some(top) = stack.last() {
         let value = match top {
@@ -121,7 +134,13 @@ pub fn execute_get_global(
         Some(v) => v,
         None => {
             let gv = globals.get_by_name(&name);
-            gv.unwrap_or(Object::Null)
+            match gv {
+                Some(v) => v,
+                None => {
+                    stack.push(Object::Error(RuntimeError::UndefinedVariable(name)));
+                    return;
+                }
+            }
         }
     };
     stack.push(value);
@@ -164,37 +183,10 @@ pub fn execute_set_global(
 }
 
 pub fn execute_get_builtin(stack: &mut Vec<Object>, globals: &Environment, idx: u8) {
-    let builtins = [
-        "print",
-        "println",
-        "input",
-        "type",
-        "is_empty",
-        "split",
-        "replace",
-        "trim",
-        "contains",
-        "slice",
-        "len",
-        "head",
-        "tail",
-        "cons",
-        "push",
-        "pow",
-        "abs",
-        "min",
-        "max",
-        "keys",
-        "values",
-        "clear",
-        "set_field",
-        "get_field",
-        "fields",
-        "name",
-    ];
+    use crate::runtime::builtins::functions::BuiltinsFunctions;
 
-    let name = if (idx as usize) < builtins.len() {
-        builtins[idx as usize].to_string()
+    let name = if (idx as usize) < BuiltinsFunctions::BUILTIN_NAMES.len() {
+        BuiltinsFunctions::BUILTIN_NAMES[idx as usize].to_string()
     } else {
         stack.push(Object::Error(RuntimeError::InvalidOperation(format!(
             "Unknown builtin index: {}",
@@ -220,11 +212,11 @@ pub fn execute_jump_if_false(
     is_truthy: impl Fn(&Object) -> bool,
     offset: u16,
 ) -> ExecResult {
-    let value = match stack.pop() {
+    let value = match stack.last() {
         Some(v) => v,
         None => return ExecResult::Continue,
     };
-    if !is_truthy(&value) {
+    if !is_truthy(value) {
         ExecResult::JumpTo(offset as usize)
     } else {
         ExecResult::Continue
@@ -236,11 +228,11 @@ pub fn execute_jump_if_truthy(
     is_truthy: impl Fn(&Object) -> bool,
     offset: u16,
 ) -> ExecResult {
-    let value = match stack.pop() {
+    let value = match stack.last() {
         Some(v) => v,
         None => return ExecResult::Continue,
     };
-    if is_truthy(&value) {
+    if is_truthy(value) {
         ExecResult::JumpTo(offset as usize)
     } else {
         ExecResult::Continue

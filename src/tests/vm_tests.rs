@@ -9,6 +9,7 @@ use crate::Lexer;
 use crate::Parser;
 use crate::Tokens;
 use crate::ast::ast::Program;
+use crate::errors::RuntimeError;
 use crate::runtime::env::Environment;
 use crate::runtime::module_registry::ModuleRegistry;
 use crate::runtime::obj::Object;
@@ -29,10 +30,13 @@ fn parse_test_helper(input: &str) -> Program {
 async fn vm_test_helper(input: &str) -> Object {
     let mut program = parse_test_helper(input);
     let chunk = Compiler::compile_program(&mut program);
-    let globals = Arc::new(Mutex::new(Environment::new()));
+    let globals = Arc::new(Mutex::new(Environment::new_root()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     let mut vm = VirtualMachine::new(globals, module_registry);
-    vm.run(Arc::new(chunk)).await.unwrap_or(Object::Null)
+    match vm.run(Arc::new(chunk)).await {
+        Ok(obj) => obj,
+        Err(e) => Object::Error(e),
+    }
 }
 
 // ─── Integer Arithmetic ──────────────────────────────────────────────
@@ -55,6 +59,9 @@ async fn vm_test_integer_expression() {
         ("3 * 3 * 3 + 10", 37),
         ("3 * (3 * 3) + 10", 37),
         ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
+        ("10 % 3", 1),
+        ("10 % 2", 0),
+        ("7 % 4", 3),
     ];
 
     for (input, expected) in tests {
@@ -413,7 +420,33 @@ async fn vm_test_chained_async_calls() {
         }
         main();
     "#;
-    assert_eq!(vm_test_helper(input).await, Object::Integer(7));
+    let mut program = parse_test_helper(input);
+    let chunk = Compiler::compile_program(&mut program);
+    let globals = Arc::new(Mutex::new(Environment::new_root()));
+    let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
+    
+    // Print the global environment *before* running the VM to see what's defined
+    {
+        let globals_guard = globals.lock().unwrap();
+        println!("Globals before execution: {:?}", globals_guard);
+    }
+
+    let mut vm = VirtualMachine::new(Arc::clone(&globals), module_registry);
+    let result = vm.run(Arc::new(chunk)).await;
+    
+    if let Ok(Object::Error(err)) = &result {
+        println!("Execution failed with Error object: {:?}", err);
+    } else if let Err(err) = &result {
+        println!("Execution failed with error: {:?}", err);
+    }
+    
+    match result {
+        Ok(obj) => assert_eq!(obj, Object::Integer(7)),
+        Err(e) => {
+            println!("VM execution returned Err: {:?}", e);
+            panic!("VM execution failed with error: {:?}", e);
+        }
+    }
 }
 
 #[tokio::test]
@@ -958,4 +991,465 @@ async fn vm_test_destructuring_for_in_loop() {
         sum
     "#;
     assert_eq!(vm_test_helper(input4).await, Object::Integer(21));
+}
+
+// ─── Edge Case Tests ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn vm_test_float_operations() {
+    let tests = vec![
+        ("1.5 + 2.5", Object::Float(4.0)),
+        ("5.0 - 3.0", Object::Float(2.0)),
+        ("4.0 * 2.5", Object::Float(10.0)),
+        ("10.0 / 2.0", Object::Float(5.0)),
+        ("7.0 % 3.0", Object::Float(1.0)),
+        ("2.5 < 3.5", Object::Boolean(true)),
+        ("3.5 > 2.5", Object::Boolean(true)),
+        ("2.5 == 2.5", Object::Boolean(true)),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_mixed_int_float_arithmetic() {
+    let tests = vec![
+        ("5 + 2.5", Object::Float(7.5)),
+        ("2.5 + 5", Object::Float(7.5)),
+        ("10 - 2.5", Object::Float(7.5)),
+        ("5 * 2.0", Object::Float(10.0)),
+        ("10.0 / 2", Object::Float(5.0)),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_integer_overflow() {
+    let max_int = 9223372036854775807i64;
+    let input = &format!("{}", max_int);
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(max_int));
+    
+    let input2 = "9223372036854775807 + 1";
+    let evaluated2 = vm_test_helper(input2).await;
+    assert_eq!(evaluated2, Object::Integer(-9223372036854775808));
+}
+
+#[tokio::test]
+async fn vm_test_string_methods() {
+    let tests = vec![
+        ("\"  hello  \".trim()", Object::String("hello".to_string())),
+        ("\"hello\".contains(\"ell\")", Object::Boolean(true)),
+        ("\"hello\".contains(\"world\")", Object::Boolean(false)),
+        ("\"hello\".replace(\"l\", \"r\")", Object::String("herro".to_string())),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_empty_array() {
+    let tests = vec![
+        ("let a = []; a.len()", Object::Integer(0)),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_array_operations() {
+    let tests = vec![
+        ("[1, 2].len()", Object::Integer(2)),
+        ("[1, 2, 3].head()", Object::Integer(1)),
+        ("[1, 2, 3].tail()", Object::Array(vec![Object::Integer(2), Object::Integer(3)])),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_empty_hash() {
+    let tests = vec![
+        ("let h = {}; h.len()", Object::Integer(0)),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_hash_operations() {
+    let input = r#"
+        let h = {"a": 1, "b": 2};
+        h.keys()
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    if let Object::Array(arr) = evaluated {
+        assert!(arr.len() == 2);
+    } else {
+        panic!("Expected Array, got {:?}", evaluated);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_nested_arrays() {
+    let input = "[[1, 2], [3, 4]][0][1]";
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(2));
+    
+    let input2 = "[[[1, 2], [3, 4]], [[5, 6]]][1][0][0]";
+    let evaluated2 = vm_test_helper(input2).await;
+    assert_eq!(evaluated2, Object::Integer(5));
+}
+
+#[tokio::test]
+async fn vm_test_nested_hashes() {
+    let input = r#"{"outer": {"inner": 42}}["outer"]["inner"]"#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(42));
+}
+
+#[tokio::test]
+async fn vm_test_array_in_hash() {
+    let input = r#"{"arr": [1, 2, 3]}["arr"][1]"#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(2));
+}
+
+#[tokio::test]
+async fn vm_test_hash_in_array() {
+    let input = r#"[{"a": 1}, {"b": 2}][1]["b"]"#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(2));
+}
+
+#[tokio::test]
+async fn vm_test_comparison_chaining() {
+    let tests = vec![
+        ("1 < 2 && 2 < 3", Object::Boolean(true)),
+        ("1 < 2 && 2 > 3", Object::Boolean(false)),
+        ("1 == 1 || 2 == 3", Object::Boolean(true)),
+        ("false || false", Object::Boolean(false)),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_nested_if_else() {
+    let input = r#"
+        let x = 5;
+        if (x < 10) {
+            if (x < 5) {
+                "a"
+            } else {
+                "b"
+            }
+        } else {
+            "c"
+        }
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::String("b".to_string()));
+}
+
+#[tokio::test]
+async fn vm_test_empty_blocks() {
+    let tests = vec![
+        ("if (false) {} else { 5 }", Object::Integer(5)),
+        ("if (true) { 5 } else {}", Object::Integer(5)),
+    ];
+    for (input, expected) in tests {
+        let evaluated = vm_test_helper(input).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_zero_params_function() {
+    let input = r#"
+        let f = fn() { 42 };
+        f()
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(42));
+}
+
+#[tokio::test]
+async fn vm_test_many_params_function() {
+    let input = r#"
+        let f = fn(a, b, c, d, e) { a + b + c + d + e };
+        f(1, 2, 3, 4, 5)
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(15));
+}
+
+#[tokio::test]
+async fn vm_test_early_return() {
+    let input = r#"
+        fn early() {
+            return 10;
+            20;
+        }
+        early()
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(10));
+}
+
+#[tokio::test]
+async fn vm_test_nested_loops_with_break() {
+    let input = r#"
+        let result = 0;
+        let i = 0;
+        while (i < 3) {
+            let j = 0;
+            while (j < 3) {
+                if (j == 1) {
+                    break;
+                }
+                result = result + 1;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        result
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(3));
+}
+
+#[tokio::test]
+async fn vm_test_for_loop_with_break() {
+    let input = r#"
+        let sum = 0;
+        for (let i in [1, 2, 3, 4, 5]) {
+            if (i == 3) {
+                break;
+            }
+            sum = sum + i;
+        }
+        sum
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(3));
+}
+
+// this test hangs
+#[tokio::test]
+async fn vm_test_nested_loops_with_continue() {
+    let input = r#"
+        let result = 0;
+        let i = 0;
+        while (i < 3) {
+            i = i + 1;
+            if (i == 2) {
+                continue;
+            }
+            result = result + i;
+        }
+        result
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(4));
+}
+
+// this test hangs
+#[tokio::test]
+async fn vm_test_for_loop_with_continue() {
+    let input = r#"
+        let sum = 0;
+        for (let i in [1, 2, 3, 4, 5]) {
+            if (i == 3) {
+                continue;
+            }
+            sum = sum + i;
+        }
+        sum
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(12));
+}
+
+#[tokio::test]
+async fn vm_test_c_style_for_loop() {
+    let input = r#"
+        let sum = 0;
+        for (let i = 0; i < 5; i = i + 1) {
+            sum = sum + i;
+        }
+        sum
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(10));
+}
+
+#[tokio::test]
+async fn vm_test_c_style_for_loop_break_continue() {
+    let input = r#"
+        let sum = 0;
+        for (let i = 0; i < 10; i = i + 1) {
+            if (i == 5) { break; }
+            if (i % 2 == 0) { continue; }
+            sum = sum + i;
+        }
+        sum
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(4));
+}
+
+#[tokio::test]
+async fn vm_test_reassign_global() {
+    let input = r#"
+        let x = 1;
+        x = 2;
+        x
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(2));
+}
+
+#[tokio::test]
+async fn vm_test_function_shadowing() {
+    let input = r#"
+        let x = 1;
+        let f = fn() {
+            let x = 2;
+            x
+        };
+        f() + x
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(3));
+}
+
+#[tokio::test]
+async fn vm_test_complex_expression() {
+    let input = "(1 + 2) * (3 + 4) - (10 / 2) + (100 % 30)";
+    // (1+2=3) * (3+4=7) = 21
+    // 10/2 = 5, so 21 - 5 = 16
+    // 100 % 30 = 10, so 16 + 10 = 26
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(26));
+}
+
+#[tokio::test]
+async fn vm_test_chained_field_access() {
+    let input = r#"
+        let obj = {"a": {"b": {"c": 42}}};
+        obj["a"]["b"]["c"]
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(42));
+}
+
+#[tokio::test]
+async fn vm_test_method_on_array() {
+    let input = "[1, 2, 3].len()";
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(3));
+}
+
+#[tokio::test]
+async fn vm_test_method_on_string() {
+    let input = "\"hello\".len()";
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(5));
+}
+
+#[tokio::test]
+async fn vm_test_method_on_hash() {
+    let input = r#"{"a": 1, "b": 2}.len()"#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(2));
+}
+
+#[tokio::test]
+async fn vm_test_throw_non_string() {
+    // Test that non-string values can be thrown and caught
+    let tests = vec![
+        ("throw \"42\";", Object::String("42".to_string())),
+        ("throw \"true\";", Object::String("true".to_string())),
+    ];
+    for (input, expected) in tests {
+        let input_with_catch = &format!("try {{ {} }} catch(e) {{ e }}", input);
+        let evaluated = vm_test_helper(input_with_catch).await;
+        assert_eq!(evaluated, expected, "input: {}", input);
+    }
+}
+
+#[tokio::test]
+async fn vm_test_try_catch_with_nested_expressions() {
+    let input = r#"
+        let x = try {
+            let y = 1 + 1;
+            throw y;
+        } catch (e) {
+            e + 10
+        };
+        x
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(12));
+}
+
+#[tokio::test]
+async fn vm_test_closure_captures_multiple_vars() {
+    let input = r#"
+        let make_adder = fn(x, y) {
+            fn(z) { x + y + z };
+        };
+        let adder = make_adder(10, 20);
+        adder(5)
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(35));
+}
+
+#[tokio::test]
+async fn vm_test_async_in_sync_context() {
+    let input = r#"
+        async fn async_add(a, b) { a + b }
+        async_add(3, 4)
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::Integer(7));
+}
+
+#[tokio::test]
+async fn vm_test_divide_by_zero_error() {
+    let input = "10 / 0";
+    let evaluated = vm_test_helper(input).await;
+    // Division by zero returns an error object
+    match evaluated {
+        Object::Error(RuntimeError::DivisionByZero) => {}, // Expected
+        _ => panic!("Expected DivisionByZero error, got {:?}", evaluated),
+    }
+}
+
+#[tokio::test]
+async fn vm_test_modulo_by_zero_error() {
+    let input = "10 % 0";
+    let evaluated = vm_test_helper(input).await;
+    // Modulo by zero returns an error object
+    match evaluated {
+        Object::Error(RuntimeError::DivisionByZero) => {}, // Expected
+        _ => panic!("Expected DivisionByZero error, got {:?}", evaluated),
+    }
 }

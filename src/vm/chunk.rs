@@ -17,7 +17,7 @@ use crate::vm::instruction::{encode_instruction, Instruction};
 /// - A function body
 /// - A closure body
 /// - A try/catch block (as a sub-chunk)
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Chunk {
     /// Raw bytecode instructions.
     pub code: Vec<u8>,

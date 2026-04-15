@@ -396,6 +396,13 @@ impl Compiler {
         JumpPatch { addr: addr + 1 }
     }
 
+    /// Emits a `PopJumpIfFalse` and records its patch address.
+    fn emit_pop_jump_if_false(&mut self, line: u16) -> JumpPatch {
+        let addr = self.chunk.code.len();
+        self.emit(Instruction::PopJumpIfFalse(0), line);
+        JumpPatch { addr: addr + 1 }
+    }
+
     /// Emits a `JumpIfTruthy` and records its patch address.
     fn emit_jump_if_truthy(&mut self, line: u16) -> JumpPatch {
         let addr = self.chunk.code.len();
