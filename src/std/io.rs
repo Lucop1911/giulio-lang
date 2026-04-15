@@ -3,7 +3,7 @@ use tokio::io::AsyncWriteExt;
 use std::path::Path;
 
 use crate::runtime::obj::Object;
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use std::sync::{Arc, Mutex};
 
 pub fn io_read_file(args: Vec<Object>) -> Result<Object, RuntimeError> {

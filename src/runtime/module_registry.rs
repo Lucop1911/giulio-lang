@@ -10,7 +10,7 @@ use tokio::fs;
 use std::sync::{Arc, Mutex};
 use crate::ast::ast::Program;
 use crate::runtime::obj::{Object, HashMap};
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use ahash::HashMapExt;
 
 #[cfg(feature = "wasm")]
@@ -234,16 +234,16 @@ impl ModuleRegistry {
     }
     
     async fn parse_and_extract_module(module_registry_arc: Arc<Mutex<Self>>, source: &str, path: &[String]) -> Result<Module, RuntimeError> {
-        use crate::{Lexer, Parser, Tokens};
+        use crate::{Lexer, Parser};
         use crate::vm::compiler::compute_slots::compute_slots;
         
-        let token_vec = Lexer::lex_tokens(source.as_bytes())
+        let spanned_tokens = Lexer::lex_tokens(source.as_bytes())
             .map_err(|e| RuntimeError::InvalidOperation(
-                format!("Failed to lex module: {:?}", e)
-            ))?
-            .1;
+                format!("Failed to lex module: {}", e)
+            ))?;
         
-        let tokens = Tokens::new(&token_vec);
+        let spanned = crate::lexer::token::SpannedTokens::new(&spanned_tokens);
+        let tokens = spanned.to_tokens();
         
         let mut program = Parser::parse_tokens(tokens)
             .map_err(|e| RuntimeError::InvalidOperation(

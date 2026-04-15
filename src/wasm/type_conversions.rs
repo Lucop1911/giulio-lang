@@ -11,7 +11,7 @@
 //! - [`WasmMemoryManager`] — bump allocator and string read/write helpers
 //!   for interacting with WASM linear memory
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::obj::Object;
 use std::cell::RefCell;
 use std::collections::HashMap;

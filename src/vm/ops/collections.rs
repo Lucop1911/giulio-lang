@@ -1,6 +1,6 @@
 //! Collection operations: arrays, hashes, indexing.
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::obj::{HashMap, Object};
 use ahash::HashMapExt;
 

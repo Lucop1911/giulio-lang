@@ -1,7 +1,7 @@
 //! Exception handling operations.
 
-use crate::errors::RuntimeError;
 use crate::runtime::obj::Object;
+use crate::runtime::runtime_errors::RuntimeError;
 
 #[derive(Debug, Clone)]
 pub struct ExceptionHandler {

@@ -1,5 +1,5 @@
-use crate::errors::RuntimeError;
 use crate::runtime::obj::Object;
+use crate::runtime::runtime_errors::RuntimeError;
 
 pub fn string_join(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match (&args[0], &args[1]) {

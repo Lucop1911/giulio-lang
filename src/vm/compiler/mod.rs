@@ -375,7 +375,7 @@ impl Compiler {
         } else {
             // Pool overflow — emit as error
             self.chunk.add_constant(Object::Error(
-                crate::errors::RuntimeError::InvalidOperation(
+                crate::runtime::runtime_errors::RuntimeError::InvalidOperation(
                     "Constant pool overflow (max 65536)".to_string(),
                 ),
             ));

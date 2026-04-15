@@ -1,27 +1,29 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::{Parser, Lexer, Tokens, runtime::obj::Object};
-use crate::parser_errors::{convert_nom_error, show_error_context};
+use crate::{Parser, Lexer, runtime::obj::Object};
+use crate::lexer::token::SpannedTokens;
+use crate::parser::parser_errors::{convert_nom_error, show_error_context};
 use crate::runtime::env::Environment;
 use crate::runtime::module_registry::ModuleRegistry;
 use crate::vm::compiler::Compiler;
 use crate::vm::vm::VirtualMachine;
 
 pub async fn run_source(input: &str) {
-    let token_vec = match Lexer::lex_tokens(input.as_bytes()) {
-        Ok((_, t)) => t,
+    let spanned_tokens = match Lexer::lex_tokens(input.as_bytes()) {
+        Ok(t) => t,
         Err(e) => {
             eprintln!("╭─ Lexer Error ──────────────────────────────");
             eprintln!("│");
-            eprintln!("│ {:?}", e);
+            eprintln!("│ {}", e);
             eprintln!("│");
             eprintln!("╰────────────────────────────────────────────");
             return;
         }
     };
 
-    let tokens = Tokens::new(&token_vec);
+    let spanned = SpannedTokens::new(&spanned_tokens);
+    let (tokens, _) = spanned.to_tokens_with_offset();
 
     let mut program = match Parser::parse_tokens(tokens) {
         Ok((_, program)) => program,
@@ -30,7 +32,10 @@ pub async fn run_source(input: &str) {
             eprintln!("│");
 
             if let nom::Err::Error(err) | nom::Err::Failure(err) = &e {
-                let parser_error = convert_nom_error(&e, "");
+                let remaining_count = err.input.token.len();
+                let total_count = tokens.token.len();
+                let error_index = total_count - remaining_count;
+                let parser_error = convert_nom_error(&e, "", &spanned_tokens, error_index);
                 eprintln!("│ {}", parser_error);
                 eprintln!("│");
                 eprintln!("│ {}", show_error_context(&err.input, 3));

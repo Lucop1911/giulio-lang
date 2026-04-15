@@ -1,6 +1,6 @@
 //! Struct operations: build, get field, set field, method call.
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::constant_pool::ConstantPool;
 use crate::runtime::obj::{HashMap, Object};
 use ahash::HashMapExt;

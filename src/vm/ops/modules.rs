@@ -1,6 +1,6 @@
 //! Module import and export operations.
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::module_registry::ModuleRegistry;
 use crate::runtime::obj::Object;
 use crate::vm::chunk::Chunk;

@@ -5,7 +5,7 @@
 //! represents a compiled module, and [`WasmInstance`] is a runnable
 //! instantiation with unified function-call and memory APIs.
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use std::path::Path;
 use wasmtime::component::types::ComponentItem;
 use wasmtime::component::{

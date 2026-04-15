@@ -1,6 +1,6 @@
-use crate::errors::RuntimeError;
 use crate::runtime::obj::Object;
-use std::env::{args};
+use crate::runtime::runtime_errors::RuntimeError;
+use std::env::args;
 
 pub fn env_args(_args: Vec<Object>) -> Result<Object, RuntimeError> {
     let args: Vec<Object> = args().skip(1).map(Object::String).collect();

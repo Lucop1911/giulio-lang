@@ -2,6 +2,10 @@ use crate::lexer::lexer::Lexer;
 use crate::lexer::token::Token;
 use num_bigint::BigInt;
 
+fn extract_tokens(spanned_tokens: Vec<crate::lexer::token::Spanned<Token>>) -> Vec<Token> {
+    spanned_tokens.into_iter().map(|s| s.node).collect()
+}
+
 #[test]
 fn test_simple_tokens() {
     let input = "=+(){},;";
@@ -17,7 +21,8 @@ fn test_simple_tokens() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -33,7 +38,8 @@ fn test_let_statement() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -57,7 +63,8 @@ fn test_function_declaration() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -82,7 +89,8 @@ fn test_operators() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -118,7 +126,8 @@ fn test_literals() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -146,7 +155,8 @@ fn test_if_else_statement() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -157,7 +167,8 @@ fn test_string_with_escapes() {
         Token::StringLiteral("hello \"world\" \\ \n \r \t".to_string()),
         Token::EOF,
     ];
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }
 
@@ -188,6 +199,7 @@ fn test_comments() {
         Token::EOF,
     ];
 
-    let (_, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let tokens = extract_tokens(spanned_tokens);
     assert_eq!(tokens, expected_tokens);
 }

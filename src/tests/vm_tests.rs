@@ -7,9 +7,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::Lexer;
 use crate::Parser;
-use crate::Tokens;
 use crate::ast::ast::Program;
-use crate::errors::RuntimeError;
+use crate::lexer::token::SpannedTokens;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::env::Environment;
 use crate::runtime::module_registry::ModuleRegistry;
 use crate::runtime::obj::Object;
@@ -17,18 +17,25 @@ use crate::vm::compiler::Compiler;
 use crate::vm::vm::VirtualMachine;
 
 fn parse_test_helper(input: &str) -> Program {
-    let (remaining, tokens) = Lexer::lex_tokens(input.as_bytes())
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes())
         .expect("lexer failed");
-    assert_eq!(remaining.len(), 0, "Lexer did not consume all input");
-    let tokens_wrapper = Tokens::new(&tokens);
-    let result = Parser::parse_tokens(tokens_wrapper).expect("parser failed");
+    let spanned = SpannedTokens::new(&spanned_tokens);
+    let tokens = spanned.to_tokens();
+    let result = Parser::parse_tokens(tokens).expect("parser failed");
     let (remaining_tokens, program) = result;
     assert_eq!(remaining_tokens.token.len(), 0, "Parser did not consume all tokens");
     program
 }
 
 async fn vm_test_helper(input: &str) -> Object {
-    let mut program = parse_test_helper(input);
+    let trimmed = input.trim_end();
+    let needs_semicolon = !trimmed.ends_with(';') && !trimmed.ends_with('}');
+    let input_to_parse = if needs_semicolon {
+        format!("{};", input)
+    } else {
+        input.to_string()
+    };
+    let mut program = parse_test_helper(&input_to_parse);
     let chunk = Compiler::compile_program(&mut program);
     let globals = Arc::new(Mutex::new(Environment::new_root()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));

@@ -1,6 +1,6 @@
 use crate::ast::ast::{Expr, Ident, Infix, Literal, Prefix, Program, Stmt};
 use crate::lexer::lexer::Lexer;
-use crate::lexer::token::Tokens;
+use crate::lexer::token::SpannedTokens;
 use crate::parser::parser::Parser;
 
 fn mk_ident(name: &str) -> Ident {
@@ -8,10 +8,10 @@ fn mk_ident(name: &str) -> Ident {
 }
 
 fn parse_test_helper(input: &str) -> Program {
-    let (remaining, tokens) = Lexer::lex_tokens(input.as_bytes()).unwrap();
-    assert_eq!(remaining.len(), 0, "Lexer did not consume all input");
-    let tokens_wrapper = Tokens::new(&tokens);
-    let result = Parser::parse_tokens(tokens_wrapper);
+    let spanned_tokens = Lexer::lex_tokens(input.as_bytes()).unwrap();
+    let spanned = SpannedTokens::new(&spanned_tokens);
+    let tokens = spanned.to_tokens();
+    let result = Parser::parse_tokens(tokens);
     assert!(
         result.is_ok(),
         "Parser returned an error: {:?}",

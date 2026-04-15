@@ -2,7 +2,7 @@
 //!
 //! All arithmetic logic is centralized here for consistency and maintainability.
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::helpers::type_converters::{normalize_int, obj_to_float, to_bigint};
 use crate::runtime::obj::Object;
 use num_traits::Zero;

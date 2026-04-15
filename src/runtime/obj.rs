@@ -13,8 +13,8 @@ use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 use crate::ast::ast::Ident;
-use crate::errors::RuntimeError;
 use crate::runtime::env::Environment;
+use crate::runtime::runtime_errors::RuntimeError;
 
 #[cfg(feature = "wasm")]
 use crate::wasm::WasmInstance;
@@ -38,9 +38,19 @@ pub enum Object {
     Array(Vec<Object>),
     Hash(HashMap<Object, Object>),
     /// User-defined function: (params, chunk, closure_env, local_names)
-    Function(Vec<Ident>, Arc<crate::vm::chunk::Chunk>, Arc<Mutex<Environment>>, Vec<String>),
+    Function(
+        Vec<Ident>,
+        Arc<crate::vm::chunk::Chunk>,
+        Arc<Mutex<Environment>>,
+        Vec<String>,
+    ),
     /// Async user-defined function: (params, chunk, closure_env, local_names)
-    AsyncFunction(Vec<Ident>, Arc<crate::vm::chunk::Chunk>, Arc<Mutex<Environment>>, Vec<String>),
+    AsyncFunction(
+        Vec<Ident>,
+        Arc<crate::vm::chunk::Chunk>,
+        Arc<Mutex<Environment>>,
+        Vec<String>,
+    ),
     /// Builtin function implemented in Rust (simple variant).
     Builtin(String, usize, usize, BuiltinFunction),
     /// Builtin function with RuntimeError-based error handling.
@@ -71,7 +81,12 @@ pub enum Object {
     ReturnValue(Box<Object>),
     Error(RuntimeError),
     /// A method bound to a struct instance.
-    Method(Vec<Ident>, Arc<crate::vm::chunk::Chunk>, Arc<Mutex<Environment>>, Vec<String>),
+    Method(
+        Vec<Ident>,
+        Arc<crate::vm::chunk::Chunk>,
+        Arc<Mutex<Environment>>,
+        Vec<String>,
+    ),
     /// Control-flow sentinel: exits the innermost loop.
     Break,
     /// Control-flow sentinel: skips to the next loop iteration.

@@ -25,7 +25,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::runtime::env::Environment;
 use crate::runtime::module_registry::ModuleRegistry;
 use crate::runtime::obj::Object;

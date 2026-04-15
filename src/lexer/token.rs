@@ -6,8 +6,16 @@ use std::ops::{Range, RangeFrom, RangeFull, RangeTo};
 /// Lexical tokens produced by the [`Lexer`](super::lexer::Lexer).
 ///
 /// Keywords, operators, literals, and punctuation are all represented here.
-/// The `Tokens` wrapper below adapts a slice of these into a `nom`-compatible
-/// input type so that parser combinators can consume them.
+/// Each token may carry source location information via the [`Spanned`] wrapper.
+///
+/// # Token Types
+///
+/// - **Literals**: `IntLiteral`, `FloatLiteral`, `StringLiteral`, `BoolLiteral`, `NullLiteral`
+/// - **Identifiers**: `Ident` for variable and function names
+/// - **Keywords**: `Let`, `Fn`, `If`, `Else`, `Return`, `While`, `For`, `Struct`, etc.
+/// - **Operators**: `Plus`, `Minus`, `Multiply`, `Equal`, `And`, `Or`, etc.
+/// - **Punctuation**: `LParen`, `RBrace`, `Comma`, `SemiColon`, etc.
+/// - **Special**: `EOF` marks the end of the token stream, `Illegal` for unrecognized input
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Illegal,
@@ -210,5 +218,158 @@ impl<'a> InputIter for Tokens<'a> {
         } else {
             Err(Needed::Unknown)
         }
+    }
+}
+
+/// Represents a location in source code (line and column).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Location {
+    pub line: usize,
+    pub column: usize,
+}
+
+impl Location {
+    pub fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+}
+
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "line {}, column {}", self.line, self.column)
+    }
+}
+
+/// Represents a span of source code with start and end locations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Span {
+    pub start: Location,
+    pub end: Location,
+}
+
+impl Span {
+    pub fn new(start: Location, end: Location) -> Self {
+        Self { start, end }
+    }
+
+    pub fn merge(self, other: Span) -> Self {
+        Self {
+            start: self.start,
+            end: other.end,
+        }
+    }
+}
+
+/// A value paired with its source location span.
+///
+/// Used by the lexer to attach position information to each token,
+/// enabling accurate error reporting with file/line/column details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Spanned<T> {
+    pub node: T,
+    pub span: Span,
+}
+
+impl<T> Spanned<T> {
+    pub fn new(node: T, span: Span) -> Self {
+        Self { node, span }
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<U> {
+        Spanned {
+            node: f(self.node),
+            span: self.span,
+        }
+    }
+}
+
+impl<T> std::ops::Deref for Spanned<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.node
+    }
+}
+
+impl<T> std::ops::DerefMut for Spanned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.node
+    }
+}
+
+impl Spanned<Token> {
+    pub fn as_token(&self) -> &Token {
+        &self.node
+    }
+
+    pub fn location(&self) -> Location {
+        self.span.start
+    }
+}
+
+/// A cursor over a slice of [`Spanned<Token>`] with position tracking.
+///
+/// Provides convenient methods for peeking and advancing through the token
+/// stream while preserving access to source location information.
+#[derive(Clone, Debug)]
+pub struct SpannedTokens<'a> {
+    pub tokens: &'a [Spanned<Token>],
+    pub index: usize,
+}
+
+impl<'a> SpannedTokens<'a> {
+    pub fn new(tokens: &'a [Spanned<Token>]) -> Self {
+        Self { tokens, index: 0 }
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.tokens.len() - self.index
+    }
+
+    pub fn current(&self) -> Option<&Spanned<Token>> {
+        self.tokens.get(self.index)
+    }
+
+    pub fn peek(&self, offset: usize) -> Option<&Spanned<Token>> {
+        self.tokens.get(self.index + offset)
+    }
+
+    pub fn advance(&mut self) {
+        if self.index < self.tokens.len() {
+            self.index += 1;
+        }
+    }
+
+    pub fn slice(&self, range: std::ops::Range<usize>) -> Self {
+        Self {
+            tokens: &self.tokens[range],
+            index: 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.index >= self.tokens.len()
+    }
+
+    pub fn to_tokens(&self) -> Tokens<'static> {
+        let owned: Vec<Token> = self.tokens.iter().map(|s| s.node.clone()).collect();
+        let leaked = Box::leak(owned.into_boxed_slice());
+        Tokens::new(leaked)
+    }
+
+    pub fn to_tokens_with_offset(&self) -> (Tokens<'static>, usize) {
+        let start_index = self.index;
+        let owned: Vec<Token> = self.tokens.iter().map(|s| s.node.clone()).collect();
+        let leaked = Box::leak(owned.into_boxed_slice());
+        let tokens = Tokens::new(leaked);
+        (tokens, start_index)
+    }
+
+    pub fn error_index(&self, remaining_tokens: usize) -> usize {
+        let total_consumed = self.tokens.len() - remaining_tokens;
+        total_consumed
+    }
+
+    pub fn location(&self) -> Option<Location> {
+        self.current().map(|s| s.span.start)
     }
 }

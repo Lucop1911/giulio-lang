@@ -15,3 +15,4 @@ pub mod builtins;
 pub mod module_registry;
 pub mod helpers;
 pub mod constant_pool;
+pub mod runtime_errors;

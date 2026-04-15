@@ -1,8 +1,7 @@
 use std::fmt;
 
-/// Top-level error enum that covers every compilation and runtime phase.
-///
-/// This is the primary error type exposed to users of the library.
+use crate::lexer::token::Location;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LangError {
     Lexer(LexerError),
@@ -10,25 +9,36 @@ pub enum LangError {
     Runtime(RuntimeError),
 }
 
-/// Errors produced during lexical analysis.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LexerError {
-    InvalidToken(String),
-    UnexpectedCharacter(char),
-    UnterminatedString,
+    InvalidToken(String, Option<Location>),
+    UnexpectedCharacter(char, Option<Location>),
+    UnterminatedString(Option<Location>),
 }
 
-/// Errors produced during syntactic analysis (parsing).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParserError {
-    UnexpectedToken(String),
-    ExpectedToken { expected: String, found: String },
-    InvalidExpression(String),
-    UnexpectedEOF,
-    AwaitOutsideAsync,
+    UnexpectedToken {
+        token: String,
+        location: Option<Location>,
+    },
+    ExpectedToken {
+        expected: String,
+        found: String,
+        location: Option<Location>,
+    },
+    InvalidExpression {
+        message: String,
+        location: Option<Location>,
+    },
+    UnexpectedEOF {
+        location: Option<Location>,
+    },
+    AwaitOutsideAsync {
+        location: Option<Location>,
+    },
 }
 
-/// Errors produced during program execution.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
     TypeMismatch { expected: String, got: String },
@@ -59,9 +69,27 @@ impl fmt::Display for LangError {
 impl fmt::Display for LexerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LexerError::InvalidToken(s) => write!(f, "Invalid token: {}", s),
-            LexerError::UnexpectedCharacter(c) => write!(f, "Unexpected character: '{}'", c),
-            LexerError::UnterminatedString => write!(f, "Unterminated string literal"),
+            LexerError::InvalidToken(s, loc) => {
+                if let Some(loc) = loc {
+                    write!(f, "Invalid token: {} at {}", s, loc)
+                } else {
+                    write!(f, "Invalid token: {}", s)
+                }
+            }
+            LexerError::UnexpectedCharacter(c, loc) => {
+                if let Some(loc) = loc {
+                    write!(f, "Unexpected character: '{}' at {}", c, loc)
+                } else {
+                    write!(f, "Unexpected character: '{}'", c)
+                }
+            }
+            LexerError::UnterminatedString(loc) => {
+                if let Some(loc) = loc {
+                    write!(f, "Unterminated string literal at {}", loc)
+                } else {
+                    write!(f, "Unterminated string literal")
+                }
+            }
         }
     }
 }
@@ -69,14 +97,48 @@ impl fmt::Display for LexerError {
 impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ParserError::UnexpectedToken(s) => write!(f, "Unexpected token: {}", s),
-            ParserError::ExpectedToken { expected, found } => {
-                write!(f, "Expected '{}', found '{}'", expected, found)
+            ParserError::UnexpectedToken { token, location } => {
+                if let Some(loc) = location {
+                    write!(f, "Unexpected token: {} at {}", token, loc)
+                } else {
+                    write!(f, "Unexpected token: {}", token)
+                }
             }
-            ParserError::InvalidExpression(s) => write!(f, "Invalid expression: {}", s),
-            ParserError::UnexpectedEOF => write!(f, "Unexpected end of file"),
-            ParserError::AwaitOutsideAsync => {
-                write!(f, "Cannot use 'await' outside of an async function")
+            ParserError::ExpectedToken {
+                expected,
+                found,
+                location,
+            } => {
+                if let Some(loc) = location {
+                    write!(f, "Expected '{}', found '{}' at {}", expected, found, loc)
+                } else {
+                    write!(f, "Expected '{}', found '{}'", expected, found)
+                }
+            }
+            ParserError::InvalidExpression { message, location } => {
+                if let Some(loc) = location {
+                    write!(f, "Invalid expression: {} at {}", message, loc)
+                } else {
+                    write!(f, "Invalid expression: {}", message)
+                }
+            }
+            ParserError::UnexpectedEOF { location } => {
+                if let Some(loc) = location {
+                    write!(f, "Unexpected end of file at {}", loc)
+                } else {
+                    write!(f, "Unexpected end of file")
+                }
+            }
+            ParserError::AwaitOutsideAsync { location } => {
+                if let Some(loc) = location {
+                    write!(
+                        f,
+                        "Cannot use 'await' outside of an async function at {}",
+                        loc
+                    )
+                } else {
+                    write!(f, "Cannot use 'await' outside of an async function")
+                }
             }
         }
     }

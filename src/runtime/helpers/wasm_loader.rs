@@ -4,7 +4,7 @@ use crate::runtime::module_registry::ModuleRegistry;
 use tokio::fs;
 use std::sync::{Arc, Mutex};
 use crate::runtime::obj::{Object, HashMap};
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use ahash::HashMapExt;
 
 #[cfg(feature = "wasm")]

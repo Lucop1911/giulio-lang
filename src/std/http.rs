@@ -1,5 +1,5 @@
 use crate::runtime::obj::{Object, HashMap};
-use crate::errors::RuntimeError;
+use crate::runtime::runtime_errors::RuntimeError;
 use std::sync::{Arc, Mutex};
 use ahash::HashMapExt;
 

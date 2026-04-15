@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::errors::RuntimeError;
 use crate::runtime::env::Environment;
 use crate::runtime::obj::Object;
+use crate::runtime::runtime_errors::RuntimeError;
 use crate::vm::chunk::Chunk;
 use crate::vm::frame::CallFrame;
 use crate::vm::vm::ExecResult;

@@ -1,6 +1,6 @@
 use crate::{
     ast::ast::{Expr, Program, Stmt},
-    errors::ParserError,
+    runtime::runtime_errors::ParserError,
 };
 
 fn verify_await_in_async(program: &Program, in_async: bool) -> Result<(), ParserError> {
@@ -150,7 +150,7 @@ fn verify_await_in_expr(expr: &Expr, in_async: bool) -> Result<(), ParserError> 
             if in_async {
                 Ok(())
             } else {
-                Err(ParserError::AwaitOutsideAsync)
+                Err(ParserError::AwaitOutsideAsync { location: None })
             }
         }
         Expr::StructLiteral { .. }

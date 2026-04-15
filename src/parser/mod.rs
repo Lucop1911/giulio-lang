@@ -9,8 +9,10 @@
 //!
 //! - `parser` — the main Pratt parser and statement parsers
 //! - `parser_helpers` — shared combinators (`parens`, `braced`, `comma_separated`, etc.)
+//! - `parser_errors` — diagnostic-quality error reporting with context-aware messages
 //! - `await_ctx_helpers` — validates that `await` only appears inside `async fn`
 
 pub mod await_ctx_helpers;
 pub mod parser;
+pub mod parser_errors;
 pub mod parser_helpers;

@@ -279,10 +279,9 @@ fn parse_expr_or_assign_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
                     | Expr::CStyleForExpr { .. }
                     | Expr::TryCatchExpr { .. }
             );
-            let is_implicit_return =
-                peek_matches(after_expr, Token::RBrace) || peek_matches(after_expr, Token::EOF);
+            let is_trailing_in_block = peek_matches(after_expr, Token::RBrace);
 
-            if is_block_expr || is_implicit_return {
+            if is_block_expr || is_trailing_in_block {
                 Ok((after_expr, Stmt::ExprValueStmt(expr)))
             } else {
                 // Expect a semicolon for other expression statements
