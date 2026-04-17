@@ -4,16 +4,8 @@ use crate::lexer::token::Location;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LangError {
-    Lexer(LexerError),
     Parser(ParserError),
     Runtime(RuntimeError),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum LexerError {
-    InvalidToken(String, Option<Location>),
-    UnexpectedCharacter(char, Option<Location>),
-    UnterminatedString(Option<Location>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,37 +51,8 @@ pub enum RuntimeError {
 impl fmt::Display for LangError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LangError::Lexer(e) => write!(f, "Lexer Error: {}", e),
             LangError::Parser(e) => write!(f, "Parser Error: {}", e),
             LangError::Runtime(e) => write!(f, "Runtime Error: {}", e),
-        }
-    }
-}
-
-impl fmt::Display for LexerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LexerError::InvalidToken(s, loc) => {
-                if let Some(loc) = loc {
-                    write!(f, "Invalid token: {} at {}", s, loc)
-                } else {
-                    write!(f, "Invalid token: {}", s)
-                }
-            }
-            LexerError::UnexpectedCharacter(c, loc) => {
-                if let Some(loc) = loc {
-                    write!(f, "Unexpected character: '{}' at {}", c, loc)
-                } else {
-                    write!(f, "Unexpected character: '{}'", c)
-                }
-            }
-            LexerError::UnterminatedString(loc) => {
-                if let Some(loc) = loc {
-                    write!(f, "Unterminated string literal at {}", loc)
-                } else {
-                    write!(f, "Unterminated string literal")
-                }
-            }
         }
     }
 }
@@ -185,6 +148,5 @@ impl fmt::Display for RuntimeError {
 }
 
 impl std::error::Error for LangError {}
-impl std::error::Error for LexerError {}
 impl std::error::Error for ParserError {}
 impl std::error::Error for RuntimeError {}
