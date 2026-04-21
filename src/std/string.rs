@@ -62,3 +62,21 @@ pub fn string_repeat(args: Vec<Object>) -> Result<Object, RuntimeError> {
         }),
     }
 }
+
+pub fn string_chars(args: Vec<Object>) -> Result<Object, RuntimeError> {
+    match args.first() {
+        Some(Object::String(s)) => {
+            let chars: Vec<Object> = s.chars().map(|c| Object::String(c.to_string())).collect();
+            Ok(Object::Array(chars))
+        }
+        Some(o) => Err(RuntimeError::TypeMismatch {
+            expected: "string".to_string(),
+            got: o.type_name(),
+        }),
+        None => Err(RuntimeError::WrongNumberOfArguments {
+            min: 1,
+            max: 1,
+            got: 0,
+        }),
+    }
+}

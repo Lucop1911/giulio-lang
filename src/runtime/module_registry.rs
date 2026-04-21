@@ -68,6 +68,7 @@ impl ModuleRegistry {
         string_exports.insert("join".to_string(), create_builtin("join", 2, 2, string_join));
         string_exports.insert("reverse".to_string(), create_builtin("reverse", 1, 1, string_reverse));
         string_exports.insert("repeat".to_string(), create_builtin("repeat", 2, 2, string_repeat));
+        string_exports.insert("chars".to_string(), create_builtin("chars", 1, 1, string_chars));
         
         self.stdlib.insert("std::string".to_string(), Module {
             name: "std::string".to_string(),
