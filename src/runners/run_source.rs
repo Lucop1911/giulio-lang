@@ -49,7 +49,17 @@ pub async fn run_source(input: &str) {
         }
     };
 
-    let chunk = Compiler::compile_program(&mut program);
+    let chunk = match Compiler::compile_program(&mut program) {
+        Ok(chunk) => chunk,
+        Err(e) => {
+            eprintln!("╭─ Compiler Error ───────────────────────────");
+            eprintln!("│");
+            eprintln!("│ {}", e);
+            eprintln!("│");
+            eprintln!("╰────────────────────────────────────────────");
+            return;
+        }
+    };
     let globals = Arc::new(Mutex::new(Environment::new_root()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     let mut vm = VirtualMachine::new(globals, module_registry);

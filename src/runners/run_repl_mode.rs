@@ -68,7 +68,13 @@ pub async fn repl() {
             }
         };
 
-        let chunk = Compiler::compile_program(&mut program);
+        let chunk = match Compiler::compile_program(&mut program) {
+            Ok(chunk) => chunk,
+            Err(e) => {
+                eprintln!("Compiler Error: {}", e);
+                continue;
+            }
+        };
         let result = vm.run(Arc::new(chunk)).await;
 
         match result {

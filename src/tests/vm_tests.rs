@@ -36,7 +36,8 @@ async fn vm_test_helper(input: &str) -> Object {
         input.to_string()
     };
     let mut program = parse_test_helper(&input_to_parse);
-    let chunk = Compiler::compile_program(&mut program);
+    let chunk = Compiler::compile_program(&mut program)
+        .expect("compilation failed");
     let globals = Arc::new(Mutex::new(Environment::new_root()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     let mut vm = VirtualMachine::new(globals, module_registry);
@@ -428,7 +429,8 @@ async fn vm_test_chained_async_calls() {
         main();
     "#;
     let mut program = parse_test_helper(input);
-    let chunk = Compiler::compile_program(&mut program);
+    let chunk = Compiler::compile_program(&mut program)
+        .expect("compilation failed");
     let globals = Arc::new(Mutex::new(Environment::new_root()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     

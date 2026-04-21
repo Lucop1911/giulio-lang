@@ -17,6 +17,7 @@
 //! - `collections.rs` — arrays, hashes, indexing, struct literals
 
 pub mod collections;
+pub mod compilation_errors;
 pub mod compute_slots;
 pub mod control_flow;
 pub mod exceptions;
@@ -28,6 +29,7 @@ use crate::ast::ast::{Expr, Ident, Program, Stmt};
 use crate::runtime::obj::Object;
 use crate::vm::chunk::Chunk;
 use crate::vm::compiler::compute_slots::compute_slots;
+use crate::vm::compiler::compilation_errors::CompilationError;
 use crate::vm::instruction::Instruction;
 
 /// A forward-jump placeholder that needs backpatching once the target
@@ -61,6 +63,8 @@ pub struct Compiler {
     /// Depth counter for nested finally blocks. When > 0, return/throw
     /// statements need to emit PushFinally instructions.
     finally_depth: usize,
+    /// Compilation error if any occurred during compilation.
+    error: Option<CompilationError>,
 }
 
 impl Compiler {
@@ -68,17 +72,23 @@ impl Compiler {
     ///
     /// Runs `compute_slots` on the program to populate slot indices on every `Ident`.
     /// The program is passed by mutable reference to avoid cloning the entire AST.
-    pub fn compile_program(program: &mut Program) -> Chunk {
+    pub fn compile_program(program: &mut Program) -> Result<Chunk, CompilationError> {
         compute_slots(program);
 
         let mut compiler = Compiler {
             chunk: Chunk::new(),
             loop_contexts: Vec::new(),
             finally_depth: 0,
+            error: None,
         };
 
         compiler.compile_program_body(program, false);
-        compiler.chunk
+
+        if let Some(err) = compiler.error.take() {
+            Err(err)
+        } else {
+            Ok(compiler.chunk)
+        }
     }
 
     /// Compiles a function body into a sub-chunk.
@@ -132,6 +142,7 @@ impl Compiler {
             chunk: Chunk::new(),
             loop_contexts: Vec::new(),
             finally_depth: 0,
+            error: None,
         };
 
         compiler.compile_program_body(&program, false);
@@ -373,12 +384,7 @@ impl Compiler {
         if let Some(idx) = self.chunk.add_constant(value) {
             self.emit(Instruction::Constant(idx), line);
         } else {
-            // Pool overflow — emit as error
-            self.chunk.add_constant(Object::Error(
-                crate::runtime::runtime_errors::RuntimeError::InvalidOperation(
-                    "Constant pool overflow (max 65536)".to_string(),
-                ),
-            ));
+            self.error = Some(CompilationError::ConstantPoolOverflow);
         }
     }
 
