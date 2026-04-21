@@ -17,7 +17,7 @@
 //! - [`Lexer`] — entry point for lexical analysis
 //! - [`Parser`] — entry point for syntactic analysis
 //! - [`Compiler`] — compiles programs to bytecode
-//! - [`VM`] — the stack-based virtual machine
+//! - [`VirtualMachine`] — the stack-based virtual machine
 //! - [`Token`], [`Tokens`] — the token stream types
 //! - [`LangError`], [`RuntimeError`] — error enumerations
 
