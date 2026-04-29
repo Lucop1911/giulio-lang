@@ -11,8 +11,7 @@
 //! - `type_conversions` — bidirectional conversion between G-lang [`Object`]s
 //!   and WASM component/classic values, plus memory management helpers
 
-pub mod type_conversions;
-pub mod wasm_runtime;
+pub(crate) mod type_conversions;
+pub(crate) mod wasm_runtime;
 
-pub use type_conversions::*;
 pub use wasm_runtime::*;

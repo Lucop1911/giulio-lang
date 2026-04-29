@@ -28,12 +28,12 @@ pub struct ModuleRegistry {
 
 #[derive(Clone, Debug)]
 pub struct Module {
-    pub name: String,
-    pub exports: HashMap<String, Object>,
+    pub(crate) name: String,
+    pub(crate) exports: HashMap<String, Object>,
 }
 
 impl ModuleRegistry {
-    pub fn new(base_path: PathBuf) -> Self {
+    pub(crate) fn new(base_path: PathBuf) -> Self {
         #[cfg(feature = "wasm")]
         let (wasm_runtime, wasm_store) = match WasmRuntime::new() {
             Ok(runtime) => {
@@ -146,6 +146,8 @@ impl ModuleRegistry {
         
         json_exports.insert("serialize".to_string(), create_builtin("serialize", 1, 1, json_serialize));
         json_exports.insert("deserialize".to_string(), create_builtin("deserialize", 1, 1, json_deserialize));
+        json_exports.insert("prettify".to_string(), create_builtin("prettify", 1, 1, json_prettify));
+        json_exports.insert("validate".to_string(), create_builtin("validate", 1, 1, json_validate));
 
         self.stdlib.insert("std::json".to_string(), Module {
             name: "std::json".to_string(),
@@ -235,7 +237,7 @@ impl ModuleRegistry {
     }
     
     async fn parse_and_extract_module(module_registry_arc: Arc<Mutex<Self>>, source: &str, path: &[String]) -> Result<Module, RuntimeError> {
-        use crate::{Lexer, Parser};
+        use crate::{lexer::lexer::Lexer, parser::parser::Parser};
         use crate::vm::compiler::compute_slots::compute_slots;
         
         let spanned_tokens = Lexer::lex_tokens(source.as_bytes())

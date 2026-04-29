@@ -1,6 +1,6 @@
 use crate::vm::obj::Object;
 
-pub fn bhead_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bhead_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(arr)) => match arr.into_iter().next() {
             None => Err("head() cannot get head of empty array".to_string()),
@@ -11,7 +11,7 @@ pub fn bhead_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn btail_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btail_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(mut arr)) => match arr.len() {
             0 => Err("tail() cannot get tail of empty array".to_string()),
@@ -25,7 +25,7 @@ pub fn btail_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bcons_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bcons_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(o), Some(Object::Array(mut os))) => {
@@ -42,7 +42,7 @@ pub fn bcons_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bpush_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bpush_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::Array(mut arr)), Some(o)) => {

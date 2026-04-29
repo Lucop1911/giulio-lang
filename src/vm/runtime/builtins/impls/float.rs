@@ -2,7 +2,7 @@ use crate::vm::obj::Object;
 use num_traits::ToPrimitive;
 
 // Method only
-pub fn btofloat_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btofloat_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Integer(n)) => {
             Ok(Object::Float(*n as f64)) // Wont fail as Integers are always i64

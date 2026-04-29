@@ -1,7 +1,7 @@
 use crate::vm::obj::Object;
 
 // Method only
-pub fn btoupper_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btoupper_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => Ok(Object::String(s.to_uppercase())),
         Some(o) => Err(format!("to_upper() expects string, got {}", o.type_name())),
@@ -10,7 +10,7 @@ pub fn btoupper_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only
-pub fn btolower_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btolower_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => Ok(Object::String(s.to_lowercase())),
         Some(o) => Err(format!("to_lower() expects a string, got {}", o.type_name())),
@@ -19,7 +19,7 @@ pub fn btolower_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only
-pub fn bstartswith_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bstartswith_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::String(prefix))) => {
@@ -34,7 +34,7 @@ pub fn bstartswith_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only
-pub fn bendswith_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bendswith_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::String(suffix))) => {
@@ -45,7 +45,7 @@ pub fn bendswith_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn breplace_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn breplace_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::String(old)), Some(Object::String(new))) => {
@@ -59,7 +59,7 @@ pub fn breplace_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bsplit_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bsplit_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::String(delimiter))) => {
@@ -74,7 +74,7 @@ pub fn bsplit_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn btrim_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btrim_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => {
             let trimmed_str = s.trim().to_string();

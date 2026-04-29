@@ -5,7 +5,7 @@ use crate::vm::obj::Object;
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
 // Method only
-pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next(), args.next()) {
         (Some(Object::Hash(mut hash)), Some(key), Some(value)) => match &key {
@@ -24,7 +24,7 @@ pub fn bset_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only
-pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::Hash(hash)), Some(key)) => match &key {
@@ -41,7 +41,7 @@ pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Hash(hash)) => {
             let keys: Vec<Object> = hash.keys().cloned().collect();
@@ -52,7 +52,7 @@ pub fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Hash(hash)) => {
             let values: Vec<Object> = hash.values().cloned().collect();
@@ -63,7 +63,7 @@ pub fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bclear_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bclear_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Hash(_)) => Ok(Object::Hash(HashMap::new())),
         Some(o) => Err(format!("clear() expects hash, got {}", o.type_name())),

@@ -94,7 +94,7 @@ pub enum Token {
 /// Tracks `start` and `end` offsets so that error messages can reference
 /// the original position in the token stream.
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Tokens<'a> {
+pub(crate) struct Tokens<'a> {
     pub token: &'a [Token],
     pub start: usize,
     pub end: usize,
@@ -294,7 +294,7 @@ impl<T> std::ops::DerefMut for Spanned<T> {
 /// Provides convenient methods for peeking and advancing through the token
 /// stream while preserving access to source location information.
 #[derive(Clone, Debug)]
-pub struct SpannedTokens<'a> {
+pub(crate) struct SpannedTokens<'a> {
     pub tokens: &'a [Spanned<Token>],
     pub index: usize,
 }
@@ -302,24 +302,6 @@ pub struct SpannedTokens<'a> {
 impl<'a> SpannedTokens<'a> {
     pub fn new(tokens: &'a [Spanned<Token>]) -> Self {
         Self { tokens, index: 0 }
-    }
-
-    pub fn remaining(&self) -> usize {
-        self.tokens.len() - self.index
-    }
-
-    pub fn current(&self) -> Option<&Spanned<Token>> {
-        self.tokens.get(self.index)
-    }
-
-    pub fn peek(&self, offset: usize) -> Option<&Spanned<Token>> {
-        self.tokens.get(self.index + offset)
-    }
-
-    pub fn advance(&mut self) {
-        if self.index < self.tokens.len() {
-            self.index += 1;
-        }
     }
 
     pub fn to_tokens(&self) -> Tokens<'static> {
@@ -334,13 +316,5 @@ impl<'a> SpannedTokens<'a> {
         let leaked = Box::leak(owned.into_boxed_slice());
         let tokens = Tokens::new(leaked);
         (tokens, start_index)
-    }
-
-    pub fn error_index(&self, remaining_tokens: usize) -> usize {
-        self.tokens.len() - remaining_tokens
-    }
-
-    pub fn location(&self) -> Option<Location> {
-        self.current().map(|s| s.span.start)
     }
 }

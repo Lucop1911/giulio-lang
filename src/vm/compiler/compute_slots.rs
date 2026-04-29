@@ -1,15 +1,8 @@
 use crate::ast::ast::{Expr, Program, SlotIndex, Stmt};
 
-pub fn compute_slots(program: &mut Program) {
+pub(crate) fn compute_slots(program: &mut Program) {
     let mut scope = Scope::new();
     scope.process_program(program);
-}
-
-pub fn count_global_lets(program: &Program) -> usize {
-    program
-        .iter()
-        .filter(|s| matches!(s, Stmt::LetStmt(..)))
-        .count()
 }
 
 struct Scope {
@@ -508,7 +501,6 @@ impl Scope {
             }
             Expr::AwaitExpr(e) => self.process_expr(e, locals),
             Expr::LitExpr(_) | Expr::ThisExpr => {}
-            Expr::LitIndex(_) => {}
         }
     }
 

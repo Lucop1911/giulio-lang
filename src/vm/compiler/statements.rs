@@ -9,7 +9,7 @@ use crate::vm::instruction::Instruction;
 ///
 /// For top-level lets (global scope), emits `SetGlobal`.
 /// For function-local lets, emits `SetLocal` using the pre-computed slot.
-pub fn compile_let_stmt(compiler: &mut Compiler, ident: &Ident, expr: &Expr, line: u16) {
+pub(crate) fn compile_let_stmt(compiler: &mut Compiler, ident: &Ident, expr: &Expr, line: u16) {
     compiler.compile_expression(expr, line);
 
     if ident.slot != SlotIndex::UNSET {
@@ -25,7 +25,7 @@ pub fn compile_let_stmt(compiler: &mut Compiler, ident: &Ident, expr: &Expr, lin
 }
 
 /// Compiles a multi-let destructuring: `let (a, b) = (expr1, expr2);`.
-pub fn compile_multi_let(compiler: &mut Compiler, idents: &[Ident], values: &[Expr], line: u16) {
+pub(crate) fn compile_multi_let(compiler: &mut Compiler, idents: &[Ident], values: &[Expr], line: u16) {
     // Compile each value and assign to each ident
     for (ident, value) in idents.iter().zip(values.iter()) {
         compiler.compile_expression(value, line);
@@ -43,7 +43,7 @@ pub fn compile_multi_let(compiler: &mut Compiler, idents: &[Ident], values: &[Ex
 }
 
 /// Compiles a simple assignment: `name = expr;`.
-pub fn compile_assign(compiler: &mut Compiler, ident: &Ident, expr: &Expr, line: u16) {
+pub(crate) fn compile_assign(compiler: &mut Compiler, ident: &Ident, expr: &Expr, line: u16) {
     compiler.compile_expression(expr, line);
 
     if ident.slot != SlotIndex::UNSET {
@@ -62,7 +62,7 @@ pub fn compile_assign(compiler: &mut Compiler, ident: &Ident, expr: &Expr, line:
 ///
 /// All values are evaluated first (left-to-right), then assigned
 /// left-to-right. This ensures swap semantics work: `(a, b) = (b, a)`.
-pub fn compile_tuple_assign(
+pub(crate) fn compile_tuple_assign(
     compiler: &mut Compiler,
     targets: &[Ident],
     values: &[Expr],
@@ -95,7 +95,7 @@ pub fn compile_tuple_assign(
 }
 
 /// Compiles a field assignment: `obj.field = expr;`.
-pub fn compile_field_assign(
+pub(crate) fn compile_field_assign(
     compiler: &mut Compiler,
     object: &Expr,
     field: &str,
@@ -115,7 +115,7 @@ pub fn compile_field_assign(
 }
 
 /// Compiles an index assignment: `arr[i] = expr;`.
-pub fn compile_index_assign(
+pub(crate) fn compile_index_assign(
     compiler: &mut Compiler,
     target: &Expr,
     index: &Expr,
@@ -129,7 +129,7 @@ pub fn compile_index_assign(
 }
 
 /// Compiles a `return expr;` statement.
-pub fn compile_return_stmt(compiler: &mut Compiler, expr: &Expr, line: u16) {
+pub(crate) fn compile_return_stmt(compiler: &mut Compiler, expr: &Expr, line: u16) {
     compiler.compile_expression(expr, line);
     compiler.emit(Instruction::ReturnValue, line);
 }
@@ -138,7 +138,7 @@ pub fn compile_return_stmt(compiler: &mut Compiler, expr: &Expr, line: u16) {
 ///
 /// Emits `ImportModule` for the path, then `GetExport` for each
 /// imported name, and stores each export as a global variable.
-pub fn compile_import_stmt(
+pub(crate) fn compile_import_stmt(
     compiler: &mut Compiler,
     path: &[String],
     items: &ImportItems,

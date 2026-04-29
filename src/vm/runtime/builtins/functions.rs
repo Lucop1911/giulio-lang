@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-pub struct BuiltinsFunctions;
+pub(crate) struct BuiltinsFunctions;
 
 impl Default for BuiltinsFunctions {
     fn default() -> Self {
@@ -18,7 +18,7 @@ impl Default for BuiltinsFunctions {
 }
 
 impl BuiltinsFunctions {
-    pub const BUILTIN_NAMES: &'static [&'static str] = &[
+    pub(crate) const BUILTIN_NAMES: &'static [&'static str] = &[
         "set_field",
         "get_field",
         "fields",
@@ -47,11 +47,11 @@ impl BuiltinsFunctions {
         "clear",
     ];
 
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         BuiltinsFunctions {}
     }
 
-    pub fn get_builtins(&self) -> Vec<(Ident, Object)> {
+    pub(crate) fn get_builtins(&self) -> Vec<(Ident, Object)> {
         vec![
             // Struct operations
             add_builtin(Self::BUILTIN_NAMES[0], 3, 3, bset_field_fn),

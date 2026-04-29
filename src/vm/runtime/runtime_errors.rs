@@ -3,12 +3,6 @@ use std::fmt;
 use crate::lexer::token::Location;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LangError {
-    Parser(ParserError),
-    Runtime(RuntimeError),
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum ParserError {
     UnexpectedToken {
         token: String,
@@ -46,15 +40,6 @@ pub enum RuntimeError {
     EmptyArray,
     InvalidArguments(String),
     UncaughtException(String),
-}
-
-impl fmt::Display for LangError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LangError::Parser(e) => write!(f, "Parser Error: {}", e),
-            LangError::Runtime(e) => write!(f, "Runtime Error: {}", e),
-        }
-    }
 }
 
 impl fmt::Display for ParserError {
@@ -147,6 +132,5 @@ impl fmt::Display for RuntimeError {
     }
 }
 
-impl std::error::Error for LangError {}
 impl std::error::Error for ParserError {}
 impl std::error::Error for RuntimeError {}

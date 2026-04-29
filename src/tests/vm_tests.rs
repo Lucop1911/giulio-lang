@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::Lexer;
-use crate::Parser;
+use crate::lexer::lexer::Lexer;
+use crate::parser::parser::Parser;
 use crate::ast::ast::Program;
 use crate::lexer::token::SpannedTokens;
 use crate::vm::runtime::runtime_errors::RuntimeError;
@@ -306,7 +306,7 @@ async fn vm_test_division_by_zero() {
     let evaluated = vm_test_helper(input).await;
     assert_eq!(
         evaluated,
-        Object::Error(crate::RuntimeError::DivisionByZero)
+        Object::Error(crate::vm::runtime::runtime_errors::RuntimeError::DivisionByZero)
     );
 }
 

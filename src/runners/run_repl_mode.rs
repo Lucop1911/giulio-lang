@@ -2,8 +2,8 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::Lexer;
-use crate::Parser;
+use crate::parser::parser::Parser;
+use crate::lexer::lexer::Lexer;
 use crate::vm::obj::Object;
 use crate::lexer::token::SpannedTokens;
 use crate::parser::parser_errors::{convert_nom_error, show_error_context};

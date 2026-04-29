@@ -51,7 +51,7 @@ fn verify_await_in_stmt(stmt: &Stmt, in_async: bool) -> Result<(), ParserError> 
 
 fn verify_await_in_expr(expr: &Expr, in_async: bool) -> Result<(), ParserError> {
     match expr {
-        Expr::IdentExpr(_) | Expr::LitExpr(_) | Expr::LitIndex(_) => Ok(()),
+        Expr::IdentExpr(_) | Expr::LitExpr(_) => Ok(()),
         Expr::PrefixExpr(_, e) => verify_await_in_expr(e, in_async),
         Expr::InfixExpr(_, e1, e2) => {
             verify_await_in_expr(e1, in_async)?;

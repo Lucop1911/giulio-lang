@@ -119,7 +119,6 @@ pub fn compile_struct_stmt(
         name: name.name.clone(),
         fields: field_map,
         methods: method_map,
-        constants: crate::vm::obj::ConstantPool::new(),
     };
 
     let struct_idx = compiler.chunk.add_constant(struct_obj);

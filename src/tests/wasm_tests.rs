@@ -1,22 +1,8 @@
 use crate::vm::obj::Object;
 use crate::vm::runtime::runtime_errors::RuntimeError;
-use crate::wasm::type_conversions::{
-    component_val_to_g, g_to_component_val, TypeMapping, WasmType,
-};
+use crate::wasm::type_conversions::{component_val_to_g, g_to_component_val};
 use crate::wasm::wasm_runtime::{WasmModule, WasmRuntime};
 use wasmtime::component::Val;
-
-#[test]
-fn test_type_mapping_creation() {
-    let mapping = TypeMapping::new();
-
-    assert_eq!(mapping.get_wasm_type("Int"), Some(WasmType::I32));
-    assert_eq!(mapping.get_wasm_type("Float"), Some(WasmType::F64));
-    assert_eq!(mapping.get_wasm_type("Bool"), Some(WasmType::I32));
-
-    assert_eq!(mapping.get_g_type(WasmType::I32), Some("Int".to_string()));
-    assert_eq!(mapping.get_g_type(WasmType::F64), Some("Float".to_string()));
-}
 
 #[test]
 fn test_g_int_to_component() {
@@ -84,15 +70,6 @@ fn test_component_val_to_g_bool() {
 
     assert!(obj.is_ok());
     assert_eq!(obj.unwrap(), Object::Boolean(true));
-}
-
-#[test]
-fn test_wasm_type_from_str() {
-    assert_eq!(WasmType::from_string("i32"), Some(WasmType::I32));
-    assert_eq!(WasmType::from_string("i64"), Some(WasmType::I64));
-    assert_eq!(WasmType::from_string("f32"), Some(WasmType::F32));
-    assert_eq!(WasmType::from_string("f64"), Some(WasmType::F64));
-    assert_eq!(WasmType::from_string("unknown"), None);
 }
 
 #[test]

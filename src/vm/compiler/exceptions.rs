@@ -6,13 +6,13 @@ use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 
 /// Compiles a `throw expr;` statement.
-pub fn compile_throw(compiler: &mut Compiler, expr: &Expr, line: u16) {
+pub(crate) fn compile_throw(compiler: &mut Compiler, expr: &Expr, line: u16) {
     compiler.compile_expression(expr, line);
     compiler.emit(Instruction::Throw, line);
 }
 
 /// Compiles a `try { ... } catch (e) { ... } finally { ... }` expression.
-pub fn compile_try_catch(
+pub(crate) fn compile_try_catch(
     compiler: &mut Compiler,
     try_body: &Program,
     catch_ident: &Option<Ident>,

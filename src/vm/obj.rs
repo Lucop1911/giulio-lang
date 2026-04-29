@@ -21,8 +21,6 @@ use crate::wasm::WasmInstance;
 
 pub type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
-pub use crate::vm::compiler::constant_pool::ConstantPool;
-
 /// The universal value type of the G-lang runtime.
 ///
 /// Every expression in a G-lang program evaluates to one of these variants.
@@ -68,7 +66,6 @@ pub enum Object {
         name: String,
         fields: HashMap<String, Object>,
         methods: HashMap<String, Object>,
-        constants: ConstantPool,
     },
     /// A loaded module with its exported bindings.
     Module {

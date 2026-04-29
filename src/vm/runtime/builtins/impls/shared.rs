@@ -4,7 +4,7 @@ use num_traits::ToPrimitive;
 use crate::vm::obj::Object;
 
 // Method only
-pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(obj) => Ok(Object::String(format!("{}", obj))),
         _ => Err(format!(
@@ -15,7 +15,7 @@ pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only
-pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => match s.trim().parse::<i64>() {
             Ok(n) => Ok(Object::Integer(n)),
@@ -40,7 +40,7 @@ pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only - String, Array, Hash
-pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => Ok(Object::Boolean(s.is_empty())),
         Some(Object::Array(arr)) => Ok(Object::Boolean(arr.is_empty())),
@@ -54,7 +54,7 @@ pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only - String, Array, Hash
-pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::String(s)) => Ok(Object::Integer(s.len() as i64)),
         Some(Object::Array(arr)) => Ok(Object::Integer(arr.len() as i64)),
@@ -68,7 +68,7 @@ pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only - Hash, Array
-pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::Hash(mut hash)), Some(key)) => match &key {
@@ -102,7 +102,7 @@ pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Method only - String, Array, Hash
-pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::Integer(idx))) => {
@@ -153,7 +153,7 @@ pub fn bget_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bcontains_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bcontains_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::String(sub))) => {
@@ -168,7 +168,7 @@ pub fn bcontains_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
     let mut args = args.into_iter();
     match (args.next(), args.next(), args.next()) {
         (Some(Object::String(s)), Some(Object::Integer(start)), end_opt) => {

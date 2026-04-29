@@ -1,7 +1,7 @@
 use crate::vm::runtime::builtins::impls::{
     array::*, float::*, hash::*, int::*, shared::*, string::*, struct_ops::*,
 };
-use crate::{vm::obj::Object, RuntimeError};
+use crate::vm::{obj::Object, runtime::runtime_errors::RuntimeError};
 
 pub struct BuiltinMethods;
 
@@ -177,22 +177,22 @@ impl BuiltinMethods {
             }
 
             // Struct methods
-            (Object::Struct {name: _, fields: _, methods: _, constants: _}, "set") => {
+            (Object::Struct {name: _, fields: _, methods: _}, "set") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bset_field_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
-            (Object::Struct {name: _, fields: _, methods: _, constants: _}, "get") => {
+            (Object::Struct {name: _, fields: _, methods: _}, "get") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bget_field_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
-            (Object::Struct {name: _, fields: _, methods: _, constants: _},"fields" ) => {
+            (Object::Struct {name: _, fields: _, methods: _},"fields" ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bstruct_fields_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
-            (Object::Struct {name: _, fields: _, methods: _, constants: _}, "name") => {
+            (Object::Struct {name: _, fields: _, methods: _fn_chunk}, "name") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
                 bstruct_name_fn(all_args).map_err(RuntimeError::InvalidArguments)

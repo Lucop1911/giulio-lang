@@ -1,6 +1,6 @@
 use crate::vm::obj::Object;
 
-pub fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
     match (args.first(), args.get(1)) {
         (Some(Object::Integer(base)), Some(Object::Integer(exp))) => {
             if *exp < 0 {
@@ -17,7 +17,7 @@ pub fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn babs_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn babs_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Integer(x)) => Ok(Object::Integer(x.abs())),
         Some(o) => Err(format!("abs() expects integer, got {}", o.type_name())),
@@ -25,7 +25,7 @@ pub fn babs_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bmin_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bmin_fn(args: Vec<Object>) -> Result<Object, String> {
     match (args.first(), args.get(1)) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => Ok(Object::Integer((*a).min(*b))),
         (Some(o), _) => Err(format!("min() expects integer, got {}", o.type_name())),
@@ -33,7 +33,7 @@ pub fn bmin_fn(args: Vec<Object>) -> Result<Object, String> {
     }
 }
 
-pub fn bmax_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bmax_fn(args: Vec<Object>) -> Result<Object, String> {
     match (args.first(), args.get(1)) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => Ok(Object::Integer((*a).max(*b))),
         (Some(o), _) => Err(format!("max() expects integer, got {}", o.type_name())),

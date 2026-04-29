@@ -18,10 +18,6 @@ use wasmtime_wasi::WasiCtx;
 use wasmtime_wasi::WasiCtxBuilder;
 use wasmtime_wasi::WasiView;
 
-use super::type_conversions;
-
-pub use type_conversions::*;
-
 /// Wrapper around the `wasmtime::Engine`.
 ///
 /// Manages compilation and store creation. The engine is cheaply cloneable
@@ -86,7 +82,7 @@ impl WasmRuntime {
 ///
 /// Loading is format-agnostic: `load_from_bytes` auto-detects the binary
 /// magic header (classic vs component) and also supports WAT text format.
-pub enum WasmModule {
+pub(crate) enum WasmModule {
     /// WASI Preview 2 component
     Component { component: Component },
     /// WASI Preview 1 classic module
@@ -514,4 +510,4 @@ impl Default for WasmContext {
 }
 
 // Type alias for store with WASM context
-pub type WasmStore = Store<WasmContext>;
+pub(crate) type WasmStore = Store<WasmContext>;

@@ -17,7 +17,7 @@
 /// assigned sequentially for compact encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum Opcode {
+pub(crate) enum Opcode {
     // ─── Stack operations (0x00–0x0F) ──────────────────────────────
     /// Push constant from pool onto stack. Operand: u16 index.
     OpConstant = 0x00,
@@ -295,7 +295,7 @@ pub enum Instruction {
 /// Encode a single instruction into a byte vector.
 ///
 /// Appends the opcode byte followed by operands in big-endian order.
-pub fn encode_instruction(code: &mut Vec<u8>, instr: Instruction) {
+pub(crate) fn encode_instruction(code: &mut Vec<u8>, instr: Instruction) {
     match instr {
         Instruction::Constant(idx) => {
             code.push(Opcode::OpConstant as u8);

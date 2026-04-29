@@ -1,7 +1,7 @@
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CompilationError {
+pub(crate) enum CompilationError {
     ConstantPoolOverflow,
 }
 

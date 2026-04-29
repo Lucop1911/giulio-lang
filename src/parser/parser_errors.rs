@@ -26,7 +26,7 @@ use nom::error::{Error, ErrorKind};
 /// failed (e.g. `"let_stmt"`, `"if_expr_lparen"`). When empty, the function
 /// falls back to token-pattern inference. The `spanned_tokens` parameter provides access
 /// to source location information for accurate error reporting.
-pub fn convert_nom_error<'a>(
+pub(crate) fn convert_nom_error<'a>(
     err: &Err<Error<Tokens<'a>>>,
     context: &str,
     spanned_tokens: &[Spanned<Token>],
@@ -715,7 +715,7 @@ fn create_contextual_error(
     }
 }
 
-pub fn describe_token(token: &Token) -> String {
+pub(crate) fn describe_token(token: &Token) -> String {
     match token {
         Token::Illegal => "illegal token".to_string(),
         Token::EOF => "end of file".to_string(),
@@ -785,7 +785,7 @@ pub fn describe_token(token: &Token) -> String {
     }
 }
 
-pub fn show_error_context(tokens: &Tokens, num_context_tokens: usize) -> String {
+pub(crate) fn show_error_context(tokens: &Tokens, num_context_tokens: usize) -> String {
     if tokens.token.is_empty() {
         return "Near: end of file".to_string();
     }

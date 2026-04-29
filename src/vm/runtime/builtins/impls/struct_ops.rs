@@ -1,4 +1,4 @@
-use crate::vm::obj::{ConstantPool, Object};
+use crate::vm::obj::Object;
 
 pub fn bset_field_fn(args: Vec<Object>) -> Result<Object, String> {
     if args.len() != 3 {
@@ -13,7 +13,6 @@ pub fn bset_field_fn(args: Vec<Object>) -> Result<Object, String> {
                 name,
                 mut fields,
                 methods,
-                constants: _,
             },
             Object::String(field_name),
             new_value,
@@ -23,7 +22,6 @@ pub fn bset_field_fn(args: Vec<Object>) -> Result<Object, String> {
                 name: name.clone(),
                 fields,
                 methods: methods.clone(),
-                constants: ConstantPool::new(),
             })
         }
         (o, _, _) => Err(format!("set_field() expects struct, got {}", o.type_name())),
@@ -43,7 +41,6 @@ pub fn bget_field_fn(args: Vec<Object>) -> Result<Object, String> {
                 name: _,
                 fields,
                 methods: _,
-                constants: _,
             },
             Object::String(field_name),
         ) => match fields.get(&field_name) {
@@ -60,7 +57,6 @@ pub fn bstruct_fields_fn(args: Vec<Object>) -> Result<Object, String> {
             name: _,
             fields,
             methods: _,
-            constants: _,
         }) => {
             let field_names: Vec<Object> = fields.keys().cloned().map(Object::String).collect();
             Ok(Object::Array(field_names))
@@ -76,7 +72,6 @@ pub fn bstruct_name_fn(args: Vec<Object>) -> Result<Object, String> {
             name,
             fields: _,
             methods: _,
-            constants: _,
         }) => Ok(Object::String(name)),
         Some(o) => Err(format!("name() expects struct, got {}", o.type_name())),
         None => Err("name() expects 1 argument, got 0".to_string()),

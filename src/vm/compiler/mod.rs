@@ -15,17 +15,15 @@
 //! - `functions.rs` — fn declarations, calls, closures, async, await
 //! - `exceptions.rs` — try/catch/finally, throw
 //! - `collections.rs` — arrays, hashes, indexing, struct literals
-//! - `constant_pool` — compile-time literal extraction for faster evaluation
 
-pub mod collections;
-pub mod compilation_errors;
-pub mod compute_slots;
-pub mod control_flow;
-pub mod exceptions;
-pub mod expressions;
-pub mod functions;
-pub mod statements;
-pub mod constant_pool;
+pub(crate) mod collections;
+pub(crate) mod compilation_errors;
+pub(crate) mod compute_slots;
+pub(crate) mod control_flow;
+pub(crate) mod exceptions;
+pub(crate) mod expressions;
+pub(crate) mod functions;
+pub(crate) mod statements;
 
 use crate::ast::ast::{Expr, Ident, Program, Stmt};
 use crate::vm::obj::Object;
@@ -58,7 +56,7 @@ struct LoopContext {
 ///
 /// It maintains a single output chunk and uses jump-patch lists for
 /// forward references (if/else, loops, short-circuit operators).
-pub struct Compiler {
+pub(crate) struct Compiler {
     chunk: Chunk,
     /// Stack of active loop contexts. The innermost loop is at the back.
     loop_contexts: Vec<LoopContext>,
@@ -271,9 +269,6 @@ impl Compiler {
             }
             Expr::LitExpr(literal) => {
                 expressions::compile_literal(self, literal, line);
-            }
-            Expr::LitIndex(idx) => {
-                self.emit(Instruction::Constant(*idx as u16), line);
             }
             Expr::PrefixExpr(op, operand) => {
                 expressions::compile_prefix(self, op, operand, line);

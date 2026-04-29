@@ -1,3 +1,3 @@
-pub mod functions;
-pub mod methods;
-pub mod impls;
+pub(crate) mod functions;
+pub(crate) mod methods;
+pub(crate) mod impls;

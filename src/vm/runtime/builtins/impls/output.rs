@@ -1,7 +1,7 @@
 use crate::vm::obj::Object;
 
 // Function only
-pub fn bprint_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bprint_fn(args: Vec<Object>) -> Result<Object, String> {
     for (i, obj) in args.iter().enumerate() {
         if i > 0 {
             print!("");
@@ -12,7 +12,7 @@ pub fn bprint_fn(args: Vec<Object>) -> Result<Object, String> {
 }
 
 // Function only
-pub fn bprintln_fn(args: Vec<Object>) -> Result<Object, String> {
+pub(crate) fn bprintln_fn(args: Vec<Object>) -> Result<Object, String> {
     for (i, obj) in args.iter().enumerate() {
         if i > 0 {
             print!("");

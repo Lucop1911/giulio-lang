@@ -4,7 +4,7 @@ use crate::vm::runtime::runtime_errors::RuntimeError;
 use crate::vm::obj::{HashMap, Object};
 use ahash::HashMapExt;
 
-pub fn execute_build_array(stack: &mut Vec<Object>, count: u16) {
+pub(crate) fn execute_build_array(stack: &mut Vec<Object>, count: u16) {
     let count = count as usize;
     if stack.len() < count {
         stack.push(Object::Error(RuntimeError::InvalidOperation(
@@ -16,7 +16,7 @@ pub fn execute_build_array(stack: &mut Vec<Object>, count: u16) {
     stack.push(Object::Array(elements));
 }
 
-pub fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
+pub(crate) fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
     let pair_count = pair_count as usize;
     if stack.len() < pair_count * 2 {
         stack.push(Object::Error(RuntimeError::InvalidOperation(
@@ -49,7 +49,7 @@ pub fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
     stack.push(Object::Hash(hashmap));
 }
 
-pub fn execute_index(stack: &mut Vec<Object>) {
+pub(crate) fn execute_index(stack: &mut Vec<Object>) {
     let index = match stack.pop() {
         Some(v) => v,
         None => {
@@ -103,7 +103,7 @@ pub fn execute_index(stack: &mut Vec<Object>) {
     stack.push(result);
 }
 
-pub fn execute_set_index(stack: &mut Vec<Object>) {
+pub(crate) fn execute_set_index(stack: &mut Vec<Object>) {
     let value = match stack.pop() {
         Some(v) => v,
         None => {

@@ -1,7 +1,8 @@
 use crate::lexer::token::SpannedTokens;
 use crate::parser::parser_errors::{convert_nom_error, show_error_context};
 use crate::vm::compiler::compute_slots::compute_slots;
-use crate::{Lexer, Parser};
+use crate::parser::parser::Parser;
+use crate::lexer::lexer::Lexer;
 
 pub fn run_check(input: &str) {
     let spanned_tokens = match Lexer::lex_tokens(input.as_bytes()) {

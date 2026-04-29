@@ -28,7 +28,7 @@ use crate::parser::parser_helpers::*;
 macro_rules! tag_token {
     ($func_name:ident, $tag:expr) => {
         #[inline]
-        pub fn $func_name(tokens: Tokens) -> IResult<Tokens, Tokens> {
+        pub(crate) fn $func_name(tokens: Tokens) -> IResult<Tokens, Tokens> {
             verify(take(1usize), |t: &Tokens| {
                 !t.token.is_empty() && t.token[0] == $tag
             })(tokens)
@@ -95,9 +95,6 @@ tag_token!(minus_assign_tag, Token::MinusAssign);
 tag_token!(multiply_assign_tag, Token::MultiplyAssign);
 tag_token!(divide_assign_tag, Token::DivideAssign);
 tag_token!(modulo_assign_tag, Token::ModuloAssign);
-tag_token!(plus_tag, Token::Plus);
-tag_token!(minus_tag, Token::Minus);
-tag_token!(not_tag, Token::Not);
 tag_token!(if_tag, Token::If);
 tag_token!(else_tag, Token::Else);
 tag_token!(function_tag, Token::Function);
@@ -875,7 +872,7 @@ fn parse_import_stmt(input: Tokens) -> IResult<Tokens, Stmt> {
     Ok((i5, Stmt::ImportStmt { path, items }))
 }
 
-pub struct Parser;
+pub(crate) struct Parser;
 
 impl Parser {
     pub fn parse_tokens(tokens: Tokens) -> IResult<Tokens, Program> {

@@ -1,7 +1,6 @@
 //! Struct operations: build, get field, set field, method call.
 
 use crate::vm::runtime::runtime_errors::RuntimeError;
-use crate::vm::compiler::constant_pool::ConstantPool;
 use crate::vm::obj::{HashMap, Object};
 use ahash::HashMapExt;
 
@@ -55,7 +54,6 @@ pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
         name,
         fields,
         methods: HashMap::new(),
-        constants: ConstantPool::new(),
     });
 }
 
@@ -136,14 +134,12 @@ pub fn execute_set_field(stack: &mut Vec<Object>) {
             name,
             mut fields,
             methods,
-            constants,
         } => {
             fields.insert(field_name, value);
             Object::Struct {
                 name,
                 fields,
                 methods,
-                constants,
             }
         }
         other => Object::Error(RuntimeError::InvalidOperation(format!(

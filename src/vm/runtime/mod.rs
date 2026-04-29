@@ -8,9 +8,9 @@
 //! - `module_registry` — module loading, caching, and WASM integration
 //! - `helpers` — shared evaluation utilities
 
-pub mod env;
-pub mod builtins;
-pub mod module_registry;
-pub mod wasm_loader;
-pub mod runtime_errors;
-pub mod type_converters;
+pub(crate) mod env;
+pub(crate) mod builtins;
+pub(crate) mod module_registry;
+pub(crate) mod wasm_loader;
+pub(crate) mod runtime_errors;
+pub(crate) mod type_converters;

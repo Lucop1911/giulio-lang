@@ -69,8 +69,6 @@ pub enum Stmt {
 pub enum Expr {
     IdentExpr(Ident),
     LitExpr(Literal),
-    /// Index into the function-local constant pool (replaces `LitExpr` after compilation).
-    LitIndex(usize),
     PrefixExpr(Prefix, Box<Expr>),
     InfixExpr(Infix, Box<Expr>, Box<Expr>),
     IfExpr {
@@ -228,7 +226,7 @@ pub enum Infix {
 /// Variants are ordered from lowest to highest binding strength so that
 /// `PartialOrd` comparisons work correctly.
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
-pub enum Precedence {
+pub(crate) enum Precedence {
     PLowest,
     POr,          // Lowest logical operator
     PAnd,         // Higher than OR

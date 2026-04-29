@@ -60,7 +60,7 @@ impl CallFrame {
     /// - `slot_count`: total slots needed (params + locals)
     /// - `closure_env`: the environment captured at function definition time
     /// - `local_names`: names of local variables indexed by slot (params first, then lets)
-    pub fn new_function(
+    pub(crate) fn new_function(
         chunk: Arc<Chunk>,
         slots_base: usize,
         slot_count: usize,
@@ -81,15 +81,7 @@ impl CallFrame {
     ///
     /// # Panics
     /// Panics if `slot` is out of bounds for this frame.
-    pub fn get_local<'a>(&self, stack: &'a [Object], slot: usize) -> &'a Object {
+    pub(crate) fn get_local<'a>(&self, stack: &'a [Object], slot: usize) -> &'a Object {
         &stack[self.slots_base + slot]
-    }
-
-    /// Writes a local variable by slot index.
-    ///
-    /// # Panics
-    /// Panics if `slot` is out of bounds for this frame.
-    pub fn set_local(&self, stack: &mut [Object], slot: usize, value: Object) {
-        stack[self.slots_base + slot] = value;
     }
 }

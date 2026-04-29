@@ -1,7 +1,7 @@
 use crate::vm::obj::Object;
 use crate::vm::runtime::runtime_errors::RuntimeError;
 
-pub fn string_join(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn string_join(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match (&args[0], &args[1]) {
         (Object::Array(arr), Object::String(separator)) => {
             let strings: Result<Vec<String>, RuntimeError> = arr
@@ -27,7 +27,7 @@ pub fn string_join(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn string_reverse(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn string_reverse(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(s)) => {
             let mut chars: Vec<char> = s.chars().collect();
@@ -46,7 +46,7 @@ pub fn string_reverse(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn string_repeat(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn string_repeat(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match (&args[0], &args[1]) {
         (Object::String(s), Object::Integer(n)) => {
             if *n < 0 {
@@ -63,7 +63,7 @@ pub fn string_repeat(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn string_chars(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn string_chars(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(s)) => {
             let chars: Vec<Object> = s.chars().map(|c| Object::String(c.to_string())).collect();

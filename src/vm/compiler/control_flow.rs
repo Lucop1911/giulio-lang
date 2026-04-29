@@ -5,7 +5,7 @@ use crate::vm::compiler::{Compiler, JumpPatch, LoopContext};
 use crate::vm::instruction::Instruction;
 
 /// Compiles an if/else expression.
-pub fn compile_if_expr(
+pub(crate) fn compile_if_expr(
     compiler: &mut Compiler,
     cond: &Expr,
     consequence: &Program,
@@ -31,7 +31,7 @@ pub fn compile_if_expr(
 }
 
 /// Compiles a while loop expression.
-pub fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, line: u16) {
+pub(crate) fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, line: u16) {
     let loop_start = compiler.chunk.current_offset();
 
     compiler.loop_contexts.push(LoopContext {
@@ -66,7 +66,7 @@ pub fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, 
 }
 
 /// Compiles a for-in loop expression.
-pub fn compile_for_expr(
+pub(crate) fn compile_for_expr(
     compiler: &mut Compiler,
     idents: &[Ident],
     iterable: &Expr,
@@ -155,7 +155,7 @@ pub fn compile_for_expr(
 }
 
 /// Compiles a C-style for loop.
-pub fn compile_cstyle_for(
+pub(crate) fn compile_cstyle_for(
     compiler: &mut Compiler,
     init: &Option<Box<Stmt>>,
     cond: &Option<Box<Expr>>,
@@ -212,7 +212,7 @@ pub fn compile_cstyle_for(
 }
 
 /// Emits a `break` instruction and records it for backpatching.
-pub fn compile_break(compiler: &mut Compiler, line: u16) {
+pub(crate) fn compile_break(compiler: &mut Compiler, line: u16) {
     if compiler.loop_contexts.is_empty() {
         return;
     }
@@ -227,7 +227,7 @@ pub fn compile_break(compiler: &mut Compiler, line: u16) {
 }
 
 /// Emits a `continue` instruction and records it for backpatching.
-pub fn compile_continue(compiler: &mut Compiler, line: u16) {
+pub(crate) fn compile_continue(compiler: &mut Compiler, line: u16) {
     if compiler.loop_contexts.is_empty() {
         return;
     }

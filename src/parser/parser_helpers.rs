@@ -18,17 +18,17 @@ use std::result::Result::*;
 
 // Peek at the next token without consuming it
 #[inline]
-pub fn peek_token(input: Tokens<'_>) -> Option<&'_ Token> {
+pub(crate) fn peek_token(input: Tokens<'_>) -> Option<&'_ Token> {
     input.token.first()
 }
 
 // Check if next token matches expected
 #[inline]
-pub fn peek_matches(input: Tokens, expected: Token) -> bool {
+pub(crate) fn peek_matches(input: Tokens, expected: Token) -> bool {
     peek_token(input).is_some_and(|t| *t == expected)
 }
 
-pub fn peek_assign_op(input: Tokens) -> IResult<Tokens, String> {
+pub(crate) fn peek_assign_op(input: Tokens) -> IResult<Tokens, String> {
     alt((
         map(assign_tag, |_| "=".to_string()),
         map(plus_assign_tag, |_| "+=".to_string()),
@@ -40,7 +40,7 @@ pub fn peek_assign_op(input: Tokens) -> IResult<Tokens, String> {
 }
 
 // Parse comma-separated items (at least one)
-pub fn comma_separated1<'a, F, O>(
+pub(crate) fn comma_separated1<'a, F, O>(
     mut item_parser: F,
 ) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, Vec<O>>
 where
@@ -58,7 +58,7 @@ where
 }
 
 // Parse comma-separated items (empty allowed)
-pub fn comma_separated0<'a, F, O>(
+pub(crate) fn comma_separated0<'a, F, O>(
     item_parser: F,
 ) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, Vec<O>>
 where
@@ -68,7 +68,7 @@ where
 }
 
 // Wrap parser in braces { }
-pub fn braced<'a, F, O>(parser: F) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>
+pub(crate) fn braced<'a, F, O>(parser: F) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>
 where
     F: FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>,
 {
@@ -76,7 +76,7 @@ where
 }
 
 // Wrap parser in parentheses ( )
-pub fn parens<'a, F, O>(parser: F) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>
+pub(crate) fn parens<'a, F, O>(parser: F) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>
 where
     F: FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>,
 {
@@ -84,14 +84,14 @@ where
 }
 
 // Wrap parser in brackets [ ]
-pub fn bracketed<'a, F, O>(parser: F) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>
+pub(crate) fn bracketed<'a, F, O>(parser: F) -> impl FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>
 where
     F: FnMut(Tokens<'a>) -> IResult<Tokens<'a>, O>,
 {
     delimited(lbracket_tag, parser, rbracket_tag)
 }
 
-pub fn aug_assign_to_infix<'a>(input: Tokens<'a>) -> IResult<Tokens<'a>, Infix> {
+pub(crate) fn aug_assign_to_infix<'a>(input: Tokens<'a>) -> IResult<Tokens<'a>, Infix> {
     let (i1, t1) = take(1usize)(input)?;
 
     if t1.token.is_empty() {
@@ -114,7 +114,7 @@ pub fn aug_assign_to_infix<'a>(input: Tokens<'a>) -> IResult<Tokens<'a>, Infix> 
     }
 }
 
-pub fn assign_op_to_infix(op: &str) -> Infix {
+pub(crate) fn assign_op_to_infix(op: &str) -> Infix {
     match op {
         "+=" => Infix::Plus,
         "-=" => Infix::Minus,

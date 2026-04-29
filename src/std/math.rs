@@ -2,7 +2,7 @@ use crate::vm::obj::Object;
 use crate::vm::runtime::runtime_errors::RuntimeError;
 use rand::Rng;
 
-pub fn math_clamp(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_clamp(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match (&args[0], &args[1], &args[2]) {
         (Object::Integer(n), Object::Integer(min), Object::Integer(max)) => {
             if min > max {
@@ -20,7 +20,7 @@ pub fn math_clamp(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_random(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_random(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let mut rng = rand::rng();
 
     match args.as_slice() {
@@ -47,7 +47,7 @@ pub fn math_random(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_round(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_round(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => Ok(Object::Float(n.round())),
         Some(o) => Err(RuntimeError::TypeMismatch {
@@ -62,7 +62,7 @@ pub fn math_round(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_floor(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_floor(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => Ok(Object::Float(n.floor())),
         Some(o) => Err(RuntimeError::TypeMismatch {
@@ -77,7 +77,7 @@ pub fn math_floor(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_ceil(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_ceil(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => Ok(Object::Float(n.ceil())),
         Some(o) => Err(RuntimeError::TypeMismatch {
@@ -92,7 +92,7 @@ pub fn math_ceil(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_sqrt(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_sqrt(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => {
             if *n < 0.0 {
@@ -122,7 +122,7 @@ pub fn math_sqrt(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_sin(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_sin(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => Ok(Object::Float(n.sin())),
         Some(Object::Integer(n)) => Ok(Object::Float((*n as f64).sin())),
@@ -138,7 +138,7 @@ pub fn math_sin(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_cos(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_cos(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => Ok(Object::Float(n.cos())),
         Some(Object::Integer(n)) => Ok(Object::Float((*n as f64).cos())),
@@ -154,7 +154,7 @@ pub fn math_cos(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_tan(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_tan(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => Ok(Object::Float(n.tan())),
         Some(Object::Integer(n)) => Ok(Object::Float((*n as f64).tan())),
@@ -170,7 +170,7 @@ pub fn math_tan(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_log(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_log(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => {
             if *n <= 0.0 {
@@ -200,7 +200,7 @@ pub fn math_log(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_log10(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_log10(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Float(n)) => {
             if *n <= 0.0 {
@@ -230,7 +230,7 @@ pub fn math_log10(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_abs_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_abs_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::Integer(n)) => Ok(Object::Integer(n.abs())),
         Some(Object::Float(n)) => Ok(Object::Float(n.abs())),
@@ -246,7 +246,7 @@ pub fn math_abs_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_min_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_min_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => Ok(Object::Integer(a.min(b))),
@@ -260,7 +260,7 @@ pub fn math_min_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_max_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
+pub(crate) fn math_max_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
     let mut args = args.into_iter();
     match (args.next(), args.next()) {
         (Some(Object::Integer(a)), Some(Object::Integer(b))) => Ok(Object::Integer(a.max(b))),
@@ -274,10 +274,10 @@ pub fn math_max_int(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
-pub fn math_pi() -> Object {
+pub(crate) fn math_pi() -> Object {
     Object::Float(std::f64::consts::PI)
 }
 
-pub fn math_e() -> Object {
+pub(crate) fn math_e() -> Object {
     Object::Float(std::f64::consts::E)
 }
