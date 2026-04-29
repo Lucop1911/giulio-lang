@@ -2,6 +2,8 @@
 
 use crate::runtime::obj::Object;
 use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::frame::CallFrame;
+use crate::vm::vm::ExecResult;
 
 #[derive(Debug, Clone)]
 pub struct ExceptionHandler {
@@ -131,6 +133,3 @@ pub fn handle_throw_result(
         }
     }
 }
-
-use crate::vm::frame::CallFrame;
-use crate::vm::vm::ExecResult;

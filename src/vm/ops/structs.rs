@@ -161,7 +161,6 @@ pub fn execute_call_method(
 ) -> Result<MethodCallResult, RuntimeError> {
     // Stack layout before this function:
     // [... object, method_name, arg1, arg2, ..., argN]
-    //                                          ↑ TOS
 
     // We need to pop arguments first (they're on top), then method_name, then object
     let mut args = Vec::new();

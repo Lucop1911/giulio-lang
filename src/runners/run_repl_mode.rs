@@ -17,7 +17,7 @@ pub async fn repl() {
     println!("g-lang v{}", VERSION);
     println!("Type 'exit' or 'quit' to quit\n");
 
-    let globals = Arc::new(Mutex::new(Environment::new()));
+    let globals = Arc::new(Mutex::new(Environment::new_root()));
     let module_registry = Arc::new(Mutex::new(ModuleRegistry::new(PathBuf::from("."))));
     let mut vm = VirtualMachine::new(globals, module_registry);
 

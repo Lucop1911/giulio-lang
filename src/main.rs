@@ -11,12 +11,12 @@ async fn main() {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1) {
-        Some(flag) if flag == "--version" || flag == "-version" || flag == "-v" || flag == "--v" => {
+        Some(flag) if flag == "--version" || flag == "-v" => {
             const VERSION: &str = env!("CARGO_PKG_VERSION");
             println!("{}", VERSION);
         }
 
-        Some(flag) if flag == "--help" || flag == "-help" || flag == "--h" || flag == "-h" => {
+        Some(flag) if flag == "--help" || flag == "-h" => {
             print_help();
         }
 
