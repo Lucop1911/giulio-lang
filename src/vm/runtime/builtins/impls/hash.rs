@@ -1,6 +1,6 @@
 use std::hash::BuildHasherDefault;
 use ahash::{AHasher, HashMapExt};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 

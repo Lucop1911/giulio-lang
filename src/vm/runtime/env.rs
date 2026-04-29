@@ -14,8 +14,8 @@
 //! environment via `Arc<Mutex<Environment>>`.
 
 use crate::ast::ast::{Ident, Program, SlotIndex, Stmt};
-use crate::runtime::builtins::functions::BuiltinsFunctions;
-use crate::runtime::obj::Object;
+use crate::vm::runtime::builtins::functions::BuiltinsFunctions;
+use crate::vm::obj::Object;
 use ahash::{AHasher, HashMapExt};
 use std::hash::BuildHasherDefault;
 use std::sync::{Arc, Mutex};

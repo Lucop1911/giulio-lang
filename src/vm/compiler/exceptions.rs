@@ -1,7 +1,7 @@
 //! Exception handling compilation: try/catch/finally, throw.
 
 use crate::ast::ast::{Expr, Ident, Program, SlotIndex};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 

@@ -1,4 +1,4 @@
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 pub fn btype_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {

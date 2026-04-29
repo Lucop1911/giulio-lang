@@ -1,4 +1,4 @@
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 // Method only
 pub fn btoupper_fn(args: Vec<Object>) -> Result<Object, String> {

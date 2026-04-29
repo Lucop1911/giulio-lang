@@ -16,7 +16,7 @@
 //! 5. [`create_contextual_error`] — maps context strings to specific messages
 
 use crate::lexer::token::{Location, Spanned, Token, Tokens};
-use crate::runtime::runtime_errors::ParserError;
+use crate::vm::runtime::runtime_errors::ParserError;
 use nom::Err;
 use nom::error::{Error, ErrorKind};
 

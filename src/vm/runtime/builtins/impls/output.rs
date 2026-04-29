@@ -1,4 +1,4 @@
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 // Function only
 pub fn bprint_fn(args: Vec<Object>) -> Result<Object, String> {

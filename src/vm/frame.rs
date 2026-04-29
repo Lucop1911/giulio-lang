@@ -10,8 +10,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::runtime::env::Environment;
-use crate::runtime::obj::Object;
+use crate::vm::runtime::env::Environment;
+use crate::vm::obj::Object;
 use crate::vm::chunk::Chunk;
 
 /// A single call frame on the VM's call stack.

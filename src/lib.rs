@@ -24,7 +24,6 @@
 pub mod ast;
 pub mod lexer;
 pub mod parser;
-pub mod runtime;
 pub mod std;
 pub mod runners;
 pub mod wasm;
@@ -38,4 +37,4 @@ pub use crate::parser::parser::Parser;
 pub use crate::vm::compiler::Compiler;
 pub use crate::vm::vm::VirtualMachine;
 pub use crate::lexer::token::{Token, Tokens};
-pub use crate::runtime::runtime_errors::{LangError, RuntimeError};
+pub use crate::vm::runtime::runtime_errors::{LangError, RuntimeError};

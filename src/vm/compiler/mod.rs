@@ -15,6 +15,7 @@
 //! - `functions.rs` — fn declarations, calls, closures, async, await
 //! - `exceptions.rs` — try/catch/finally, throw
 //! - `collections.rs` — arrays, hashes, indexing, struct literals
+//! - `constant_pool` — compile-time literal extraction for faster evaluation
 
 pub mod collections;
 pub mod compilation_errors;
@@ -24,9 +25,10 @@ pub mod exceptions;
 pub mod expressions;
 pub mod functions;
 pub mod statements;
+pub mod constant_pool;
 
 use crate::ast::ast::{Expr, Ident, Program, Stmt};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::chunk::Chunk;
 use crate::vm::compiler::compute_slots::compute_slots;
 use crate::vm::compiler::compilation_errors::CompilationError;

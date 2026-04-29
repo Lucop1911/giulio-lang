@@ -1,4 +1,4 @@
-use crate::runtime::obj::{ConstantPool, Object};
+use crate::vm::obj::{ConstantPool, Object};
 
 pub fn bset_field_fn(args: Vec<Object>) -> Result<Object, String> {
     if args.len() != 3 {

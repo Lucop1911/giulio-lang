@@ -1,7 +1,7 @@
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 
-use crate::{runtime::obj::Object, RuntimeError};
+use crate::{vm::obj::Object, RuntimeError};
 
 pub fn obj_to_bool(object: Object) -> Result<bool, Object> {
     match object {

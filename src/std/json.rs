@@ -1,5 +1,5 @@
-use crate::runtime::obj::{HashMap, Object};
-use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::obj::{HashMap, Object};
+use crate::vm::runtime::runtime_errors::RuntimeError;
 use ahash::HashMapExt;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;

@@ -9,10 +9,10 @@ use crate::Lexer;
 use crate::Parser;
 use crate::ast::ast::Program;
 use crate::lexer::token::SpannedTokens;
-use crate::runtime::runtime_errors::RuntimeError;
-use crate::runtime::env::Environment;
-use crate::runtime::module_registry::ModuleRegistry;
-use crate::runtime::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
+use crate::vm::runtime::env::Environment;
+use crate::vm::runtime::module_registry::ModuleRegistry;
+use crate::vm::obj::Object;
 use crate::vm::compiler::Compiler;
 use crate::vm::vm::VirtualMachine;
 

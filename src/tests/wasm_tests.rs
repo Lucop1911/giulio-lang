@@ -1,5 +1,5 @@
-use crate::runtime::obj::Object;
-use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
 use crate::wasm::type_conversions::{
     component_val_to_g, g_to_component_val, TypeMapping, WasmType,
 };

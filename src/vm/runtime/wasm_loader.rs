@@ -1,10 +1,10 @@
 #[cfg(feature = "wasm")]
-use crate::runtime::module_registry::Module;
-use crate::runtime::module_registry::ModuleRegistry;
+use crate::vm::runtime::module_registry::Module;
+use crate::vm::runtime::module_registry::ModuleRegistry;
 use tokio::fs;
 use std::sync::{Arc, Mutex};
-use crate::runtime::obj::{Object, HashMap};
-use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::obj::{Object, HashMap};
+use crate::vm::runtime::runtime_errors::RuntimeError;
 use ahash::HashMapExt;
 
 #[cfg(feature = "wasm")]

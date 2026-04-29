@@ -1,7 +1,7 @@
 //! Exception handling operations.
 
-use crate::runtime::obj::Object;
-use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
 use crate::vm::frame::CallFrame;
 use crate::vm::vm::ExecResult;
 

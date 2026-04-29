@@ -1,8 +1,8 @@
 //! Struct operations: build, get field, set field, method call.
 
-use crate::runtime::runtime_errors::RuntimeError;
-use crate::runtime::constant_pool::ConstantPool;
-use crate::runtime::obj::{HashMap, Object};
+use crate::vm::runtime::runtime_errors::RuntimeError;
+use crate::vm::compiler::constant_pool::ConstantPool;
+use crate::vm::obj::{HashMap, Object};
 use ahash::HashMapExt;
 
 /// Result of method call execution
@@ -236,7 +236,7 @@ pub fn execute_call_method(
         }
         _ => {
             // Handle built-in methods for other types
-            match crate::runtime::builtins::methods::BuiltinMethods::call_method(
+            match crate::vm::runtime::builtins::methods::BuiltinMethods::call_method(
                 struct_obj,
                 &method_name,
                 args,

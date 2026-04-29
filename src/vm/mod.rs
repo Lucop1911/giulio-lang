@@ -21,3 +21,5 @@ pub mod frame;
 pub mod instruction;
 pub mod ops;
 pub mod vm;
+pub mod runtime;
+pub mod obj;

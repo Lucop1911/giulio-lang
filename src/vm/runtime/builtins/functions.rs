@@ -1,11 +1,11 @@
-use crate::runtime::builtins::impls::{
+use crate::vm::runtime::builtins::impls::{
     array::*, hash::*, input::*, int::*, output::*, r#type::*, shared::*, string::*, struct_ops::*,
 };
 use crate::{
     ast::ast::Ident,
-    runtime::{
-        builtins::impls::struct_ops::bset_field_fn,
-        obj::{BuiltinFunction, Object},
+    vm::{
+        runtime::builtins::impls::struct_ops::bset_field_fn,
+        obj::{BuiltinFunction, Object}
     },
 };
 

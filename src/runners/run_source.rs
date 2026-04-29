@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::{Parser, Lexer, runtime::obj::Object};
+use crate::{Parser, Lexer, vm::obj::Object};
 use crate::lexer::token::SpannedTokens;
 use crate::parser::parser_errors::{convert_nom_error, show_error_context};
-use crate::runtime::env::Environment;
-use crate::runtime::module_registry::ModuleRegistry;
+use crate::vm::runtime::env::Environment;
+use crate::vm::runtime::module_registry::ModuleRegistry;
 use crate::vm::compiler::Compiler;
 use crate::vm::vm::VirtualMachine;
 

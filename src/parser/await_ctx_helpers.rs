@@ -1,6 +1,6 @@
 use crate::{
     ast::ast::{Expr, Program, Stmt},
-    runtime::runtime_errors::ParserError,
+    vm::runtime::runtime_errors::ParserError,
 };
 
 fn verify_await_in_async(program: &Program, in_async: bool) -> Result<(), ParserError> {

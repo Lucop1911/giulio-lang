@@ -3,10 +3,10 @@
 use std::sync::{Arc, Mutex};
 
 use crate::ast::ast::Ident;
-use crate::runtime::runtime_errors::RuntimeError;
-use crate::runtime::env::Environment;
-use crate::runtime::module_registry::ModuleRegistry;
-use crate::runtime::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
+use crate::vm::runtime::env::Environment;
+use crate::vm::runtime::module_registry::ModuleRegistry;
+use crate::vm::obj::Object;
 use crate::vm::frame::CallFrame;
 use crate::vm::vm::{ExecResult, VirtualMachine};
 
@@ -14,7 +14,7 @@ pub fn execute_call(
     stack: &mut Vec<Object>,
     frames: &mut Vec<CallFrame>,
     module_registry: &Arc<Mutex<ModuleRegistry>>,
-    globals: &Arc<Mutex<crate::runtime::env::Environment>>,
+    globals: &Arc<Mutex<crate::vm::runtime::env::Environment>>,
     argc: usize,
 ) -> Result<ExecResult, RuntimeError> {
     if stack.len() < argc + 1 {

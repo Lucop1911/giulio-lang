@@ -1,7 +1,7 @@
 //! Function compilation: declarations, calls, closures, async, await.
 
 use crate::ast::ast::{Expr, Ident, Program};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 
@@ -87,7 +87,7 @@ fn compile_closure_instruction(
         params.to_vec(),
         std::sync::Arc::new(chunk),
         std::sync::Arc::new(std::sync::Mutex::new(
-            crate::runtime::env::Environment::new(),
+            crate::vm::runtime::env::Environment::new(),
         )),
         local_names,
     );
@@ -112,7 +112,7 @@ fn compile_async_closure(compiler: &mut Compiler, params: &[Ident], body: &Progr
         params.to_vec(),
         std::sync::Arc::new(chunk),
         std::sync::Arc::new(std::sync::Mutex::new(
-            crate::runtime::env::Environment::new(),
+            crate::vm::runtime::env::Environment::new(),
         )),
         local_names,
     );

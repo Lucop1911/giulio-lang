@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 // Function only
 pub fn binput_fn(args: Vec<Object>) -> Result<Object, String> {

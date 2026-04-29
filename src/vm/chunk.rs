@@ -7,7 +7,7 @@
 //! Chunks are reference-counted (`Arc<Chunk>`) so that closures can
 //! share their body code across multiple invocations.
 
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::instruction::{encode_instruction, Instruction};
 
 /// A compiled unit of bytecode.

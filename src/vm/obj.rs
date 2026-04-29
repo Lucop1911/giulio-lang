@@ -13,15 +13,15 @@ use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 use crate::ast::ast::Ident;
-use crate::runtime::env::Environment;
-use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::runtime::env::Environment;
+use crate::vm::runtime::runtime_errors::RuntimeError;
 
 #[cfg(feature = "wasm")]
 use crate::wasm::WasmInstance;
 
 pub type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
-pub use crate::runtime::constant_pool::ConstantPool;
+pub use crate::vm::compiler::constant_pool::ConstantPool;
 
 /// The universal value type of the G-lang runtime.
 ///

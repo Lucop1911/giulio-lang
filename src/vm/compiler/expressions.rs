@@ -1,7 +1,7 @@
 //! Expression compilation: literals, operators, identifiers, and calls.
 
 use crate::ast::ast::{Expr, Ident, Infix, Literal, Prefix, SlotIndex};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 
@@ -10,7 +10,7 @@ use crate::vm::instruction::Instruction;
 /// Uses the pre-computed slot index for O(1) access. If `UNSET`,
 /// falls back to name-based global lookup.
 pub fn compile_ident(compiler: &mut Compiler, ident: &Ident, line: u16) {
-    use crate::runtime::builtins::functions::BuiltinsFunctions;
+    use crate::vm::runtime::builtins::functions::BuiltinsFunctions;
 
     if ident.slot != SlotIndex::UNSET {
         compiler.emit(Instruction::GetLocal(ident.slot.0 as u8), line);

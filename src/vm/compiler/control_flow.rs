@@ -25,7 +25,7 @@ pub fn compile_if_expr(
     } else {
         let end_jump = compiler.emit_jump(line);
         compiler.patch_jump(else_jump);
-        compiler.emit_constant(crate::runtime::obj::Object::Null, line);
+        compiler.emit_constant(crate::vm::obj::Object::Null, line);
         compiler.patch_jump(end_jump);
     }
 }
@@ -62,7 +62,7 @@ pub fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, 
         .chunk
         .patch_u16(end_jump.addr, compiler.chunk.current_offset());
 
-    compiler.emit_constant(crate::runtime::obj::Object::Null, line);
+    compiler.emit_constant(crate::vm::obj::Object::Null, line);
 }
 
 /// Compiles a for-in loop expression.
@@ -73,7 +73,7 @@ pub fn compile_for_expr(
     body: &Program,
     line: u16,
 ) {
-    use crate::runtime::obj::Object;
+    use crate::vm::obj::Object;
 
     // Allocate slots for the iterable and counter AFTER the ident slots.
     // The ident slots are assigned by compute_slots.
@@ -163,7 +163,7 @@ pub fn compile_cstyle_for(
     body: &Program,
     line: u16,
 ) {
-    use crate::runtime::obj::Object;
+    use crate::vm::obj::Object;
 
     if let Some(init_stmt) = init {
         compiler.compile_statement(&init_stmt, line);
@@ -245,7 +245,7 @@ pub fn compile_continue(compiler: &mut Compiler, line: u16) {
 /// Pops intermediate expression results. If `discard_last` is true, also pops the last result.
 /// If `discard_last` is false and the last statement was not an expression, pushes `Null`.
 fn compile_program_body(compiler: &mut Compiler, program: &Program, discard_last: bool) {
-    use crate::runtime::obj::Object;
+    use crate::vm::obj::Object;
 
     if program.is_empty() {
         if !discard_last {

@@ -1,4 +1,4 @@
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use num_traits::ToPrimitive;
 
 // Method only

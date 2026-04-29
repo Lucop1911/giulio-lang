@@ -9,7 +9,7 @@
 //! variant and accessed via `eval_expr` during interpretation.
 
 use crate::ast::ast::{Expr, Literal, Program, Stmt};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 #[derive(Clone, Default)]
 pub struct ConstantPool(pub Vec<Object>);

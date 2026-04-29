@@ -1,7 +1,7 @@
 //! Collection operations: arrays, hashes, indexing.
 
-use crate::runtime::runtime_errors::RuntimeError;
-use crate::runtime::obj::{HashMap, Object};
+use crate::vm::runtime::runtime_errors::RuntimeError;
+use crate::vm::obj::{HashMap, Object};
 use ahash::HashMapExt;
 
 pub fn execute_build_array(stack: &mut Vec<Object>, count: u16) {

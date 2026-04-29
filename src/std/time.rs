@@ -5,8 +5,8 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::runtime::obj::Object;
-use crate::runtime::runtime_errors::RuntimeError;
+use crate::vm::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
 
 pub fn time_now(_: Vec<Object>) -> Result<Object, RuntimeError> {
     match SystemTime::now().duration_since(UNIX_EPOCH) {

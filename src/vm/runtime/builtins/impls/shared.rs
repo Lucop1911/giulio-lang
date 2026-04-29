@@ -1,7 +1,7 @@
 use num_bigint::ToBigInt;
 use num_traits::ToPrimitive;
 
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 // Method only
 pub fn btostring_fn(args: Vec<Object>) -> Result<Object, String> {

@@ -1,4 +1,4 @@
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 
 pub fn bpow_fn(args: Vec<Object>) -> Result<Object, String> {
     match (args.first(), args.get(1)) {

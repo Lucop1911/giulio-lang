@@ -1,7 +1,7 @@
 //! Statement compilation: let, assign, return, import, expression statements.
 
 use crate::ast::ast::{Expr, Ident, ImportItems, SlotIndex};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 

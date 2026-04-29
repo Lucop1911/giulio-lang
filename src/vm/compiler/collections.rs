@@ -2,7 +2,7 @@
 //! method calls, and struct declarations.
 
 use crate::ast::ast::{Expr, Ident};
-use crate::runtime::obj::Object;
+use crate::vm::obj::Object;
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 
@@ -119,7 +119,7 @@ pub fn compile_struct_stmt(
         name: name.name.clone(),
         fields: field_map,
         methods: method_map,
-        constants: crate::runtime::obj::ConstantPool::new(),
+        constants: crate::vm::obj::ConstantPool::new(),
     };
 
     let struct_idx = compiler.chunk.add_constant(struct_obj);

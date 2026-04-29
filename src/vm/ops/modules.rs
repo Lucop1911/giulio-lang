@@ -1,8 +1,8 @@
 //! Module import and export operations.
 
-use crate::runtime::runtime_errors::RuntimeError;
-use crate::runtime::module_registry::ModuleRegistry;
-use crate::runtime::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
+use crate::vm::runtime::module_registry::ModuleRegistry;
+use crate::vm::obj::Object;
 use crate::vm::chunk::Chunk;
 use std::sync::{Arc, Mutex};
 

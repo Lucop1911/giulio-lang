@@ -1,7 +1,7 @@
-use crate::runtime::builtins::impls::{
+use crate::vm::runtime::builtins::impls::{
     array::*, float::*, hash::*, int::*, shared::*, string::*, struct_ops::*,
 };
-use crate::{runtime::obj::Object, RuntimeError};
+use crate::{vm::obj::Object, RuntimeError};
 
 pub struct BuiltinMethods;
 

@@ -2,9 +2,9 @@
 //!
 //! All arithmetic logic is centralized here for consistency and maintainability.
 
-use crate::runtime::runtime_errors::RuntimeError;
-use crate::runtime::helpers::type_converters::{normalize_int, obj_to_float, to_bigint};
-use crate::runtime::obj::Object;
+use crate::vm::runtime::runtime_errors::RuntimeError;
+use crate::vm::runtime::type_converters::{normalize_int, obj_to_float, to_bigint};
+use crate::vm::obj::Object;
 use num_traits::Zero;
 
 pub fn add(obj1: Object, obj2: Object) -> Object {
