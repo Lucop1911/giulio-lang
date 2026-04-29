@@ -3,25 +3,25 @@ use crate::vm::obj::Object;
 pub fn bhead_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(arr)) => match arr.into_iter().next() {
-            None => Err(format!("head() cannot get head of empty array")),
+            None => Err("head() cannot get head of empty array".to_string()),
             Some(x) => Ok(x),
         },
         Some(o) => Err(format!("head() expects array, got {}", o.type_name())),
-        None => Err(format!("head() expects 1 argument, got 0")),
+        None => Err("head() expects 1 argument, got 0".to_string()),
     }
 }
 
 pub fn btail_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
         Some(Object::Array(mut arr)) => match arr.len() {
-            0 => Err(format!("tail() cannot get tail of empty array")),
+            0 => Err("tail() cannot get tail of empty array".to_string()),
             _ => {
                 arr.remove(0);
                 Ok(Object::Array(arr))
             }
         },
         Some(o) => Err(format!("tail() expects array, got {}", o.type_name())),
-        None => Err(format!("tail() expects 1 argument, got 0")),
+        None => Err("tail() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -37,8 +37,8 @@ pub fn bcons_fn(args: Vec<Object>) -> Result<Object, String> {
             o.type_name(),
             other.type_name()
         )),
-        (None, _) => Err(format!("cons() expects 2 arguments, got 1")),
-        (_, None) => Err(format!("cons() expects 2 arguments, got 1")),
+        (None, _) => Err("cons() expects 2 arguments, got 1".to_string()),
+        (_, None) => Err("cons() expects 2 arguments, got 1".to_string()),
     }
 }
 
@@ -50,6 +50,6 @@ pub fn bpush_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::Array(arr))
         }
         (Some(o), _) => Err(format!("push() expects array, got {}", o.type_name())),
-        (None, _) => Err(format!("push() expects 2 arguments, got 1")),
+        (None, _) => Err("push() expects 2 arguments, got 1".to_string()),
     }
 }

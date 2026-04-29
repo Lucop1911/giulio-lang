@@ -51,11 +51,11 @@ pub fn compile_while_expr(compiler: &mut Compiler, cond: &Expr, body: &Program, 
     let break_addr = compiler.chunk.current_offset();
 
     for patch in loop_ctx.continue_patches {
-        compiler.chunk.patch_u16(patch.addr, continue_addr as u16);
+        compiler.chunk.patch_u16(patch.addr, continue_addr);
     }
 
     for patch in loop_ctx.break_patches {
-        compiler.chunk.patch_u16(patch.addr, break_addr as u16);
+        compiler.chunk.patch_u16(patch.addr, break_addr);
     }
 
     compiler
@@ -140,11 +140,11 @@ pub fn compile_for_expr(
 
     let loop_ctx = compiler.loop_contexts.pop().unwrap();
     for patch in loop_ctx.continue_patches {
-        compiler.chunk.patch_u16(patch.addr, continue_addr as u16);
+        compiler.chunk.patch_u16(patch.addr, continue_addr);
     }
 
     for patch in loop_ctx.break_patches {
-        compiler.chunk.patch_u16(patch.addr, break_addr as u16);
+        compiler.chunk.patch_u16(patch.addr, break_addr);
     }
 
     compiler
@@ -166,7 +166,7 @@ pub fn compile_cstyle_for(
     use crate::vm::obj::Object;
 
     if let Some(init_stmt) = init {
-        compiler.compile_statement(&init_stmt, line);
+        compiler.compile_statement(init_stmt, line);
     }
 
     let cond_start = compiler.chunk.current_offset();
@@ -188,7 +188,7 @@ pub fn compile_cstyle_for(
     let continue_addr = compiler.chunk.current_offset();
 
     if let Some(update_stmt) = update {
-        compiler.compile_statement(&update_stmt, line);
+        compiler.compile_statement(update_stmt, line);
     }
 
     compiler.emit(Instruction::JumpBackward(cond_start), line);

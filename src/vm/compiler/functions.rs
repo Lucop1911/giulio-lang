@@ -28,7 +28,7 @@ pub fn compile_fn_declaration(
             .chunk
             .add_constant(Object::String(name.name.clone()));
         if let Some(name_idx) = name_idx {
-            compiler.emit(Instruction::SetGlobal(name_idx as u16), line);
+            compiler.emit(Instruction::SetGlobal(name_idx), line);
         }
     }
     // Stack: [Function]
@@ -38,7 +38,7 @@ pub fn compile_fn_declaration(
         .chunk
         .add_constant(Object::String(name.name.clone()));
     if let Some(name_idx) = name_idx {
-        compiler.emit(Instruction::SetGlobal(name_idx as u16), line);
+        compiler.emit(Instruction::SetGlobal(name_idx), line);
     }
     // Stack: []
 }
@@ -94,7 +94,7 @@ fn compile_closure_instruction(
 
     let fn_idx = compiler.chunk.add_constant(fn_obj);
     if let Some(fn_idx) = fn_idx {
-        compiler.emit(Instruction::Constant(fn_idx as u16), line);
+        compiler.emit(Instruction::Constant(fn_idx), line);
     }
     // Emit OpClosure to capture the current scope's environment at runtime
     compiler.emit(
@@ -119,7 +119,7 @@ fn compile_async_closure(compiler: &mut Compiler, params: &[Ident], body: &Progr
 
     let fn_idx = compiler.chunk.add_constant(fn_obj);
     if let Some(fn_idx) = fn_idx {
-        compiler.emit(Instruction::Constant(fn_idx as u16), line);
+        compiler.emit(Instruction::Constant(fn_idx), line);
     }
     compiler.emit(
         Instruction::Closure {

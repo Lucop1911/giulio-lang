@@ -188,7 +188,7 @@ pub fn execute_call(
                                             registry.wasm_store = store_opt.take();
                                             
                                             // Convert results back to G-lang Objects
-                                            match results.get(0) {
+                                            match results.first() {
                                                 Some(val) => {
                                                     match component_val_to_g(val) {
                                                         Ok(obj) => {
@@ -240,7 +240,7 @@ pub fn execute_call(
 
 pub fn execute_closure(
     stack: &mut Vec<Object>,
-    frames: &mut Vec<CallFrame>,
+    frames: &mut [CallFrame],
 ) {
     if let Some(top) = stack.pop() {
         match top {
@@ -258,11 +258,10 @@ pub fn execute_closure(
 
                     // Capture variables that are present in the caller's frame.
                     for name in &caller.local_names {
-                        if !name.is_empty() {
-                            if let Some(slot) = caller.local_names.iter().position(|n| n == name) {
+                        if !name.is_empty()
+                            && let Some(slot) = caller.local_names.iter().position(|n| n == name) {
                                 let value = caller.get_local(stack, slot).clone();
                                 env.set_by_name(name, value);
-                            }
                         }
                     }
                     env
@@ -285,11 +284,10 @@ pub fn execute_closure(
                     
                     let mut env = Environment::new_with_outer(outer_env);
                     for name in &caller.local_names {
-                        if !name.is_empty() {
-                            if let Some(slot) = caller.local_names.iter().position(|n| n == name) {
+                        if !name.is_empty()
+                            && let Some(slot) = caller.local_names.iter().position(|n| n == name) {
                                 let value = caller.get_local(stack, slot).clone();
                                 env.set_by_name(name, value);
-                            }
                         }
                     }
                     env
@@ -348,7 +346,6 @@ pub fn call_async_function_vm(
         vm.set_root_local_names(local_names);
         vm.set_root_closure_env(Arc::clone(&globals_with_locals));
 
-        let result = vm.run(Arc::clone(&chunk)).await;
-        result
+        return vm.run(Arc::clone(&chunk)).await;
     })
 }

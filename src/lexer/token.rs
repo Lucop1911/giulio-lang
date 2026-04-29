@@ -365,8 +365,7 @@ impl<'a> SpannedTokens<'a> {
     }
 
     pub fn error_index(&self, remaining_tokens: usize) -> usize {
-        let total_consumed = self.tokens.len() - remaining_tokens;
-        total_consumed
+        self.tokens.len() - remaining_tokens
     }
 
     pub fn location(&self) -> Option<Location> {

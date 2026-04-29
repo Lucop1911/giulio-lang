@@ -137,10 +137,9 @@ impl VirtualMachine {
             .push(CallFrame::new_function_body(Arc::clone(&chunk), slot_count, local_names));
         
         // Set the closure environment for the root frame if available (for async function contexts)
-        if let Some(root_env) = self.root_closure_env.take() {
-            if let Some(frame) = self.frames.last_mut() {
+        if let Some(root_env) = self.root_closure_env.take() 
+            && let Some(frame) = self.frames.last_mut() {
                 frame.closure_env = Some(root_env);
-            }
         }
 
         let mut result = self.execute().await;
@@ -487,18 +486,16 @@ impl VirtualMachine {
 
             match result {
                 ExecResult::Continue => {
-                    if self.frames.len() == frame_count_before {
-                        if let Some(frame) = self.frames.last_mut() {
+                    if self.frames.len() == frame_count_before
+                        && let Some(frame) = self.frames.last_mut() {
                             frame.ip = ip + 1 + width;
-                        }
                     }
                 }
                 ExecResult::ContinueWith(obj) => {
                     self.stack.push(obj);
-                    if self.frames.len() == frame_count_before {
-                        if let Some(frame) = self.frames.last_mut() {
+                    if self.frames.len() == frame_count_before 
+                        && let Some(frame) = self.frames.last_mut() {
                             frame.ip = ip + 1 + width;
-                        }
                     }
                 }
                 ExecResult::Return => {
@@ -846,15 +843,14 @@ impl VirtualMachine {
             }
             Opcode::OpReturnValue => {
                 // Check if there's an active finally block we need to jump to
-                if let Some(handler) = self.exception_handlers.last() {
-                    if let Some(finally_addr) = handler.finally_addr {
+                if let Some(handler) = self.exception_handlers.last()
+                    && let Some(finally_addr) = handler.finally_addr {
                         // There's a finally block - jump to it instead of returning
                         self.pending_return = true;
                         if let Some(frame) = self.frames.last_mut() {
                             frame.ip = finally_addr as usize;
                         }
                         return Ok(ExecResult::Continue);
-                    }
                 }
                 // No finally block - return normally
                 Ok(ops::calls::execute_return_value())

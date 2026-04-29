@@ -35,7 +35,7 @@ pub fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
             "to_int() expects string or float, got {}",
             o.type_name()
         )),
-        None => Err(format!("to_int() expects 1 argument, got 0")),
+        None => Err("to_int() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -49,7 +49,7 @@ pub fn bisempty_fn(args: Vec<Object>) -> Result<Object, String> {
             "is_empty() expects string, array, or hash, got {}",
             o.type_name()
         )),
-        None => Err(format!("is_empty() expects 1 argument, got 0")),
+        None => Err("is_empty() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -63,7 +63,7 @@ pub fn blen_fn(args: Vec<Object>) -> Result<Object, String> {
             "len() expects string, array, or hash, got {}",
             o.type_name()
         )),
-        None => Err(format!("len() expects 1 argument, got 0")),
+        None => Err("len() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -97,7 +97,7 @@ pub fn bremove_fn(args: Vec<Object>) -> Result<Object, String> {
             "remove() expects hash or array, got {}",
             o.type_name()
         )),
-        (None, _) => Err(format!("remove() expects 2 arguments, got 1")),
+        (None, _) => Err("remove() expects 2 arguments, got 1".to_string()),
     }
 }
 
@@ -164,7 +164,7 @@ pub fn bcontains_fn(args: Vec<Object>) -> Result<Object, String> {
             "contains() expects string or array, got {}",
             o.type_name()
         )),
-        (None, _) => Err(format!("contains() expects 2 arguments, got 1")),
+        (None, _) => Err("contains() expects 2 arguments, got 1".to_string()),
     }
 }
 
@@ -192,7 +192,7 @@ pub fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
                 }
             };
             if start > len || end > len || start > end {
-                return Err(format!("slice() indices out of bounds"));
+                return Err("slice() indices out of bounds".to_string());
             }
             let result: String = chars[start as usize..end as usize].iter().collect();
             Ok(Object::String(result))
@@ -217,7 +217,7 @@ pub fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
                 }
             };
             if start > len || end > len || start > end {
-                return Err(format!("slice() indices out of bounds"));
+                return Err("slice() indices out of bounds".to_string());
             }
             Ok(Object::Array(vec[start as usize..end as usize].to_vec()))
         }
@@ -225,6 +225,6 @@ pub fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
             "slice() expects string or array, got {}",
             o.type_name()
         )),
-        (None, _, _) => Err(format!("slice() expects at least 2 arguments, got 1")),
+        (None, _, _) => Err("slice() expects at least 2 arguments, got 1".to_string()),
     }
 }

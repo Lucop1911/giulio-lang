@@ -125,13 +125,11 @@ impl<'a> LexerState<'a> {
         let start = self.location();
         let mut end_column = start.column + len;
         for i in 0..len {
-            if self.pos + i < self.input.len() {
-                if let Ok(c) = std::str::from_utf8(&[self.input[self.pos + i]]) {
-                    if c == "\n" {
+            if self.pos + i < self.input.len()
+                && let Ok(c) = std::str::from_utf8(&[self.input[self.pos + i]])
+                    && c == "\n" {
                         end_column = 1;
                     }
-                }
-            }
         }
         Span::new(start, Location::new(start.line, end_column))
     }
@@ -402,7 +400,7 @@ impl Lexer {
         }
 
         if !state.current().is_empty() {
-            let c = std::str::from_utf8(&state.current())
+            let c = std::str::from_utf8(state.current())
                 .ok()
                 .and_then(|s| s.chars().next())
                 .unwrap_or('?');

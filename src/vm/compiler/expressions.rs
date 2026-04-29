@@ -24,7 +24,7 @@ pub fn compile_ident(compiler: &mut Compiler, ident: &Ident, line: u16) {
             .chunk
             .add_constant(Object::String(ident.name.clone()));
         if let Some(idx) = idx {
-            compiler.emit(Instruction::GetGlobal(idx as u16), line);
+            compiler.emit(Instruction::GetGlobal(idx), line);
         }
     }
 }

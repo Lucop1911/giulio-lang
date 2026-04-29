@@ -71,7 +71,7 @@ pub fn compile_try_catch(
                     .chunk
                     .add_constant(Object::String(ident.name.clone()));
                 if let Some(idx) = idx {
-                    compiler.emit(Instruction::SetGlobal(idx as u16), line);
+                    compiler.emit(Instruction::SetGlobal(idx), line);
                 }
             }
             // Stack now has: [] (empty)
@@ -128,10 +128,9 @@ fn compile_block_body(compiler: &mut Compiler, body: &Program, line: u16) {
         compiler.compile_statement(stmt, line);
 
         // Pop intermediate expression results
-        if i < body.len() - 1 {
-            if let crate::ast::ast::Stmt::ExprStmt(_) = stmt {
+        if i < body.len() - 1
+            && let crate::ast::ast::Stmt::ExprStmt(_) = stmt {
                 compiler.emit(Instruction::Pop, line);
-            }
         }
     }
 }

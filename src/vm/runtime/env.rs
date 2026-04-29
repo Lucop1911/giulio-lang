@@ -125,11 +125,10 @@ impl Environment {
                 self.store.insert(name.clone(), val);
             }
             None => {
-                if let Some(ref parent_env) = self.parent {
-                    if parent_env.lock().unwrap().has_var(name) {
+                if let Some(ref parent_env) = self.parent
+                    && parent_env.lock().unwrap().has_var(name) {
                         parent_env.lock().unwrap().set(ident, val);
                         return;
-                    }
                 }
                 self.store.insert(name.clone(), val);
             }
@@ -143,11 +142,10 @@ impl Environment {
                 self.store.insert(name.to_string(), val);
             }
             None => {
-                if let Some(ref parent_env) = self.parent {
-                    if parent_env.lock().unwrap().has_var(name) {
+                if let Some(ref parent_env) = self.parent 
+                    && parent_env.lock().unwrap().has_var(name) {
                         parent_env.lock().unwrap().set_by_name(name, val);
                         return;
-                    }
                 }
                 self.store.insert(name.to_string(), val);
             }
@@ -198,12 +196,10 @@ impl Environment {
         let name = &ident.name;
         let slot = ident.slot;
 
-        if !slot.is_unset() {
-            if let Some(obj) = self.get_slot(slot) {
-                return Some(obj);
-            }
-            // Slot out of bounds — fall back to name lookup.
+        if !slot.is_unset() && let Some(obj) = self.get_slot(slot) {
+            return Some(obj);
         }
+        // Slot out of bounds — fall back to name lookup.
 
         match self.store.get(name) {
             Some(o) => Some(o.clone()),

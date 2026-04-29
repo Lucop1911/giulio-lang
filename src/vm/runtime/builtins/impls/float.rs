@@ -9,9 +9,7 @@ pub fn btofloat_fn(args: Vec<Object>) -> Result<Object, String> {
         }
         Some(Object::BigInteger(n)) => match n.to_f64() {
             Some(n) => Ok(Object::Float(n)),
-            None => Err(format!(
-                "to_float() cannot convert BigInteger to Float (overflow)"
-            )),
+            None => Err("to_float() cannot convert BigInteger to Float (overflow)".to_string()),
         },
         Some(Object::String(str)) => match str.trim().parse::<f64>() {
             Ok(f) => Ok(Object::Float(f)),
@@ -21,6 +19,6 @@ pub fn btofloat_fn(args: Vec<Object>) -> Result<Object, String> {
             "to_float() expects integer, bigInteger, or string, got {}",
             o.type_name()
         )),
-        None => Err(format!("to_float() expects 1 argument, got 0")),
+        None => Err("to_float() expects 1 argument, got 0".to_string()),
     }
 }

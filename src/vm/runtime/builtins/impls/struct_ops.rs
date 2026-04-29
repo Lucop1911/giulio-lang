@@ -66,7 +66,7 @@ pub fn bstruct_fields_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::Array(field_names))
         }
         Some(o) => Err(format!("fields() expects struct, got {}", o.type_name())),
-        None => Err(format!("fields() expects 1 argument, got 0")),
+        None => Err("fields() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -79,6 +79,6 @@ pub fn bstruct_name_fn(args: Vec<Object>) -> Result<Object, String> {
             constants: _,
         }) => Ok(Object::String(name)),
         Some(o) => Err(format!("name() expects struct, got {}", o.type_name())),
-        None => Err(format!("name() expects 1 argument, got 0")),
+        None => Err("name() expects 1 argument, got 0".to_string()),
     }
 }

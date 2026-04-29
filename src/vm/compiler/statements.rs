@@ -19,7 +19,7 @@ pub fn compile_let_stmt(compiler: &mut Compiler, ident: &Ident, expr: &Expr, lin
             .chunk
             .add_constant(Object::String(ident.name.clone()));
         if let Some(idx) = idx {
-            compiler.emit(Instruction::SetGlobal(idx as u16), line);
+            compiler.emit(Instruction::SetGlobal(idx), line);
         }
     }
 }
@@ -36,7 +36,7 @@ pub fn compile_multi_let(compiler: &mut Compiler, idents: &[Ident], values: &[Ex
                 .chunk
                 .add_constant(Object::String(ident.name.clone()));
             if let Some(idx) = idx {
-                compiler.emit(Instruction::SetGlobal(idx as u16), line);
+                compiler.emit(Instruction::SetGlobal(idx), line);
             }
         }
     }
@@ -53,7 +53,7 @@ pub fn compile_assign(compiler: &mut Compiler, ident: &Ident, expr: &Expr, line:
             .chunk
             .add_constant(Object::String(ident.name.clone()));
         if let Some(idx) = idx {
-            compiler.emit(Instruction::SetGlobal(idx as u16), line);
+            compiler.emit(Instruction::SetGlobal(idx), line);
         }
     }
 }
@@ -88,7 +88,7 @@ pub fn compile_tuple_assign(
                 .chunk
                 .add_constant(Object::String(target.name.clone()));
             if let Some(idx) = idx {
-                compiler.emit(Instruction::SetGlobal(idx as u16), line);
+                compiler.emit(Instruction::SetGlobal(idx), line);
             }
         }
     }
@@ -149,7 +149,7 @@ pub fn compile_import_stmt(
     // Push module path constant
     let path_idx = compiler.chunk.add_constant(Object::String(module_path));
     if let Some(path_idx) = path_idx {
-        compiler.emit(Instruction::ImportModule(path_idx as u16), line);
+        compiler.emit(Instruction::ImportModule(path_idx), line);
     }
 
     match items {
@@ -158,7 +158,7 @@ pub fn compile_import_stmt(
             let module_name = path.last().cloned().unwrap_or_default();
             let var_idx = compiler.chunk.add_constant(Object::String(module_name));
             if let Some(var_idx) = var_idx {
-                compiler.emit(Instruction::SetGlobal(var_idx as u16), line);
+                compiler.emit(Instruction::SetGlobal(var_idx), line);
             }
         }
         ImportItems::Specific(names) => {
@@ -170,7 +170,7 @@ pub fn compile_import_stmt(
                     // Store as global
                     let var_idx = compiler.chunk.add_constant(Object::String(name.clone()));
                     if let Some(var_idx) = var_idx {
-                        compiler.emit(Instruction::SetGlobal(var_idx as u16), line);
+                        compiler.emit(Instruction::SetGlobal(var_idx), line);
                     }
                 }
             }
@@ -182,7 +182,7 @@ pub fn compile_import_stmt(
                 compiler.emit(Instruction::GetExport, line);
                 let var_idx = compiler.chunk.add_constant(Object::String(name.clone()));
                 if let Some(var_idx) = var_idx {
-                    compiler.emit(Instruction::SetGlobal(var_idx as u16), line);
+                    compiler.emit(Instruction::SetGlobal(var_idx), line);
                 }
             }
         }

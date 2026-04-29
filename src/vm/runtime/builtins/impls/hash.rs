@@ -37,7 +37,7 @@ pub fn bhas_fn(args: Vec<Object>) -> Result<Object, String> {
             )),
         },
         (Some(o), _) => Err(format!("has() expects hash, got {}", o.type_name())),
-        (None, _) => Err(format!("has() expects 2 arguments, got 1")),
+        (None, _) => Err("has() expects 2 arguments, got 1".to_string()),
     }
 }
 
@@ -48,7 +48,7 @@ pub fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::Array(keys))
         }
         Some(o) => Err(format!("keys() expects hash, got {}", o.type_name())),
-        None => Err(format!("keys() expects 1 argument, got 0")),
+        None => Err("keys() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -59,7 +59,7 @@ pub fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
             Ok(Object::Array(values))
         }
         Some(o) => Err(format!("values() expects hash, got {}", o.type_name())),
-        None => Err(format!("values() expects 1 argument, got 0")),
+        None => Err("values() expects 1 argument, got 0".to_string()),
     }
 }
 
@@ -67,6 +67,6 @@ pub fn bclear_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Hash(_)) => Ok(Object::Hash(HashMap::new())),
         Some(o) => Err(format!("clear() expects hash, got {}", o.type_name())),
-        None => Err(format!("clear() expects 1 argument, got 0")),
+        None => Err("clear() expects 1 argument, got 0".to_string()),
     }
 }

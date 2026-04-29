@@ -49,15 +49,7 @@ pub fn execute_pop(stack: &mut Vec<Object>) {
 
 pub fn execute_pop_check_error(stack: &mut Vec<Object>) -> Option<Object> {
     // Pops the value and returns it if it's an error, otherwise returns None
-    if let Some(value) = stack.pop() {
-        if matches!(value, Object::Error(_)) {
-            Some(value)
-        } else {
-            None
-        }
-    } else {
-        None
-    }
+    stack.pop().filter(|value| matches!(value, Object::Error(_)))
 }
 
 pub fn execute_dup(stack: &mut Vec<Object>) {
@@ -73,7 +65,7 @@ pub fn execute_dup(stack: &mut Vec<Object>) {
     }
 }
 
-pub fn execute_swap(stack: &mut Vec<Object>) {
+pub fn execute_swap(stack: &mut [Object]) {
     let len = stack.len();
     if len >= 2 {
         stack.swap(len - 1, len - 2);
@@ -208,7 +200,7 @@ pub fn execute_jump_backward(offset: u16) -> ExecResult {
 }
 
 pub fn execute_jump_if_false(
-    stack: &mut Vec<Object>,
+    stack: &mut [Object],
     is_truthy: impl Fn(&Object) -> bool,
     offset: u16,
 ) -> ExecResult {
@@ -224,7 +216,7 @@ pub fn execute_jump_if_false(
 }
 
 pub fn execute_jump_if_truthy(
-    stack: &mut Vec<Object>,
+    stack: &mut [Object],
     is_truthy: impl Fn(&Object) -> bool,
     offset: u16,
 ) -> ExecResult {

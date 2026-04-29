@@ -107,10 +107,10 @@ fn detect_incomplete_error(tokens: &Tokens, location: Option<Location>) -> Parse
 
     let statement_type = &tokens.token[0];
 
-    if let Some(return_pos) = find_token_position(tokens, &Token::Return) {
-        if return_pos == 0
+    if let Some(return_pos) = find_token_position(tokens, &Token::Return)
+        && (return_pos == 0
             || (return_pos > 0 && tokens.token.get(return_pos - 1) == Some(&Token::LBrace))
-            && return_pos + 1 < tokens.token.len()
+            && return_pos + 1 < tokens.token.len())
         {
             let after_return = &tokens.token[return_pos + 1];
             return match after_return {
@@ -134,7 +134,6 @@ fn detect_incomplete_error(tokens: &Tokens, location: Option<Location>) -> Parse
                     found: describe_token(after_return),
                     location,
                 },
-            };
         }
     }
 
@@ -387,7 +386,7 @@ fn detect_incomplete_error(tokens: &Tokens, location: Option<Location>) -> Parse
 
     ParserError::UnexpectedToken {
         token: describe_token(statement_type),
-        location: location,
+        location,
     }
 }
 
@@ -477,28 +476,28 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str, location: Option
         return ParserError::ExpectedToken {
             expected: "')' to close parenthesis".to_string(),
             found: "end of file".to_string(),
-            location: location,
+            location,
         };
     }
     if bracket_depth > 0 {
         return ParserError::ExpectedToken {
             expected: "']' to close array".to_string(),
             found: "end of file".to_string(),
-            location: location,
+            location,
         };
     }
     if brace_depth > 0 {
         return ParserError::ExpectedToken {
             expected: "'}' to close block".to_string(),
             found: "end of file".to_string(),
-            location: location,
+            location,
         };
     }
 
     if tokens.token.len() < 2 {
         return ParserError::UnexpectedToken {
             token: token_desc.to_string(),
-            location: location,
+            location,
         };
     }
 
@@ -509,22 +508,22 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str, location: Option
         (Token::Let, Token::Assign) => ParserError::ExpectedToken {
             expected: "identifier after 'let'".to_string(),
             found: "'='".to_string(),
-            location: location,
+            location,
         },
         (Token::Let, Token::Colon) => ParserError::ExpectedToken {
             expected: "identifier after 'let'".to_string(),
             found: "':'".to_string(),
-            location: location,
+            location,
         },
         (Token::Let, Token::LParen) => ParserError::ExpectedToken {
             expected: "identifier after 'let'".to_string(),
             found: "'('".to_string(),
-            location: location,
+            location,
         },
         (Token::Let, t) if !matches!(t, Token::Ident(_)) => ParserError::ExpectedToken {
             expected: "identifier after 'let'".to_string(),
             found: describe_token(t),
-            location: location,
+            location,
         },
         (Token::If, Token::Assign | Token::Colon | Token::LBrace | Token::SemiColon) => {
             ParserError::ExpectedToken {
@@ -536,27 +535,27 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str, location: Option
         (Token::If, t) if !matches!(t, Token::LParen) => ParserError::ExpectedToken {
             expected: "'(' after 'if'".to_string(),
             found: describe_token(t),
-            location: location,
+            location,
         },
         (Token::While, t) if !matches!(t, Token::LParen) => ParserError::ExpectedToken {
             expected: "'(' after 'while'".to_string(),
             found: describe_token(t),
-            location: location,
+            location,
         },
         (Token::For, t) if !matches!(t, Token::LParen) => ParserError::ExpectedToken {
             expected: "'(' after 'for'".to_string(),
             found: describe_token(t),
-            location: location,
+            location,
         },
         (Token::Function, t) if !matches!(t, Token::Ident(_)) => ParserError::ExpectedToken {
             expected: "function name after 'fn'".to_string(),
             found: describe_token(t),
-            location: location,
+            location,
         },
         (Token::Struct, t) if !matches!(t, Token::Ident(_)) => ParserError::ExpectedToken {
             expected: "struct name after 'struct'".to_string(),
             found: describe_token(t),
-            location: location,
+            location,
         },
         (Token::Return, Token::LParen | Token::LBrace | Token::If | Token::For | Token::While) => {
             ParserError::ExpectedToken {
@@ -568,19 +567,19 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str, location: Option
         (Token::Assign, Token::Assign | Token::Equal) => ParserError::ExpectedToken {
             expected: "expression after '='".to_string(),
             found: describe_token(next),
-            location: location,
+            location,
         },
         (Token::LParen, Token::RParen) => ParserError::InvalidExpression {
             message: "empty parentheses".to_string(),
-            location: location,
+            location,
         },
         (Token::LBracket, Token::RBracket) => ParserError::InvalidExpression {
             message: "empty array literal".to_string(),
-            location: location,
+            location,
         },
         (Token::LBrace, Token::RBrace) => ParserError::InvalidExpression {
             message: "empty block".to_string(),
-            location: location,
+            location,
         },
         (Token::Comma, Token::RParen | Token::RBracket | Token::RBrace) => {
             ParserError::ExpectedToken {
@@ -592,12 +591,12 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str, location: Option
         (Token::Colon, Token::Colon) => ParserError::ExpectedToken {
             expected: "type or expression after ':'".to_string(),
             found: "'::'".to_string(),
-            location: location,
+            location,
         },
         (Token::Dot, Token::Dot) => ParserError::ExpectedToken {
             expected: "identifier after '.'".to_string(),
             found: "'.'".to_string(),
-            location: location,
+            location,
         },
         (Token::Else, Token::Assign | Token::Colon | Token::SemiColon | Token::LParen) => {
             ParserError::ExpectedToken {
@@ -608,7 +607,7 @@ fn infer_context_from_tokens(tokens: &Tokens, token_desc: &str, location: Option
         }
         _ => ParserError::UnexpectedToken {
             token: token_desc.to_string(),
-            location: location,
+            location
         },
     }
 }

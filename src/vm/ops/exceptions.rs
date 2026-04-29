@@ -54,7 +54,7 @@ pub fn execute_push_finally(handlers: &mut Vec<ExceptionHandler>, addr: u16) {
 
 pub fn execute_end_finally(
     handlers: &mut Vec<ExceptionHandler>,
-    stack: &mut Vec<Object>,
+    stack: &mut [Object],
     pending_return: &mut bool,
 ) -> ExecResult {
     // Check if there's a ThrownValue on the stack
@@ -83,7 +83,7 @@ pub fn execute_end_finally(
 pub fn handle_throw_result(
     stack: &mut Vec<Object>,
     handlers: &mut Vec<ExceptionHandler>,
-    frames: &mut Vec<CallFrame>,
+    frames: &mut [CallFrame],
 ) -> Result<ExecResult, RuntimeError> {
     let thrown = match stack.pop() {
         Some(Object::ThrownValue(v)) => *v,

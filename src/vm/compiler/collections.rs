@@ -131,6 +131,6 @@ pub fn compile_struct_stmt(
         .chunk
         .add_constant(Object::String(name.name.clone()));
     if let Some(name_idx) = name_idx {
-        compiler.emit(Instruction::SetGlobal(name_idx as u16), line);
+        compiler.emit(Instruction::SetGlobal(name_idx), line);
     }
 }
