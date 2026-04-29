@@ -15,7 +15,7 @@ use crate::vm::runtime::runtime_errors::RuntimeError;
 use crate::vm::obj::Object;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::rc::Rc;
 use wasmtime::{Memory, Store, ValType};
 
 #[cfg(feature = "wasm")]
@@ -43,7 +43,7 @@ impl From<ValType> for WasmType {
 }
 
 impl WasmType {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_string(s: &str) -> Option<Self> {
         match s {
             "i32" => Some(WasmType::I32),
             "i64" => Some(WasmType::I64),
@@ -225,14 +225,14 @@ pub struct WasmMemoryManager {
     pub memory: Memory,
     /// Monotonic bump-allocation pointer wrapped in `Arc<RefCell>` so
     /// it can be shared across multiple calls.
-    pub next_ptr: Arc<RefCell<usize>>,
+    pub next_ptr: Rc<RefCell<usize>>,
 }
 
 impl WasmMemoryManager {
     pub fn new(memory: Memory) -> Self {
         WasmMemoryManager {
             memory,
-            next_ptr: Arc::new(RefCell::new(4096)),
+            next_ptr: Rc::new(RefCell::new(4096)),
         }
     }
 

@@ -25,6 +25,9 @@ pub fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
         return;
     }
 
+    // Safe: only Integer, Boolean, String (immutable types) are allowed as keys,
+    // validated at runtime before insertion.
+    #[allow(clippy::mutable_key_type)]
     let mut hashmap = HashMap::new();
     for _ in 0..pair_count {
         let value = stack.pop().unwrap();

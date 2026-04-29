@@ -140,6 +140,9 @@ fn json_to_object(val: Value) -> Object {
         }
 
         Value::Object(map) => {
+            // Safe: only Integer, Boolean, String (immutable types) are allowed as keys,
+            // validated at runtime before insertion.
+            #[allow(clippy::mutable_key_type)]
             let mut hash = HashMap::with_capacity(map.len());
             for (k, v) in map {
                 hash.insert(Object::String(k), json_to_object(v));

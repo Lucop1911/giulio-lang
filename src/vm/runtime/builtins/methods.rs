@@ -28,174 +28,174 @@ impl BuiltinMethods {
             ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btostring_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btostring_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_) | Object::Float(_), "to_int") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btoint_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btoint_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Integer(_) | Object::BigInteger(_) | Object::String(_), "to_float") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btofloat_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btofloat_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // Shared methods
             (Object::Array(_) | Object::String(_) | Object::Hash(_), "len") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                blen_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                blen_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_) | Object::Array(_) | Object::Hash(_), "is_empty") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bisempty_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bisempty_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Hash(_) | Object::Array(_), "remove") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bremove_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bremove_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Hash(_) | Object::Array(_) | Object::String(_), "get") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bget_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bget_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_) | Object::Array(_), "contains") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bcontains_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bcontains_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // String methods
             (Object::String(_), "to_upper") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btoupper_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btoupper_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_), "to_lower") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btolower_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btolower_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_), "starts_with") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bstartswith_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bstartswith_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_), "ends_with") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bendswith_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bendswith_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_), "replace") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                breplace_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                breplace_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_), "split") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bsplit_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bsplit_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::String(_), "trim") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btrim_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btrim_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // Array methods
             (Object::Array(_), "head") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bhead_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bhead_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Array(_), "tail") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                btail_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                btail_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Array(_), "push") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bpush_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bpush_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Array(_), "cons") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bcons_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bcons_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // Int methods
             (Object::Integer(_), "pow") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bpow_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bpow_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Integer(_), "min") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bmin_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bmin_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Integer(_), "max") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bmax_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bmax_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Integer(_), "abs") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                babs_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                babs_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // Hash methods
             (Object::Hash(_), "set") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bset_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bset_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Hash(_), "has") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bhas_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bhas_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Hash(_), "keys") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bkeys_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bkeys_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Hash(_), "values") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bvalues_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bvalues_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Hash(_), "clear") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bclear_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bclear_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // Struct methods
             (Object::Struct {name: _, fields: _, methods: _, constants: _}, "set") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bset_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bset_field_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Struct {name: _, fields: _, methods: _, constants: _}, "get") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bget_field_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bget_field_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Struct {name: _, fields: _, methods: _, constants: _},"fields" ) => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bstruct_fields_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bstruct_fields_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
             (Object::Struct {name: _, fields: _, methods: _, constants: _}, "name") => {
                 let mut all_args = vec![object];
                 all_args.extend(args);
-                bstruct_name_fn(all_args).map_err(|e| RuntimeError::InvalidArguments(e))
+                bstruct_name_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
 
             // Method not found for this type

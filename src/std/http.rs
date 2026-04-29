@@ -111,8 +111,15 @@ async fn async_http_delete(args: Vec<Object>) -> Result<Object, RuntimeError> {
     }
 }
 
+// Safe: only Integer, Boolean, String (immutable types) are allowed as keys,
+// validated at runtime before insertion.
+#[allow(clippy::mutable_key_type)]
 fn create_response_hash(status: u16, body: String) -> HashMap<Object, Object> {
+    // Safe: only Integer, Boolean, String (immutable types) are allowed as keys,
+    // validated at runtime before insertion.
+    #[allow(clippy::mutable_key_type)]
     let mut hash = HashMap::new();
+
     hash.insert(Object::String("status".to_string()), Object::Integer(status as i64));
     hash.insert(Object::String("body".to_string()), Object::String(body));
     hash

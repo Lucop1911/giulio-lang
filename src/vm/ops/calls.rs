@@ -163,7 +163,7 @@ pub fn execute_call(
             use crate::wasm::type_conversions::g_to_component_val;
             let wasm_args: Result<Vec<_>, _> = args
                 .iter()
-                .map(|obj| g_to_component_val(obj))
+                .map(g_to_component_val)
                 .collect();
 
             match wasm_args {

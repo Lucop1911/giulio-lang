@@ -88,11 +88,11 @@ fn test_component_val_to_g_bool() {
 
 #[test]
 fn test_wasm_type_from_str() {
-    assert_eq!(WasmType::from_str("i32"), Some(WasmType::I32));
-    assert_eq!(WasmType::from_str("i64"), Some(WasmType::I64));
-    assert_eq!(WasmType::from_str("f32"), Some(WasmType::F32));
-    assert_eq!(WasmType::from_str("f64"), Some(WasmType::F64));
-    assert_eq!(WasmType::from_str("unknown"), None);
+    assert_eq!(WasmType::from_string("i32"), Some(WasmType::I32));
+    assert_eq!(WasmType::from_string("i64"), Some(WasmType::I64));
+    assert_eq!(WasmType::from_string("f32"), Some(WasmType::F32));
+    assert_eq!(WasmType::from_string("f64"), Some(WasmType::F64));
+    assert_eq!(WasmType::from_string("unknown"), None);
 }
 
 #[test]
