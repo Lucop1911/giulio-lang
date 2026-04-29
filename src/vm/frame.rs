@@ -37,18 +37,6 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    /// Creates a new frame for the root (top-level program) execution.
-    pub fn new_root(chunk: Arc<Chunk>, slot_count: usize) -> Self {
-        CallFrame {
-            chunk,
-            ip: 0,
-            slots_base: 0,
-            slot_count,
-            closure_env: None,
-            local_names: Vec::new(),
-        }
-    }
-
     /// Creates a new frame for a function body execution (for async functions).
     pub fn new_function_body(
         chunk: Arc<Chunk>,

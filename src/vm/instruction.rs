@@ -11,8 +11,6 @@
 //! The maximum constant pool size is 65536 entries (u16 index).
 //! The maximum number of local slots per frame is 256 (u8 index).
 
-use std::fmt;
-
 /// Single-byte opcode identifiers.
 ///
 /// Opcodes are grouped by function. Within each group, values are
@@ -294,87 +292,6 @@ pub enum Instruction {
     GetExport,
 }
 
-impl Instruction {
-    /// Decode an instruction from bytecode starting at `ip`.
-    ///
-    /// Returns the decoded instruction and the number of bytes consumed
-    /// (opcode + operands).
-    pub fn decode(code: &[u8], ip: usize) -> Option<(Self, usize)> {
-        let opcode = Opcode::from_byte(code.get(ip).copied()?)?;
-        let width = opcode.operand_width();
-
-        if ip + 1 + width > code.len() {
-            return None;
-        }
-
-        let read_u8 = |offset: usize| code.get(ip + offset).copied().unwrap();
-        let read_u16 =
-            |offset: usize| u16::from_be_bytes([code[ip + offset], code[ip + offset + 1]]);
-
-        let instr = match opcode {
-            Opcode::OpConstant => Instruction::Constant(read_u16(1)),
-            Opcode::OpPop => Instruction::Pop,
-            Opcode::OpDup => Instruction::Dup,
-            Opcode::OpSwap => Instruction::Swap,
-            Opcode::OpGetLocal => Instruction::GetLocal(read_u8(1)),
-            Opcode::OpSetLocal => Instruction::SetLocal(read_u8(1)),
-            Opcode::OpGetGlobal => Instruction::GetGlobal(read_u16(1)),
-            Opcode::OpSetGlobal => Instruction::SetGlobal(read_u16(1)),
-            Opcode::OpGetBuiltin => Instruction::GetBuiltin(read_u8(1)),
-            Opcode::OpAdd => Instruction::Add,
-            Opcode::OpSubtract => Instruction::Subtract,
-            Opcode::OpMultiply => Instruction::Multiply,
-            Opcode::OpDivide => Instruction::Divide,
-            Opcode::OpModulo => Instruction::Modulo,
-            Opcode::OpEqual => Instruction::Equal,
-            Opcode::OpNotEqual => Instruction::NotEqual,
-            Opcode::OpLessThan => Instruction::LessThan,
-            Opcode::OpGreaterThan => Instruction::GreaterThan,
-            Opcode::OpLessEqual => Instruction::LessEqual,
-            Opcode::OpGreaterEqual => Instruction::GreaterEqual,
-            Opcode::OpNot => Instruction::Not,
-            Opcode::OpNegate => Instruction::Negate,
-            Opcode::OpGetLen => Instruction::GetLen,
-            Opcode::OpJump => Instruction::Jump(read_u16(1)),
-            Opcode::OpJumpBackward => Instruction::JumpBackward(read_u16(1)),
-            Opcode::OpJumpIfFalse => Instruction::JumpIfFalse(read_u16(1)),
-            Opcode::OpJumpIfTruthy => Instruction::JumpIfTruthy(read_u16(1)),
-            Opcode::OpPopJumpIfFalse => Instruction::PopJumpIfFalse(read_u16(1)),
-            Opcode::OpCall => Instruction::Call(read_u8(1)),
-            Opcode::OpCallBuiltin => Instruction::CallBuiltin(read_u8(1)),
-            Opcode::OpReturnValue => Instruction::ReturnValue,
-            Opcode::OpClosure => Instruction::Closure {
-                param_count: read_u8(1),
-                chunk_offset: read_u16(2),
-            },
-            Opcode::OpCallAsync => Instruction::CallAsync(read_u8(1)),
-            Opcode::OpAwait => Instruction::Await,
-            Opcode::OpBuildArray => Instruction::BuildArray(read_u16(1)),
-            Opcode::OpBuildHash => Instruction::BuildHash(read_u16(1)),
-            Opcode::OpIndex => Instruction::Index,
-            Opcode::OpSetIndex => Instruction::SetIndex,
-            Opcode::OpBuildStruct => Instruction::BuildStruct(read_u8(1)),
-            Opcode::OpGetField => Instruction::GetField,
-            Opcode::OpSetField => Instruction::SetField,
-            Opcode::OpCallMethod => Instruction::CallMethod(read_u8(1)),
-            Opcode::OpThrow => Instruction::Throw,
-            Opcode::OpPushCatch => Instruction::PushCatch {
-                catch_addr: read_u16(1),
-                finally_addr: read_u16(3),
-            },
-            Opcode::OpPopCatch => Instruction::PopCatch,
-            Opcode::OpPushFinally => Instruction::PushFinally(read_u16(1)),
-            Opcode::OpEndFinally => Instruction::EndFinally,
-            Opcode::OpBreak => Instruction::Break(read_u16(1)),
-            Opcode::OpContinue => Instruction::Continue(read_u16(1)),
-            Opcode::OpImportModule => Instruction::ImportModule(read_u16(1)),
-            Opcode::OpGetExport => Instruction::GetExport,
-        };
-
-        Some((instr, 1 + width))
-    }
-}
-
 /// Encode a single instruction into a byte vector.
 ///
 /// Appends the opcode byte followed by operands in big-endian order.
@@ -511,77 +428,5 @@ pub fn encode_instruction(code: &mut Vec<u8>, instr: Instruction) {
             code.extend_from_slice(&idx.to_be_bytes());
         }
         Instruction::GetExport => code.push(Opcode::OpGetExport as u8),
-    }
-}
-
-impl fmt::Display for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Instruction::Constant(i) => write!(f, "Constant({})", i),
-            Instruction::Pop => write!(f, "Pop"),
-            Instruction::Dup => write!(f, "Dup"),
-            Instruction::Swap => write!(f, "Swap"),
-            Instruction::GetLocal(s) => write!(f, "GetLocal({})", s),
-            Instruction::SetLocal(s) => write!(f, "SetLocal({})", s),
-            Instruction::GetGlobal(i) => write!(f, "GetGlobal({})", i),
-            Instruction::SetGlobal(i) => write!(f, "SetGlobal({})", i),
-            Instruction::GetBuiltin(i) => write!(f, "GetBuiltin({})", i),
-            Instruction::Add => write!(f, "Add"),
-            Instruction::Subtract => write!(f, "Subtract"),
-            Instruction::Multiply => write!(f, "Multiply"),
-            Instruction::Divide => write!(f, "Divide"),
-            Instruction::Modulo => write!(f, "Modulo"),
-            Instruction::Equal => write!(f, "Equal"),
-            Instruction::NotEqual => write!(f, "NotEqual"),
-            Instruction::LessThan => write!(f, "LessThan"),
-            Instruction::GreaterThan => write!(f, "GreaterThan"),
-            Instruction::LessEqual => write!(f, "LessEqual"),
-            Instruction::GreaterEqual => write!(f, "GreaterEqual"),
-            Instruction::Not => write!(f, "Not"),
-            Instruction::Negate => write!(f, "Negate"),
-            Instruction::GetLen => write!(f, "GetLen"),
-            Instruction::Jump(o) => write!(f, "Jump({})", o),
-            Instruction::JumpBackward(o) => write!(f, "JumpBackward({})", o),
-            Instruction::JumpIfFalse(o) => write!(f, "JumpIfFalse({})", o),
-            Instruction::JumpIfTruthy(o) => write!(f, "JumpIfTruthy({})", o),
-            Instruction::PopJumpIfFalse(o) => write!(f, "PopJumpIfFalse({})", o),
-            Instruction::Call(a) => write!(f, "Call({})", a),
-            Instruction::CallBuiltin(a) => write!(f, "CallBuiltin({})", a),
-            Instruction::ReturnValue => write!(f, "ReturnValue"),
-            Instruction::Closure {
-                param_count,
-                chunk_offset,
-            } => write!(
-                f,
-                "Closure(params={}, offset={})",
-                param_count, chunk_offset
-            ),
-            Instruction::CallAsync(a) => write!(f, "CallAsync({})", a),
-            Instruction::Await => write!(f, "Await"),
-            Instruction::BuildArray(c) => write!(f, "BuildArray({})", c),
-            Instruction::BuildHash(c) => write!(f, "BuildHash({})", c),
-            Instruction::Index => write!(f, "Index"),
-            Instruction::SetIndex => write!(f, "SetIndex"),
-            Instruction::BuildStruct(c) => write!(f, "BuildStruct({})", c),
-            Instruction::GetField => write!(f, "GetField"),
-            Instruction::SetField => write!(f, "SetField"),
-            Instruction::CallMethod(a) => write!(f, "CallMethod({})", a),
-            Instruction::Throw => write!(f, "Throw"),
-            Instruction::PushCatch {
-                catch_addr,
-                finally_addr,
-            } => write!(
-                f,
-                "PushCatch(catch={}, finally={})",
-                catch_addr, finally_addr
-            ),
-            Instruction::PopCatch => write!(f, "PopCatch"),
-            Instruction::PushFinally(a) => write!(f, "PushFinally({})", a),
-            Instruction::EndFinally => write!(f, "EndFinally"),
-            Instruction::Break(a) => write!(f, "Break({})", a),
-            Instruction::Continue(a) => write!(f, "Continue({})", a),
-            Instruction::ImportModule(i) => write!(f, "ImportModule({})", i),
-            Instruction::GetExport => write!(f, "GetExport"),
-        }
     }
 }

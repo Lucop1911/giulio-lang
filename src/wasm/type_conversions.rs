@@ -8,18 +8,11 @@
 //!   (`"Int"`, `"Float"`, `"Bool"`) and WASM types
 //! - [`g_to_component_val`] / [`component_val_to_g`] — conversion between
 //!   G-lang `Object` and WASM component-model `Val`
-//! - [`WasmMemoryManager`] — bump allocator and string read/write helpers
-//!   for interacting with WASM linear memory
 
 use crate::vm::runtime::runtime_errors::RuntimeError;
 use crate::vm::obj::Object;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
-use wasmtime::{Memory, Store, ValType};
-
-#[cfg(feature = "wasm")]
-use wasmtime::component::Val as ComponentVal;
+use wasmtime::{ValType, component::Val as ComponentVal};
 
 /// Core WASM primitive types supported by the FFI layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -147,140 +140,5 @@ pub fn component_val_to_g(val: &ComponentVal) -> Result<Object, RuntimeError> {
         _ => Err(RuntimeError::InvalidOperation(
             "Unsupported wasm value type".to_string(),
         )),
-    }
-}
-
-/// Finds the first contiguous free region of `size` bytes in WASM linear memory.
-///
-/// This is a naive first-fit allocator that scans from address 0. Suitable
-/// for small allocations but O(n × size) in the worst case.
-pub fn allocate_in_wasm_memory<T>(
-    memory: &Memory,
-    store: &mut Store<T>,
-    size: usize,
-) -> Result<usize, RuntimeError> {
-    let pages = memory.size(&*store) as usize;
-    let max_size = pages * 65536;
-
-    if max_size < size {
-        return Err(RuntimeError::InvalidOperation(
-            "Not enough memory to allocate".to_string(),
-        ));
-    }
-
-    let data = memory.data(&*store);
-    for ptr in 0..max_size {
-        let mut can_use = true;
-        for i in 0..size {
-            if ptr + i < max_size && data.get(ptr + i).is_some() {
-                can_use = false;
-                break;
-            }
-        }
-        if can_use {
-            return Ok(ptr);
-        }
-    }
-
-    Err(RuntimeError::InvalidOperation(
-        "Failed to find free memory location".to_string(),
-    ))
-}
-
-/// Reads a null-terminated C string from WASM linear memory.
-///
-/// Reads up to `max_len` bytes starting at `ptr` and stops at the first
-/// null byte. Returns an error if the bytes are not valid UTF-8.
-pub fn read_string_from_wasm<T>(
-    memory: &Memory,
-    store: &mut Store<T>,
-    ptr: i32,
-    max_len: usize,
-) -> Result<String, RuntimeError> {
-    let ptr = ptr as usize;
-
-    let mut data = vec![0u8; max_len];
-    memory.read(&*store, ptr, &mut data).map_err(|e| {
-        RuntimeError::InvalidOperation(format!("Failed to read from wasm memory: {}", e))
-    })?;
-
-    if let Some(null_pos) = data.iter().position(|&b| b == 0) {
-        let string_data = &data[..null_pos];
-        String::from_utf8(string_data.to_vec()).map_err(|e| {
-            RuntimeError::InvalidOperation(format!("Invalid UTF-8 in wasm string: {}", e))
-        })
-    } else {
-        String::from_utf8(data).map_err(|e| {
-            RuntimeError::InvalidOperation(format!("Invalid UTF-8 in wasm string: {}", e))
-        })
-    }
-}
-
-/// Bump allocator and string I/O helpers for WASM linear memory.
-///
-/// Manages a monotonic allocation pointer (`next_ptr`) starting at 4096
-/// (leaving the low addresses free for WASM internals). Provides methods
-/// to allocate raw regions and write/read null-terminated strings.
-pub struct WasmMemoryManager {
-    pub memory: Memory,
-    /// Monotonic bump-allocation pointer wrapped in `Arc<RefCell>` so
-    /// it can be shared across multiple calls.
-    pub next_ptr: Rc<RefCell<usize>>,
-}
-
-impl WasmMemoryManager {
-    pub fn new(memory: Memory) -> Self {
-        WasmMemoryManager {
-            memory,
-            next_ptr: Rc::new(RefCell::new(4096)),
-        }
-    }
-
-    pub fn allocate<T>(&self, _store: &mut Store<T>, size: usize) -> Result<i32, RuntimeError> {
-        let mut next = self.next_ptr.borrow_mut();
-        let ptr = *next;
-        *next += size;
-        Ok(ptr as i32)
-    }
-
-    pub fn write_string<T>(&self, store: &mut Store<T>, s: &str) -> Result<i32, RuntimeError> {
-        let bytes = s.as_bytes();
-        let ptr = self.allocate(store, bytes.len() + 1)?;
-
-        self.memory
-            .write(&mut *store, ptr as usize, bytes)
-            .map_err(|e| {
-                RuntimeError::InvalidOperation(format!("Failed to write string to wasm: {}", e))
-            })?;
-
-        let null_ptr = (ptr as usize) + bytes.len();
-        self.memory
-            .write(&mut *store, null_ptr, &[0])
-            .map_err(|e| {
-                RuntimeError::InvalidOperation(format!("Failed to write null terminator: {}", e))
-            })?;
-
-        Ok(ptr)
-    }
-
-    pub fn read_string<T>(
-        &self,
-        store: &mut Store<T>,
-        ptr: i32,
-        max_len: usize,
-    ) -> Result<String, RuntimeError> {
-        let ptr = ptr as usize;
-
-        let mut data = vec![0u8; max_len];
-        self.memory.read(&*store, ptr, &mut data).map_err(|e| {
-            RuntimeError::InvalidOperation(format!("Failed to read from wasm memory: {}", e))
-        })?;
-
-        if let Some(null_pos) = data.iter().position(|&b| b == 0) {
-            data.truncate(null_pos);
-        }
-
-        String::from_utf8(data)
-            .map_err(|e| RuntimeError::InvalidOperation(format!("Invalid UTF-8 from wasm: {}", e)))
     }
 }

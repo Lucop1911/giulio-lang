@@ -274,13 +274,6 @@ impl<T> Spanned<T> {
     pub fn new(node: T, span: Span) -> Self {
         Self { node, span }
     }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<U> {
-        Spanned {
-            node: f(self.node),
-            span: self.span,
-        }
-    }
 }
 
 impl<T> std::ops::Deref for Spanned<T> {
@@ -293,16 +286,6 @@ impl<T> std::ops::Deref for Spanned<T> {
 impl<T> std::ops::DerefMut for Spanned<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.node
-    }
-}
-
-impl Spanned<Token> {
-    pub fn as_token(&self) -> &Token {
-        &self.node
-    }
-
-    pub fn location(&self) -> Location {
-        self.span.start
     }
 }
 
@@ -337,17 +320,6 @@ impl<'a> SpannedTokens<'a> {
         if self.index < self.tokens.len() {
             self.index += 1;
         }
-    }
-
-    pub fn slice(&self, range: std::ops::Range<usize>) -> Self {
-        Self {
-            tokens: &self.tokens[range],
-            index: 0,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.index >= self.tokens.len()
     }
 
     pub fn to_tokens(&self) -> Tokens<'static> {

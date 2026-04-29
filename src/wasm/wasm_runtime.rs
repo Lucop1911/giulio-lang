@@ -79,11 +79,6 @@ impl WasmRuntime {
         };
         Store::new(&self.engine, context)
     }
-
-    /// Backwards-compatible alias for [`Self::create_store`].
-    pub fn create_store_with_ctx(&self) -> Store<WasmContext> {
-        self.create_store()
-    }
 }
 
 /// A compiled WASM module — either a WASI Preview 2 component or a
@@ -434,14 +429,6 @@ impl WasmInstance {
         }
     }
 
-    /// Checks whether an exported function with the given name exists.
-    pub fn has_func(&self, store: &mut Store<WasmContext>, name: &str) -> bool {
-        match self {
-            WasmInstance::Component(i) => i.get_export(store, name).is_some(),
-            WasmInstance::Classic(i) => i.get_export(store, name).is_some(),
-        }
-    }
-
     /// Returns exported linear memory (only available for classic modules).
     /// Components handle memory through the resource table instead.
     pub fn get_memory(&self) -> Option<&Memory> {
@@ -528,15 +515,3 @@ impl Default for WasmContext {
 
 // Type alias for store with WASM context
 pub type WasmStore = Store<WasmContext>;
-
-// Helper function to create a new WASM store
-pub fn create_wasm_store() -> Store<WasmContext> {
-    let runtime = WasmRuntime::new().expect("WasmRuntime is infallible");
-    runtime.create_store()
-}
-
-// Helper function to create a WASM store with custom context
-pub fn create_wasm_store_with_context(context: WasmContext) -> Store<WasmContext> {
-    let runtime = WasmRuntime::new().expect("WasmRuntime is infallible");
-    Store::new(runtime.engine(), context)
-}

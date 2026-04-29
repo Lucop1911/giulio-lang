@@ -416,15 +416,10 @@ impl Lexer {
         Ok(tokens)
     }
 
-    pub fn lex_tokens_simple(bytes: &[u8]) -> Result<Vec<Token>, LexerError> {
-        let tokens = Self::lex_tokens(bytes)?;
-        Ok(tokens.into_iter().map(|s| s.node).collect())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LexerError {
-    InvalidToken(String, Location),
     UnexpectedCharacter(char, Location),
     UnterminatedString(Location),
 }
@@ -432,7 +427,6 @@ pub enum LexerError {
 impl std::fmt::Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LexerError::InvalidToken(s, loc) => write!(f, "Invalid token: {} at {}", s, loc),
             LexerError::UnexpectedCharacter(c, loc) => {
                 write!(f, "Unexpected character: '{}' at {}", c, loc)
             }

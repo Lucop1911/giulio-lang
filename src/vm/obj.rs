@@ -261,17 +261,6 @@ impl PartialEq for Object {
 }
 
 impl Object {
-    pub fn is_returned(&self) -> bool {
-        matches!(*self, Object::ReturnValue(_))
-    }
-
-    pub fn returned(self) -> Self {
-        match self {
-            Object::ReturnValue(o) => *o,
-            o => o,
-        }
-    }
-
     pub fn type_name(&self) -> String {
         match self {
             Object::Integer(_) => "integer".to_string(),

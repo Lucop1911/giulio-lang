@@ -162,13 +162,6 @@ impl Compiler {
         (compiler.chunk, param_count, local_names)
     }
 
-    // ─── Public API helpers ──────────────────────────────────────────
-
-    /// Returns the compiled chunk.
-    pub fn into_chunk(self) -> Chunk {
-        self.chunk
-    }
-
     // ─── Program-level compilation ──────────────────────────────────
 
     pub fn compile_program_body(&mut self, program: &Program, discard_last: bool) {

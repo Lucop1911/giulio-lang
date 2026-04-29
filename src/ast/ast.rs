@@ -195,10 +195,6 @@ impl Ident {
             slot: SlotIndex::UNSET,
         }
     }
-
-    pub fn with_slot(name: String, slot: SlotIndex) -> Self {
-        Ident { name, slot }
-    }
 }
 
 /// Unary operators.

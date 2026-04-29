@@ -80,20 +80,6 @@ impl Chunk {
         self.code[offset] = bytes[0];
         self.code[offset + 1] = bytes[1];
     }
-
-    /// Patches a u16 operand at the given offset (same as patch_u16).
-    pub fn patch_u16_at(&mut self, offset: usize, value: u16) {
-        self.patch_u16(offset, value);
-    }
-
-    /// Returns the number of bytes in the bytecode.
-    pub fn len(&self) -> usize {
-        self.code.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.code.is_empty()
-    }
 }
 
 impl Default for Chunk {
