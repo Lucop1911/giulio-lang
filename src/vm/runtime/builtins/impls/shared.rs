@@ -228,3 +228,11 @@ pub(crate) fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
         (None, _, _) => Err("slice() expects at least 2 arguments, got 1".to_string()),
     }
 }
+
+// Method only
+pub(crate) fn bisnum_fn(args:Vec<Object>) -> Result<Object, String> {
+    match args.first() {
+        Some(Object::Integer(_)) | Some(Object::BigInteger(_)) | Some(Object::Float(_)) => Ok(Object::Boolean(true)),
+        _ => Ok(Object::Boolean(false))
+    }
+}

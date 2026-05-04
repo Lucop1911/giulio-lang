@@ -67,6 +67,11 @@ impl BuiltinMethods {
                 all_args.extend(args);
                 bcontains_fn(all_args).map_err(RuntimeError::InvalidArguments)
             }
+            (_, "is_num") => {
+                let mut all_args = vec![object];
+                all_args.extend(args);
+                bisnum_fn(all_args).map_err(RuntimeError::InvalidArguments)
+            }
 
             // String methods
             (Object::String(_), "to_upper") => {
