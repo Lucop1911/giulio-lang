@@ -61,7 +61,6 @@ pub fn execute_call(
             let frame = CallFrame::new_function(
                 Arc::clone(&chunk),
                 slots_base,
-                slot_count,
                 caller_stack_len,
                 Arc::new(Mutex::new(new_env)),
                 local_names,

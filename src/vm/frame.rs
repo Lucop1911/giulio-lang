@@ -26,8 +26,6 @@ pub struct CallFrame {
     /// Base index in the VM's stack where this frame's slots begin.
     /// Slot 0 is at `stack[slots_base]`, slot 1 at `stack[slots_base + 1]`, etc.
     pub slots_base: usize,
-    /// Number of slots allocated for this frame (params + locals).
-    pub slot_count: usize,
     /// Stack length when this frame was called (used for return value placement).
     pub caller_stack_len: usize,
     /// Closure environment — `Some` for closures that capture outer scope,
@@ -42,14 +40,12 @@ impl CallFrame {
     /// Creates a new frame for a function body execution (for async functions).
     pub fn new_function_body(
         chunk: Arc<Chunk>,
-        slot_count: usize,
         local_names: Vec<String>,
     ) -> Self {
         CallFrame {
             chunk,
             ip: 0,
             slots_base: 0,
-            slot_count,
             caller_stack_len: 0,
             closure_env: None,
             local_names,
@@ -67,7 +63,6 @@ impl CallFrame {
     pub(crate) fn new_function(
         chunk: Arc<Chunk>,
         slots_base: usize,
-        slot_count: usize,
         caller_stack_len: usize,
         closure_env: Arc<Mutex<Environment>>,
         local_names: Vec<String>,
@@ -76,7 +71,6 @@ impl CallFrame {
             chunk,
             ip: 0,
             slots_base,
-            slot_count,
             caller_stack_len,
             closure_env: Some(closure_env),
             local_names,

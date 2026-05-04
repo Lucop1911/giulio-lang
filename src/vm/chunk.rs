@@ -10,6 +10,47 @@
 use crate::vm::obj::Object;
 use crate::vm::instruction::{encode_instruction, Instruction};
 
+/// Run-length encoded line number info.
+/// Each entry is (byte_count, line_number).
+/// This reduces memory from 1:1 with code bytes to ~1:10 typical.
+#[derive(Clone, Debug)]
+pub struct LineInfo {
+    pub entries: Vec<(u32, u16)>,
+}
+
+impl LineInfo {
+    pub fn new() -> Self {
+        LineInfo { entries: Vec::new() }
+    }
+
+    pub fn add_line(&mut self, count: usize, line: u16) {
+        if let Some((_, last_line)) = self.entries.last_mut() {
+            if *last_line == line {
+                self.entries.last_mut().unwrap().0 += count as u32;
+                return;
+            }
+        }
+        self.entries.push((count as u32, line));
+    }
+
+    pub fn get_line(&self, byte_offset: usize) -> Option<u16> {
+        let mut offset = 0;
+        for (count, line) in &self.entries {
+            if offset + *count as usize > byte_offset {
+                return Some(*line);
+            }
+            offset += *count as usize;
+        }
+        None
+    }
+}
+
+impl Default for LineInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A compiled unit of bytecode.
 ///
 /// Each chunk represents either:
@@ -24,9 +65,9 @@ pub struct Chunk {
     /// Constant pool — literals, strings, and builtin references
     /// indexed by `u16` from `OpConstant`.
     pub constants: Vec<Object>,
-    /// Source line for each byte in `code`.
-    /// `lines[i]` is the source line of `code[i]`.
-    pub lines: Vec<u16>,
+    /// Source line mapping using run-length encoding.
+    /// Each entry is (byte_count, line_number).
+    pub lines: LineInfo,
 }
 
 impl Chunk {
@@ -34,7 +75,7 @@ impl Chunk {
         Chunk {
             code: Vec::new(),
             constants: Vec::new(),
-            lines: Vec::new(),
+            lines: LineInfo::new(),
         }
     }
 
@@ -53,7 +94,7 @@ impl Chunk {
     /// Appends a single byte to the bytecode, recording its source line.
     pub fn write_byte(&mut self, byte: u8, line: u16) {
         self.code.push(byte);
-        self.lines.push(line);
+        self.lines.add_line(1, line);
     }
 
     /// Encodes and appends an instruction, recording the source line
@@ -61,9 +102,8 @@ impl Chunk {
     pub fn write_instruction(&mut self, instr: Instruction, line: u16) {
         let start = self.code.len();
         encode_instruction(&mut self.code, instr);
-        for _ in start..self.code.len() {
-            self.lines.push(line);
-        }
+        let byte_count = self.code.len() - start;
+        self.lines.add_line(byte_count, line);
     }
 
     /// Returns the current bytecode length (used as a jump target).

@@ -9,7 +9,7 @@ use crate::vm::instruction::Instruction;
 ///
 /// Uses the pre-computed slot index for O(1) access. If `UNSET`,
 /// falls back to name-based global lookup.
-pub fn compile_ident(compiler: &mut Compiler, ident: &Ident, line: u16) {
+pub(crate) fn compile_ident(compiler: &mut Compiler, ident: &Ident, line: u16) {
     use crate::vm::runtime::builtins::functions::BuiltinsFunctions;
 
     if ident.slot != SlotIndex::UNSET {
@@ -30,7 +30,7 @@ pub fn compile_ident(compiler: &mut Compiler, ident: &Ident, line: u16) {
 }
 
 /// Compiles a literal expression by adding it to the constant pool.
-pub fn compile_literal(compiler: &mut Compiler, literal: &Literal, line: u16) {
+pub(crate) fn compile_literal(compiler: &mut Compiler, literal: &Literal, line: u16) {
     let obj = match literal {
         Literal::IntLiteral(i) => Object::Integer(*i),
         Literal::BigIntLiteral(b) => Object::BigInteger(b.clone()),
@@ -43,7 +43,7 @@ pub fn compile_literal(compiler: &mut Compiler, literal: &Literal, line: u16) {
 }
 
 /// Compiles a prefix (unary) expression: `!x`, `-x`, `+x`.
-pub fn compile_prefix(compiler: &mut Compiler, op: &Prefix, operand: &Expr, line: u16) {
+pub(crate) fn compile_prefix(compiler: &mut Compiler, op: &Prefix, operand: &Expr, line: u16) {
     compiler.compile_expression(operand, line);
 
     match op {
@@ -60,7 +60,7 @@ pub fn compile_prefix(compiler: &mut Compiler, op: &Prefix, operand: &Expr, line
 }
 
 /// Compiles an infix (binary) expression: `a + b`, `a == b`, etc.
-pub fn compile_infix(compiler: &mut Compiler, op: &Infix, left: &Expr, right: &Expr, line: u16) {
+pub(crate) fn compile_infix(compiler: &mut Compiler, op: &Infix, left: &Expr, right: &Expr, line: u16) {
     // Short-circuit evaluation for && and ||
     match op {
         Infix::And => {
@@ -108,7 +108,7 @@ pub fn compile_infix(compiler: &mut Compiler, op: &Infix, left: &Expr, right: &E
 ///
 /// In method calls, `this` is passed as the first implicit parameter
 /// at slot 0.
-pub fn compile_this_expr(compiler: &mut Compiler, line: u16) {
+pub(crate) fn compile_this_expr(compiler: &mut Compiler, line: u16) {
     // `this` is always at slot 0 in method frames
     compiler.emit(Instruction::GetLocal(0), line);
 }

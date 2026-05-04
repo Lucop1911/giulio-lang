@@ -131,10 +131,9 @@ impl VirtualMachine {
             self.stack.resize(slot_count, Object::Null);
         }
         
-        let slot_count = self.stack.len();
         let local_names = std::mem::take(&mut self.root_local_names);
         self.frames
-            .push(CallFrame::new_function_body(Arc::clone(&chunk), slot_count, local_names));
+            .push(CallFrame::new_function_body(Arc::clone(&chunk), local_names));
         
         // Set the closure environment for the root frame if available (for async function contexts)
         if let Some(root_env) = self.root_closure_env.take() 
