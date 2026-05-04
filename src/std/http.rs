@@ -20,7 +20,7 @@ async fn async_http_get(args: Vec<Object>) -> Result<Object, RuntimeError> {
         Ok(response) => {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            Ok(Object::Hash(create_response_hash(status, body)))
+            Ok(Object::Hash(Box::new(create_response_hash(status, body))))
         }
         Err(e) => Err(RuntimeError::InvalidOperation(format!("HTTP GET failed: {}", e)))
     }
@@ -51,7 +51,7 @@ async fn async_http_post(args: Vec<Object>) -> Result<Object, RuntimeError> {
         Ok(response) => {
             let status = response.status().as_u16();
             let response_body = response.text().await.unwrap_or_default();
-            Ok(Object::Hash(create_response_hash(status, response_body)))
+            Ok(Object::Hash(Box::new(create_response_hash(status, response_body))))
         }
         Err(e) => Err(RuntimeError::InvalidOperation(format!("HTTP POST failed: {}", e)))
     }
@@ -82,7 +82,7 @@ async fn async_http_put(args: Vec<Object>) -> Result<Object, RuntimeError> {
         Ok(response) => {
             let status = response.status().as_u16();
             let response_body = response.text().await.unwrap_or_default();
-            Ok(Object::Hash(create_response_hash(status, response_body)))
+            Ok(Object::Hash(Box::new(create_response_hash(status, response_body))))
         }
         Err(e) => Err(RuntimeError::InvalidOperation(format!("HTTP PUT failed: {}", e)))
     }
@@ -105,7 +105,7 @@ async fn async_http_delete(args: Vec<Object>) -> Result<Object, RuntimeError> {
         Ok(response) => {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            Ok(Object::Hash(create_response_hash(status, body)))
+            Ok(Object::Hash(Box::new(create_response_hash(status, body))))
         }
         Err(e) => Err(RuntimeError::InvalidOperation(format!("HTTP DELETE failed: {}", e)))
     }

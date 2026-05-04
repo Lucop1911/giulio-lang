@@ -9,20 +9,12 @@ pub fn bset_field_fn(args: Vec<Object>) -> Result<Object, String> {
     }
     match (args[0].clone(), args[1].clone(), args[2].clone()) {
         (
-            Object::Struct {
-                name,
-                mut fields,
-                methods,
-            },
+            Object::Struct(mut s),
             Object::String(field_name),
             new_value,
         ) => {
-            fields.insert(field_name.clone(), new_value.clone());
-            Ok(Object::Struct {
-                name: name.clone(),
-                fields,
-                methods: methods.clone(),
-            })
+            s.fields.insert(field_name.clone(), new_value.clone());
+            Ok(Object::Struct(s))
         }
         (o, _, _) => Err(format!("set_field() expects struct, got {}", o.type_name())),
     }
@@ -37,13 +29,9 @@ pub fn bget_field_fn(args: Vec<Object>) -> Result<Object, String> {
     }
     match (args[0].clone(), args[1].clone()) {
         (
-            Object::Struct {
-                name: _,
-                fields,
-                methods: _,
-            },
+            Object::Struct(s),
             Object::String(field_name),
-        ) => match fields.get(&field_name) {
+        ) => match s.fields.get(&field_name) {
             Some(value) => Ok(value.clone()),
             None => Err(format!("get_field() field '{}' does not exist", field_name)),
         },
@@ -53,13 +41,9 @@ pub fn bget_field_fn(args: Vec<Object>) -> Result<Object, String> {
 
 pub fn bstruct_fields_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
-        Some(Object::Struct {
-            name: _,
-            fields,
-            methods: _,
-        }) => {
-            let field_names: Vec<Object> = fields.keys().cloned().map(Object::String).collect();
-            Ok(Object::Array(field_names))
+        Some(Object::Struct(s)) => {
+            let field_names: Vec<Object> = s.fields.keys().cloned().map(Object::String).collect();
+            Ok(Object::Array(Box::new(field_names)))
         }
         Some(o) => Err(format!("fields() expects struct, got {}", o.type_name())),
         None => Err("fields() expects 1 argument, got 0".to_string()),
@@ -68,11 +52,7 @@ pub fn bstruct_fields_fn(args: Vec<Object>) -> Result<Object, String> {
 
 pub fn bstruct_name_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.into_iter().next() {
-        Some(Object::Struct {
-            name,
-            fields: _,
-            methods: _,
-        }) => Ok(Object::String(name)),
+        Some(Object::Struct(s)) => Ok(Object::String(s.name)),
         Some(o) => Err(format!("name() expects struct, got {}", o.type_name())),
         None => Err("name() expects 1 argument, got 0".to_string()),
     }

@@ -45,7 +45,7 @@ pub(crate) fn bkeys_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Hash(hash)) => {
             let keys: Vec<Object> = hash.keys().cloned().collect();
-            Ok(Object::Array(keys))
+            Ok(Object::Array(Box::new(keys)))
         }
         Some(o) => Err(format!("keys() expects hash, got {}", o.type_name())),
         None => Err("keys() expects 1 argument, got 0".to_string()),
@@ -56,7 +56,7 @@ pub(crate) fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
         Some(Object::Hash(hash)) => {
             let values: Vec<Object> = hash.values().cloned().collect();
-            Ok(Object::Array(values))
+            Ok(Object::Array(Box::new(values)))
         }
         Some(o) => Err(format!("values() expects hash, got {}", o.type_name())),
         None => Err("values() expects 1 argument, got 0".to_string()),
@@ -65,7 +65,7 @@ pub(crate) fn bvalues_fn(args: Vec<Object>) -> Result<Object, String> {
 
 pub(crate) fn bclear_fn(args: Vec<Object>) -> Result<Object, String> {
     match args.first() {
-        Some(Object::Hash(_)) => Ok(Object::Hash(HashMap::new())),
+        Some(Object::Hash(_)) => Ok(Object::Hash(Box::new(HashMap::new()))),
         Some(o) => Err(format!("clear() expects hash, got {}", o.type_name())),
         None => Err("clear() expects 1 argument, got 0".to_string()),
     }

@@ -334,7 +334,7 @@ pub fn execute_negate(obj: Object) -> Object {
     match obj {
         Object::Integer(i) => Object::Integer(i.wrapping_neg()),
         Object::Float(f) => Object::Float(-f),
-        Object::BigInteger(b) => Object::BigInteger(-b),
+        Object::BigInteger(b) => Object::BigInteger(Box::new(-*b)),
         other => Object::Error(RuntimeError::InvalidOperation(format!(
             "Negate not supported for {}",
             other.type_name()

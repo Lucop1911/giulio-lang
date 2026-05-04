@@ -67,7 +67,7 @@ pub(crate) fn bsplit_fn(args: Vec<Object>) -> Result<Object, String> {
                 .split(delimiter.as_str())
                 .map(|part| Object::String(part.to_string()))
                 .collect();
-            Ok(Object::Array(parts))
+            Ok(Object::Array(Box::new(parts)))
         }
         (Some(o), _) => Err(format!("split() expects string, got {}", o.type_name())),
         (None, _) => Err("split() expects 2 arguments, got 1".to_string()),

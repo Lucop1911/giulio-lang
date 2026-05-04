@@ -24,7 +24,7 @@ pub(crate) fn btoint_fn(args: Vec<Object>) -> Result<Object, String> {
         Some(Object::Float(n)) => match n.to_i64() {
             Some(n) => Ok(Object::Integer(n)),
             None => match n.to_bigint() {
-                Some(big) => Ok(Object::BigInteger(big)),
+                Some(big) => Ok(Object::BigInteger(Box::new(big))),
                 None => Err(format!(
                     "to_int() cannot convert {} to integer (overflow)",
                     n
@@ -219,7 +219,7 @@ pub(crate) fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
             if start > len || end > len || start > end {
                 return Err("slice() indices out of bounds".to_string());
             }
-            Ok(Object::Array(vec[start as usize..end as usize].to_vec()))
+            Ok(Object::Array(Box::new(vec[start as usize..end as usize].to_vec())))
         }
         (Some(o), _, _) => Err(format!(
             "slice() expects string or array, got {}",

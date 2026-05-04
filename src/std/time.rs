@@ -11,9 +11,9 @@ use crate::vm::runtime::runtime_errors::RuntimeError;
 pub fn time_now(_: Vec<Object>) -> Result<Object, RuntimeError> {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(dur) => {
-            Ok(Object::BigInteger(BigInt::from_u128(dur.as_millis()).unwrap()))
+            Ok(Object::BigInteger(Box::new(BigInt::from_u128(dur.as_millis()).unwrap())))
         }
-        Err(_) => Ok(Object::BigInteger(BigInt::from(0))),
+        Err(_) => Ok(Object::BigInteger(Box::new(BigInt::from(0)))),
     }
 }
 

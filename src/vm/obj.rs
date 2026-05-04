@@ -21,20 +21,40 @@ use crate::wasm::WasmInstance;
 
 pub type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
+/// A struct value with named fields and methods.
+/// Boxed to reduce the size of the Object enum.
+#[derive(Clone)]
+pub struct StructObject {
+    pub name: String,
+    pub fields: HashMap<String, Object>,
+    pub methods: HashMap<String, Object>,
+}
+
+/// A loaded module with its exported bindings.
+/// Boxed to reduce the size of the Object enum.
+#[derive(Clone)]
+pub struct ModuleObject {
+    pub name: String,
+    pub exports: HashMap<String, Object>,
+}
+
 /// The universal value type of the G-lang runtime.
 ///
 /// Every expression in a G-lang program evaluates to one of these variants.
-/// The enum is deliberately flat — there is no deep inheritance hierarchy,
-/// just a single match on the shape of the value.
+/// Large variants are boxed to keep the enum size small (typically 24 bytes
+/// on 64-bit systems instead of 48-64 bytes).
 #[derive(Clone)]
 pub enum Object {
     Integer(i64),
-    BigInteger(BigInt),
+    /// Boxed to reduce enum size since BigInt can be large.
+    BigInteger(Box<BigInt>),
     Float(f64),
     Boolean(bool),
     String(String),
-    Array(Vec<Object>),
-    Hash(HashMap<Object, Object>),
+    /// Boxed to reduce enum size (Vec is 24 bytes).
+    Array(Box<Vec<Object>>),
+    /// Boxed to reduce enum size (HashMap is ~48+ bytes).
+    Hash(Box<HashMap<Object, Object>>),
     /// User-defined function: (params, chunk, closure_env, local_names)
     Function(
         Vec<Ident>,
@@ -62,16 +82,11 @@ pub enum Object {
         instance: Arc<Mutex<Option<WasmInstance>>>,
     },
     /// A struct value with named fields and methods.
-    Struct {
-        name: String,
-        fields: HashMap<String, Object>,
-        methods: HashMap<String, Object>,
-    },
+    /// Boxed to reduce enum size (contains two HashMaps).
+    Struct(Box<StructObject>),
     /// A loaded module with its exported bindings.
-    Module {
-        name: String,
-        exports: HashMap<String, Object>,
-    },
+    /// Boxed to reduce enum size (contains a HashMap).
+    Module(Box<ModuleObject>),
     Null,
     /// Wraps a value that was returned from a function.
     /// Used as a control-flow sentinel to short-circuit evaluation.
@@ -145,21 +160,16 @@ impl fmt::Debug for Object {
             Object::Builtin(n, _, _, _) => write!(f, "Builtin(\"{}\")", n),
             Object::BuiltinStd(n, _, _, _) => write!(f, "BuiltinStd(\"{}\")", n),
             Object::BuiltinStdAsync(n, _, _, _) => write!(f, "BuiltinStdAsync(\"{}\")", n),
-            Object::Struct {
-                name,
-                fields,
-                methods,
-                ..
-            } => write!(
+            Object::Struct(s) => write!(
                 f,
                 "Struct(name:{}, fields:{:?}, methods:{:?})",
-                name, fields, methods
+                s.name, s.fields, s.methods
             ),
-            Object::Module { name, exports } => write!(
+            Object::Module(m) => write!(
                 f,
                 "Module(name:{}, exports:{:?})",
-                name,
-                exports.keys().collect::<Vec<_>>()
+                m.name,
+                m.exports.keys().collect::<Vec<_>>()
             ),
             Object::Null => write!(f, "Null"),
             Object::ReturnValue(o) => write!(f, "ReturnValue({:?})", o),
@@ -230,15 +240,13 @@ impl PartialEq for Object {
             (Object::Continue, Object::Continue) => true,
             (Object::Future(_), Object::Future(_)) => false,
             (
-                Object::Module {
-                    name: a,
-                    exports: e_a,
-                },
-                Object::Module {
-                    name: b,
-                    exports: e_b,
-                },
-            ) => a == b && e_a.keys().collect::<Vec<_>>() == e_b.keys().collect::<Vec<_>>(),
+                Object::Module(a),
+                Object::Module(b),
+            ) => a.name == b.name && a.exports.keys().collect::<Vec<_>>() == b.exports.keys().collect::<Vec<_>>(),
+            (
+                Object::Struct(a),
+                Object::Struct(b),
+            ) => a.name == b.name && a.fields == b.fields && a.methods == b.methods,
             #[cfg(feature = "wasm")]
             (
                 Object::WasmModule {
@@ -277,8 +285,8 @@ impl Object {
             Object::ReturnValue(_) => "return value".to_string(),
             Object::Error(_) => "error".to_string(),
             Object::Method(_, _, _, _) => "method".to_string(),
-            Object::Struct { name, .. } => format!("struct {}", name),
-            Object::Module { name, .. } => format!("module {}", name),
+            Object::Struct(s) => format!("struct {}", s.name),
+            Object::Module(m) => format!("module {}", m.name),
             Object::Break => "break".to_string(),
             Object::Continue => "continue".to_string(),
             Object::ThrownValue(_) => "thrown value".to_string(),
@@ -343,15 +351,11 @@ impl fmt::Display for Object {
             Object::ReturnValue(ref o) => write!(f, "{}", *o),
             Object::Error(ref e) => write!(f, "{}", e),
             Object::Method(_, _, _, _) => write!(f, "[method]"),
-            Object::Struct {
-                ref name,
-                ref fields,
-                ..
-            } => {
-                write!(f, "{}{{ ", name)?;
-                for (i, (field_name, field_value)) in fields.iter().enumerate() {
+            Object::Struct(ref s) => {
+                write!(f, "{}{{ ", s.name)?;
+                for (i, (field_name, field_value)) in s.fields.iter().enumerate() {
                     write!(f, "{}: {}", field_name, field_value)?;
-                    if i < fields.len() - 1 {
+                    if i < s.fields.len() - 1 {
                         write!(f, ", ")?;
                     }
                 }
@@ -361,7 +365,7 @@ impl fmt::Display for Object {
             Object::Continue => write!(f, "continue"),
             Object::ThrownValue(ref o) => write!(f, "Thrown: {}", *o),
             Object::Future(_) => write!(f, "[future]"),
-            Object::Module { ref name, .. } => write!(f, "[module: {}]", name),
+            Object::Module(ref m) => write!(f, "[module: {}]", m.name),
             #[cfg(feature = "wasm")]
             Object::WasmModule { ref name, .. } => write!(f, "[wasm module: {}]", name),
         }

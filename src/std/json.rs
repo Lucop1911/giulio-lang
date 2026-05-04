@@ -67,7 +67,7 @@ fn object_to_json(obj: &Object) -> Result<Value, RuntimeError> {
 
         Object::Hash(map) => {
             let mut json_map = serde_json::Map::new();
-            for (k, v) in map {
+            for (k, v) in map.iter() {
                 let key_str = match k {
                     Object::String(s) => s.clone(),
                     Object::Integer(i) => i.to_string(),
@@ -86,11 +86,9 @@ fn object_to_json(obj: &Object) -> Result<Value, RuntimeError> {
             Ok(Value::Object(json_map))
         }
 
-        Object::Struct {
-            name: _, fields, ..
-        } => {
+        Object::Struct(s) => {
             let mut json_map = serde_json::Map::new();
-            for (k, v) in fields {
+            for (k, v) in s.fields.iter() {
                 json_map.insert(k.clone(), object_to_json(v)?);
             }
             Ok(Value::Object(json_map))
@@ -121,7 +119,7 @@ fn json_to_object(val: Value) -> Object {
                     Object::Integer(u as i64)
                 } else {
                     // Large unsigned integer becomes BigInteger
-                    Object::BigInteger(BigInt::from(u))
+                    Object::BigInteger(Box::new(BigInt::from(u)))
                 }
             } else if let Some(f) = n.as_f64() {
                 // Floating point number
@@ -136,7 +134,7 @@ fn json_to_object(val: Value) -> Object {
 
         Value::Array(arr) => {
             let objects: Vec<Object> = arr.into_iter().map(json_to_object).collect();
-            Object::Array(objects)
+            Object::Array(Box::new(objects))
         }
 
         Value::Object(map) => {
@@ -147,7 +145,7 @@ fn json_to_object(val: Value) -> Object {
             for (k, v) in map {
                 hash.insert(Object::String(k), json_to_object(v));
             }
-            Object::Hash(hash)
+            Object::Hash(Box::new(hash))
         }
     }
 }

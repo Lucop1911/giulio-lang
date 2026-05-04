@@ -2,7 +2,7 @@
 //! method calls, and struct declarations.
 
 use crate::ast::ast::{Expr, Ident};
-use crate::vm::obj::Object;
+use crate::vm::obj::{Object, StructObject};
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
 
@@ -115,11 +115,11 @@ pub fn compile_struct_stmt(
         }
     }
 
-    let struct_obj = Object::Struct {
+    let struct_obj = Object::Struct(Box::new(StructObject {
         name: name.name.clone(),
         fields: field_map,
         methods: method_map,
-    };
+    }));
 
     let struct_idx = compiler.chunk.add_constant(struct_obj);
     if let Some(struct_idx) = struct_idx {

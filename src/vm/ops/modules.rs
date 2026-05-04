@@ -2,7 +2,7 @@
 
 use crate::vm::runtime::runtime_errors::RuntimeError;
 use crate::vm::runtime::module_registry::ModuleRegistry;
-use crate::vm::obj::Object;
+use crate::vm::obj::{ModuleObject, Object};
 use crate::vm::chunk::Chunk;
 use std::sync::{Arc, Mutex};
 
@@ -31,10 +31,10 @@ pub fn execute_import_module(
 
     match module {
         Ok(m) => {
-            stack.push(Object::Module {
+            stack.push(Object::Module(Box::new(ModuleObject {
                 name: m.name,
                 exports: m.exports,
-            });
+            })));
         }
         Err(e) => {
             stack.push(Object::Error(e));
@@ -71,8 +71,8 @@ pub fn execute_get_export(stack: &mut Vec<Object>) {
     };
 
     let result = match module_obj {
-        Object::Module { exports, .. } => {
-            exports.get(&export_name).cloned().unwrap_or(Object::Null)
+        Object::Module(m) => {
+            m.exports.get(&export_name).cloned().unwrap_or(Object::Null)
         }
         other => Object::Error(RuntimeError::InvalidOperation(format!(
             "Cannot get export from {}",

@@ -1,7 +1,7 @@
 //! Struct operations: build, get field, set field, method call.
 
 use crate::vm::runtime::runtime_errors::RuntimeError;
-use crate::vm::obj::{HashMap, Object};
+use crate::vm::obj::{HashMap, Object, StructObject};
 use ahash::HashMapExt;
 
 /// Result of method call execution
@@ -50,11 +50,11 @@ pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
         fields.insert(field_name, value);
     }
 
-    stack.push(Object::Struct {
+    stack.push(Object::Struct(Box::new(StructObject {
         name,
         fields,
         methods: HashMap::new(),
-    });
+    })));
 }
 
 pub fn execute_get_field(stack: &mut Vec<Object>) {
@@ -84,8 +84,8 @@ pub fn execute_get_field(stack: &mut Vec<Object>) {
     };
 
     let result = match struct_obj {
-        Object::Struct { fields, .. } => fields.get(&field_name).cloned().unwrap_or(Object::Null),
-        Object::Module { exports, .. } => exports.get(&field_name).cloned().unwrap_or(Object::Null),
+        Object::Struct(s) => s.fields.get(&field_name).cloned().unwrap_or(Object::Null),
+        Object::Module(m) => m.exports.get(&field_name).cloned().unwrap_or(Object::Null),
         other => Object::Error(RuntimeError::InvalidOperation(format!(
             "Cannot get field from {}",
             other.type_name(),
@@ -130,17 +130,9 @@ pub fn execute_set_field(stack: &mut Vec<Object>) {
     };
 
     let result = match struct_obj {
-        Object::Struct {
-            name,
-            mut fields,
-            methods,
-        } => {
-            fields.insert(field_name, value);
-            Object::Struct {
-                name,
-                fields,
-                methods,
-            }
+        Object::Struct(mut s) => {
+            s.fields.insert(field_name, value);
+            Object::Struct(s)
         }
         other => Object::Error(RuntimeError::InvalidOperation(format!(
             "Cannot set field on {}",
@@ -201,8 +193,8 @@ pub fn execute_call_method(
     };
 
     match &struct_obj {
-        Object::Struct { methods, .. } => {
-            if let Some(method) = methods.get(&method_name) {
+        Object::Struct(s) => {
+            if let Some(method) = s.methods.get(&method_name) {
                 stack.push(method.clone());
                 for arg in args {
                     stack.push(arg);
@@ -214,8 +206,8 @@ pub fn execute_call_method(
                 )))
             }
         }
-        Object::Module { exports, .. } => {
-            if let Some(method) = exports.get(&method_name) {
+        Object::Module(m) => {
+            if let Some(method) = m.exports.get(&method_name) {
                 stack.push(method.clone());
                 for arg in args {
                     stack.push(arg);

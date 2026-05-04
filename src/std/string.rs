@@ -67,7 +67,7 @@ pub(crate) fn string_chars(args: Vec<Object>) -> Result<Object, RuntimeError> {
     match args.first() {
         Some(Object::String(s)) => {
             let chars: Vec<Object> = s.chars().map(|c| Object::String(c.to_string())).collect();
-            Ok(Object::Array(chars))
+            Ok(Object::Array(Box::new(chars)))
         }
         Some(o) => Err(RuntimeError::TypeMismatch {
             expected: "string".to_string(),

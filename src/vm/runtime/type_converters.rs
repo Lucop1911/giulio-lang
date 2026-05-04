@@ -24,7 +24,7 @@ pub(crate) fn obj_to_float(object: Object) -> Result<f64, Object> {
 pub(crate) fn to_bigint(obj: &Object) -> Option<BigInt> {
     match obj {
         Object::Integer(i) => Some(BigInt::from(*i)),
-        Object::BigInteger(big) => Some(big.clone()),
+        Object::BigInteger(big) => Some(*big.clone()),
         _ => None,
     }
 }
@@ -32,6 +32,6 @@ pub(crate) fn to_bigint(obj: &Object) -> Option<BigInt> {
 pub(crate) fn normalize_int(big: BigInt) -> Object {
     match big.to_i64() {
         Some(i) => Object::Integer(i),
-        None => Object::BigInteger(big),
+        None => Object::BigInteger(Box::new(big)),
     }
 }

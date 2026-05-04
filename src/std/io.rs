@@ -268,7 +268,7 @@ pub(crate) fn io_list_dir(args: Vec<Object>) -> Result<Object, RuntimeError> {
                 }
             }
 
-            Ok(Object::Array(items))
+            Ok(Object::Array(Box::new(items)))
         }
         Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
         None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),
@@ -295,8 +295,8 @@ pub async fn async_io_list_dir(args: Vec<Object>) -> Result<Object, RuntimeError
                     items.push(Object::String(name.to_string()));
                 }
             }
-
-            Ok(Object::Array(items))
+            
+            Ok(Object::Array(Box::new(items)))
         }
         Some(o) => Err(RuntimeError::TypeMismatch { expected: "string".to_string(), got: o.type_name() }),
         None => Err(RuntimeError::WrongNumberOfArguments { min: 1, max: 1, got: 0 }),

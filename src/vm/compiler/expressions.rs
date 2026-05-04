@@ -33,7 +33,7 @@ pub(crate) fn compile_ident(compiler: &mut Compiler, ident: &Ident, line: u16) {
 pub(crate) fn compile_literal(compiler: &mut Compiler, literal: &Literal, line: u16) {
     let obj = match literal {
         Literal::IntLiteral(i) => Object::Integer(*i),
-        Literal::BigIntLiteral(b) => Object::BigInteger(b.clone()),
+        Literal::BigIntLiteral(b) => Object::BigInteger(Box::new(b.clone())),
         Literal::FloatLiteral(f) => Object::Float(*f),
         Literal::BoolLiteral(b) => Object::Boolean(*b),
         Literal::StringLiteral(s) => Object::String(s.clone()),

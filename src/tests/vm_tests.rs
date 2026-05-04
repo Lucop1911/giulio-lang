@@ -265,11 +265,11 @@ async fn vm_test_array_literals() {
     let evaluated = vm_test_helper(input).await;
     assert_eq!(
         evaluated,
-        Object::Array(vec![
+        Object::Array(Box::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(3),
-        ])
+        ]))
     );
 }
 
@@ -1076,10 +1076,11 @@ async fn vm_test_empty_array() {
 
 #[tokio::test]
 async fn vm_test_array_operations() {
+    let tail_result = Object::Array(Box::new(vec![Object::Integer(2), Object::Integer(3)]));
     let tests = vec![
         ("[1, 2].len()", Object::Integer(2)),
         ("[1, 2, 3].head()", Object::Integer(1)),
-        ("[1, 2, 3].tail()", Object::Array(vec![Object::Integer(2), Object::Integer(3)])),
+        ("[1, 2, 3].tail()", tail_result),
     ];
     for (input, expected) in tests {
         let evaluated = vm_test_helper(input).await;

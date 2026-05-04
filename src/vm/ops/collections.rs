@@ -13,7 +13,7 @@ pub(crate) fn execute_build_array(stack: &mut Vec<Object>, count: u16) {
         return;
     }
     let elements: Vec<Object> = stack.drain(stack.len() - count..).collect();
-    stack.push(Object::Array(elements));
+    stack.push(Object::Array(Box::new(elements)));
 }
 
 pub(crate) fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
@@ -46,7 +46,7 @@ pub(crate) fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
             }
         }
     }
-    stack.push(Object::Hash(hashmap));
+    stack.push(Object::Hash(Box::new(hashmap)));
 }
 
 pub(crate) fn execute_index(stack: &mut Vec<Object>) {
