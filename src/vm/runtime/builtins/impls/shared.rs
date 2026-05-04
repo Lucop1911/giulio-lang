@@ -231,6 +231,7 @@ pub(crate) fn bslice_fn(args: Vec<Object>) -> Result<Object, String> {
 
 // Method only
 pub(crate) fn bisnum_fn(args:Vec<Object>) -> Result<Object, String> {
+    if args.len() != 1 { return Err(format!("is_num() expects 1 argument, got {}", args.len()))}
     match args.first() {
         Some(Object::Integer(_)) | Some(Object::BigInteger(_)) | Some(Object::Float(_)) => Ok(Object::Boolean(true)),
         _ => Ok(Object::Boolean(false))
