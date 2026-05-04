@@ -32,6 +32,7 @@ pub fn execute_call(
 
     match fn_obj {
         Object::Function(params, chunk, closure_env, local_names) => {
+            let caller_stack_len = stack.len() - argc - 1;
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
@@ -61,6 +62,7 @@ pub fn execute_call(
                 Arc::clone(&chunk),
                 slots_base,
                 slot_count,
+                caller_stack_len,
                 Arc::new(Mutex::new(new_env)),
                 local_names,
             );

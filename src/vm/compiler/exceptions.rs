@@ -41,9 +41,6 @@ pub(crate) fn compile_try_catch(
     // Compile try body
     compile_block_body(compiler, try_body, line);
 
-    // EMIT POPCATCH AFTER THE CATCH HANDLER, not here!
-    // The handler must stay on the stack while the catch block executes.
-
     // Jumps that need to reach the finally block (or end if no finally)
     let mut jumps_to_finally = Vec::new();
 

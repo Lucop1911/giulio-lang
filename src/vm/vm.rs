@@ -501,11 +501,11 @@ impl VirtualMachine {
                 ExecResult::Return => {
                     let frame_count_after = self.frames.len();
                     let return_value = self.stack.pop().unwrap_or(Object::Null);
-                    let callee_slots_base = self.frames.last().map(|f| f.slots_base).unwrap_or(0);
+                    let caller_stack_len = self.frames.last().map(|f| f.caller_stack_len).unwrap_or(0);
 
                     if frame_count_after > 0 {
                         self.frames.pop();
-                        self.stack.truncate(callee_slots_base);
+                        self.stack.truncate(caller_stack_len);
                         self.stack.push(return_value);
                         if self.frames.is_empty() {
                             return Ok(self.stack.pop().unwrap_or(Object::Null));

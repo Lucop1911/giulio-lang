@@ -28,6 +28,8 @@ pub struct CallFrame {
     pub slots_base: usize,
     /// Number of slots allocated for this frame (params + locals).
     pub slot_count: usize,
+    /// Stack length when this frame was called (used for return value placement).
+    pub caller_stack_len: usize,
     /// Closure environment — `Some` for closures that capture outer scope,
     /// `None` for top-level functions and the root frame.
     pub closure_env: Option<Arc<Mutex<Environment>>>,
@@ -48,6 +50,7 @@ impl CallFrame {
             ip: 0,
             slots_base: 0,
             slot_count,
+            caller_stack_len: 0,
             closure_env: None,
             local_names,
         }
@@ -58,12 +61,14 @@ impl CallFrame {
     /// - `chunk`: the function's compiled bytecode
     /// - `slots_base`: where this frame's slots start in the VM stack
     /// - `slot_count`: total slots needed (params + locals)
+    /// - `caller_stack_len`: stack length when this call was made
     /// - `closure_env`: the environment captured at function definition time
     /// - `local_names`: names of local variables indexed by slot (params first, then lets)
     pub(crate) fn new_function(
         chunk: Arc<Chunk>,
         slots_base: usize,
         slot_count: usize,
+        caller_stack_len: usize,
         closure_env: Arc<Mutex<Environment>>,
         local_names: Vec<String>,
     ) -> Self {
@@ -72,6 +77,7 @@ impl CallFrame {
             ip: 0,
             slots_base,
             slot_count,
+            caller_stack_len,
             closure_env: Some(closure_env),
             local_names,
         }
