@@ -32,25 +32,22 @@ pub fn execute_call(
 
     match fn_obj {
         Object::Function(params, chunk, closure_env, local_names) => {
-            let caller_stack_len = stack.len() - argc - 1;
-            let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
-            stack.pop();
+            // Function is at fn_idx, arguments are already on stack at fn_idx+1 onwards
+            let fn_idx = stack.len() - argc - 1;
+            let caller_stack_len = fn_idx; // return value replaces function at this position
+            let slots_base = fn_idx + 1; // arguments are already here
 
-            let slots_base = stack.len();
+            // Resize to add room for local variables (args are already at slots_base)
             let slot_count = params.len().max(argc) + 64;
             stack.resize(slots_base + slot_count, Object::Null);
 
-            for (i, arg) in args.iter().enumerate() {
-                if i < slot_count {
-                    stack[slots_base + i] = arg.clone();
-                }
-            }
-
+            // Set up environment - read args from their current stack positions
             let mut new_env = Environment::new_with_outer(Arc::clone(&closure_env));
 
             for (i, param) in params.iter().enumerate() {
-                if i < args.len() {
-                    new_env.set_by_name(&param.name, args[i].clone());
+                if i < argc {
+                    let arg = stack[slots_base + i].clone();
+                    new_env.set_by_name(&param.name, arg);
                 }
             }
 
