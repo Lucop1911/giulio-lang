@@ -280,9 +280,19 @@ impl ModuleRegistry {
 }
 
 fn create_builtin(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, RuntimeError>) -> Object {
-    Object::BuiltinStd(name.to_string(), min, max, func)
+    Object::BuiltinStd(Box::new(crate::vm::obj::BuiltinStdData {
+        name: name.to_string(),
+        min_params: min,
+        max_params: max,
+        func,
+    }))
 }
 
 fn create_builtin_async(name: &str, min: usize, max: usize, func: fn(Vec<Object>) -> Result<Object, RuntimeError>) -> Object {
-    Object::BuiltinStdAsync(name.to_string(), min, max, func)
+    Object::BuiltinStdAsync(Box::new(crate::vm::obj::BuiltinStdAsyncData {
+        name: name.to_string(),
+        min_params: min,
+        max_params: max,
+        func,
+    }))
 }

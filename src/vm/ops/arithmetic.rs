@@ -114,14 +114,14 @@ pub fn divide(obj1: Object, obj2: Object) -> Object {
     match (&obj1, &obj2) {
         (Object::Integer(ia), Object::Integer(ib)) => {
             if *ib == 0 {
-                Object::Error(RuntimeError::DivisionByZero)
+                Object::Error(Box::new(RuntimeError::DivisionByZero))
             } else {
                 Object::Integer(ia / ib)
             }
         }
         (Object::Float(fa), Object::Float(fb)) => {
             if *fb == 0.0 {
-                Object::Error(RuntimeError::DivisionByZero)
+                Object::Error(Box::new(RuntimeError::DivisionByZero))
             } else {
                 Object::Float(fa / fb)
             }
@@ -137,13 +137,13 @@ pub fn divide(obj1: Object, obj2: Object) -> Object {
                     Err(e) => return e,
                 };
                 if f2 == 0.0 {
-                    return Object::Error(RuntimeError::DivisionByZero);
+                    return Object::Error(Box::new(RuntimeError::DivisionByZero));
                 }
                 return Object::Float(f1 / f2);
             }
             if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
                 if b2.is_zero() {
-                    return Object::Error(RuntimeError::DivisionByZero);
+                    return Object::Error(Box::new(RuntimeError::DivisionByZero));
                 }
                 return normalize_int(b1 / b2);
             }
@@ -163,7 +163,7 @@ pub fn modulo(obj1: Object, obj2: Object) -> Object {
     match (&obj1, &obj2) {
         (Object::Integer(ia), Object::Integer(ib)) => {
             if *ib == 0 {
-                Object::Error(RuntimeError::DivisionByZero)
+                Object::Error(Box::new(RuntimeError::DivisionByZero))
             } else {
                 Object::Integer(ia % ib)
             }
@@ -179,13 +179,13 @@ pub fn modulo(obj1: Object, obj2: Object) -> Object {
                     Err(e) => return e,
                 };
                 if f2 == 0.0 {
-                    return Object::Error(RuntimeError::DivisionByZero);
+                    return Object::Error(Box::new(RuntimeError::DivisionByZero));
                 }
                 return Object::Float(f1 % f2);
             }
             if let (Some(b1), Some(b2)) = (to_bigint(&obj1), to_bigint(&obj2)) {
                 if b2.is_zero() {
-                    return Object::Error(RuntimeError::DivisionByZero);
+                    return Object::Error(Box::new(RuntimeError::DivisionByZero));
                 }
                 return normalize_int(b1 % b2);
             }
@@ -335,10 +335,10 @@ pub fn execute_negate(obj: Object) -> Object {
         Object::Integer(i) => Object::Integer(i.wrapping_neg()),
         Object::Float(f) => Object::Float(-f),
         Object::BigInteger(b) => Object::BigInteger(Box::new(-*b)),
-        other => Object::Error(RuntimeError::InvalidOperation(format!(
+        other => Object::Error(Box::new(RuntimeError::InvalidOperation(format!(
             "Negate not supported for {}",
             other.type_name()
-        ))),
+        )))),
     }
 }
 
@@ -356,8 +356,8 @@ pub fn is_truthy(obj: &Object) -> bool {
 }
 
 fn type_mismatch_error(expected: &str, obj1: Object, obj2: Object) -> Object {
-    Object::Error(RuntimeError::TypeMismatch {
+    Object::Error(Box::new(RuntimeError::TypeMismatch {
         expected: expected.to_string(),
         got: format!("{} and {}", obj1.type_name(), obj2.type_name()),
-    })
+    }))
 }

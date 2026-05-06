@@ -113,9 +113,9 @@ pub fn execute_get_global(
     let name = match name_obj {
         Object::String(s) => s.clone(),
         _ => {
-            stack.push(Object::Error(RuntimeError::InvalidOperation(
+            stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Global name must be a string constant".to_string(),
-            )));
+            ))));
             return;
         }
     };
@@ -129,7 +129,7 @@ pub fn execute_get_global(
             match gv {
                 Some(v) => v,
                 None => {
-                    stack.push(Object::Error(RuntimeError::UndefinedVariable(name)));
+                    stack.push(Object::Error(Box::new(RuntimeError::UndefinedVariable(name))));
                     return;
                 }
             }
@@ -149,9 +149,9 @@ pub fn execute_set_global(
     let name = match name_obj {
         Object::String(s) => s.clone(),
         _ => {
-            stack.push(Object::Error(RuntimeError::InvalidOperation(
+            stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Global name must be a string constant".to_string(),
-            )));
+            ))));
             return;
         }
     };
@@ -180,10 +180,10 @@ pub fn execute_get_builtin(stack: &mut Vec<Object>, globals: &Environment, idx: 
     let name = if (idx as usize) < BuiltinsFunctions::BUILTIN_NAMES.len() {
         BuiltinsFunctions::BUILTIN_NAMES[idx as usize].to_string()
     } else {
-        stack.push(Object::Error(RuntimeError::InvalidOperation(format!(
+        stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(format!(
             "Unknown builtin index: {}",
             idx
-        ))));
+        )))));
         return;
     };
 

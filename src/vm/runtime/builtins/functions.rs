@@ -99,6 +99,11 @@ fn add_builtin(
     let name = name.to_owned();
     (
         Ident::new(name.clone()),
-        Object::Builtin(name, min_param, max_param, func),
+        Object::Builtin(Box::new(crate::vm::obj::BuiltinData {
+            name,
+            min_params: min_param,
+            max_params: max_param,
+            func,
+        })),
     )
 }

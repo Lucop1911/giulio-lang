@@ -43,7 +43,7 @@ async fn vm_test_helper(input: &str) -> Object {
     let mut vm = VirtualMachine::new(globals, module_registry);
     match vm.run(Arc::new(chunk)).await {
         Ok(obj) => obj,
-        Err(e) => Object::Error(e),
+        Err(e) => Object::Error(Box::new(e)),
     }
 }
 
@@ -306,7 +306,7 @@ async fn vm_test_division_by_zero() {
     let evaluated = vm_test_helper(input).await;
     assert_eq!(
         evaluated,
-        Object::Error(crate::vm::runtime::runtime_errors::RuntimeError::DivisionByZero)
+        Object::Error(Box::new(crate::vm::runtime::runtime_errors::RuntimeError::DivisionByZero))
     );
 }
 
@@ -1448,7 +1448,7 @@ async fn vm_test_divide_by_zero_error() {
     let evaluated = vm_test_helper(input).await;
     // Division by zero returns an error object
     match evaluated {
-        Object::Error(RuntimeError::DivisionByZero) => {}, // Expected
+        Object::Error(e) if matches!(*e, RuntimeError::DivisionByZero) => {}, // Expected
         _ => panic!("Expected DivisionByZero error, got {:?}", evaluated),
     }
 }
@@ -1459,7 +1459,7 @@ async fn vm_test_modulo_by_zero_error() {
     let evaluated = vm_test_helper(input).await;
     // Modulo by zero returns an error object
     match evaluated {
-        Object::Error(RuntimeError::DivisionByZero) => {}, // Expected
+        Object::Error(e) if matches!(*e, RuntimeError::DivisionByZero) => {}, // Expected
         _ => panic!("Expected DivisionByZero error, got {:?}", evaluated),
     }
 }

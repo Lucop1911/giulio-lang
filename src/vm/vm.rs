@@ -171,7 +171,7 @@ impl VirtualMachine {
         
         // Check if the final result is an Error and convert to Err for proper handling
         if let Ok(Object::Error(e)) = result {
-            return Err(e);
+            return Err(*e);
         }
         
         self.frames.clear();
@@ -197,10 +197,13 @@ impl VirtualMachine {
             
             let mut ip = frame.ip;
             let chunk = Arc::clone(&frame.chunk);
+            let slots_base = frame.slots_base;
+            let code = &chunk.code;
+            let constants = &chunk.constants;
             
             // Main execution path for common opcodes (sync, no async overhead)
             'sync_loop: loop {
-                if ip >= chunk.code.len() {
+                if ip >= code.len() {
                     // Frame exhausted, pop and continue outer loop
                     self.frames.pop();
                     if self.frames.is_empty() {
@@ -209,29 +212,22 @@ impl VirtualMachine {
                     continue 'outer_loop;
                 }
 
-                let opcode_byte = chunk.code[ip];
+                let opcode_byte = code[ip];
                 
                 // Inline operand reading for most common opcodes to avoid closures
                 match opcode_byte {
                     // ─── Stack operations ───
                     0x00 => { // OpConstant
-                        let idx = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]);
-                        let value = match &chunk.constants[idx as usize] {
-                            Object::Integer(i) => Object::Integer(*i),
-                            Object::Float(f) => Object::Float(*f),
-                            Object::Boolean(b) => Object::Boolean(*b),
-                            Object::Null => Object::Null,
-                            other => other.clone(),
-                        };
-                        self.stack.push(value);
+                        let idx = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
+                        self.stack.push(constants[idx as usize].clone());
                         ip += 3;
                         continue 'sync_loop;
                     }
                     0x01 => { // OpPop
                         if let Some(value) = self.stack.pop() {
                             // If we're popping an error, stop execution
-                            if matches!(value, Object::Error(_)) {
-                                return Ok(value);
+                            if let Object::Error(e) = value {
+                                return Err(*e);
                             }
                         }
                         ip += 1;
@@ -239,14 +235,7 @@ impl VirtualMachine {
                     }
                     0x02 => { // OpDup
                         if let Some(top) = self.stack.last() {
-                            let value = match top {
-                                Object::Integer(i) => Object::Integer(*i),
-                                Object::Float(f) => Object::Float(*f),
-                                Object::Boolean(b) => Object::Boolean(*b),
-                                Object::Null => Object::Null,
-                                other => other.clone(),
-                            };
-                            self.stack.push(value);
+                            self.stack.push(top.clone());
                         }
                         ip += 1;
                         continue 'sync_loop;
@@ -260,35 +249,81 @@ impl VirtualMachine {
                         continue 'sync_loop;
                     }
                     0x10 => { // OpGetLocal
-                        let slot = chunk.code[ip + 1];
-                        if let Some(frame) = self.frames.last() {
-                            let idx = frame.slots_base + slot as usize;
-                            if idx < self.stack.len() {
-                                let value = match &self.stack[idx] {
-                                    Object::Integer(i) => Object::Integer(*i),
-                                    Object::Float(f) => Object::Float(*f),
-                                    Object::Boolean(b) => Object::Boolean(*b),
-                                    Object::Null => Object::Null,
-                                    other => other.clone(),
-                                };
-                                self.stack.push(value);
-                            } else {
-                                self.stack.push(Object::Null);
-                            }
+                        let slot = code[ip + 1];
+                        let idx = slots_base + slot as usize;
+                        if idx < self.stack.len() {
+                            let value = self.stack[idx].clone();
+                            self.stack.push(value);
+                        } else {
+                            self.stack.push(Object::Null);
                         }
                         ip += 2;
                         continue 'sync_loop;
                     }
                     0x11 => { // OpSetLocal
-                        let slot = chunk.code[ip + 1];
-                        if let Some(frame) = self.frames.last() {
-                            let idx = frame.slots_base + slot as usize;
-                            if let Some(value) = self.stack.pop() {
-                                if idx >= self.stack.len() {
-                                    self.stack.resize(idx + 1, Object::Null);
-                                }
-                                self.stack[idx] = value;
+                        let slot = code[ip + 1];
+                        let idx = slots_base + slot as usize;
+                        if let Some(value) = self.stack.pop() {
+                            if idx >= self.stack.len() {
+                                self.stack.resize(idx + 1, Object::Null);
                             }
+                            self.stack[idx] = value;
+                        }
+                        ip += 2;
+                        continue 'sync_loop;
+                    }
+                    0x12 => { // OpGetGlobal
+                        let idx = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
+                        let name_obj = &constants[idx as usize];
+                        if let Object::String(name) = name_obj {
+                            // Try closure environment first
+                            let closure_val = frame.closure_env.as_ref().and_then(|env| env.lock().unwrap().get_by_name(name));
+                            if let Some(v) = closure_val {
+                                self.stack.push(v);
+                            } else {
+                                // Try globals
+                                let gv = self.globals.lock().unwrap().get_by_name(name);
+                                if let Some(v) = gv {
+                                    self.stack.push(v);
+                                } else {
+                                    return Err(RuntimeError::UndefinedVariable(name.clone()));
+                                }
+                            }
+                        }
+                        ip += 3;
+                        continue 'sync_loop;
+                    }
+                    0x13 => { // OpSetGlobal
+                        let idx = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
+                        let name_obj = &constants[idx as usize];
+                        if let Object::String(name) = name_obj {
+                            if let Some(value) = self.stack.pop() {
+                                let mut globals = self.globals.lock().unwrap();
+                                let closure_env = frame.closure_env.as_ref();
+                                if let Some(env_arc) = closure_env {
+                                    let mut env = env_arc.lock().unwrap();
+                                    if env.has_var(name) {
+                                        env.set_by_name(name, value);
+                                    } else {
+                                        globals.set_by_name(name, value);
+                                    }
+                                } else {
+                                    globals.set_by_name(name, value);
+                                }
+                            }
+                        }
+                        ip += 3;
+                        continue 'sync_loop;
+                    }
+                    0x14 => { // OpGetBuiltin
+                        let idx = code[ip + 1];
+                        use crate::vm::runtime::builtins::functions::BuiltinsFunctions;
+                        if (idx as usize) < BuiltinsFunctions::BUILTIN_NAMES.len() {
+                            let name = BuiltinsFunctions::BUILTIN_NAMES[idx as usize];
+                            let value = self.globals.lock().unwrap().get_by_name(name).unwrap_or(Object::Null);
+                            self.stack.push(value);
+                        } else {
+                            return Err(RuntimeError::InvalidOperation(format!("Unknown builtin index: {}", idx)));
                         }
                         ip += 2;
                         continue 'sync_loop;
@@ -296,97 +331,280 @@ impl VirtualMachine {
                     // ─── Arithmetic (hot path) ───
                     0x20 => { // OpAdd
                         let b = self.stack.pop().unwrap_or(Object::Null);
-                        let a = self.stack.pop().unwrap_or(Object::Null);
-                        if let Object::Error(_) = &a {
-                            self.stack.push(a);
-                            ip += 1;
-                            continue 'sync_loop;
+                        if let Some(a) = self.stack.last_mut() {
+                            match (a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => *ia = ia.wrapping_add(ib),
+                                (Object::Float(fa), Object::Float(fb)) => *fa += fb,
+                                (a_val, b_val) => {
+                                    let result = match (a_val.clone(), b_val) {
+                                        (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
+                                        (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
+                                        (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::add(a, b),
+                                    };
+                                    *a_val = result;
+                                }
+                            }
                         }
-                        if let Object::Error(_) = &b {
-                            self.stack.push(b);
-                            ip += 1;
-                            continue 'sync_loop;
-                        }
-                        let result = match (&a, &b) {
-                            (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_add(*ib)),
-                            (Object::Float(fa), Object::Float(fb)) => Object::Float(fa + fb),
-                            (Object::String(s), Object::String(t)) => Object::String(format!("{}{}", s, t)),
-                            (Object::String(s), other) => Object::String(format!("{}{}", s, other)),
-                            (other, Object::String(s)) => Object::String(format!("{}{}", other, s)),
-                            _ => ops::arithmetic::add(a, b),
-                        };
-                        self.stack.push(result);
                         ip += 1;
                         continue 'sync_loop;
                     }
                     0x21 => { // OpSubtract
                         let b = self.stack.pop().unwrap_or(Object::Null);
-                        let a = self.stack.pop().unwrap_or(Object::Null);
-                        if let Object::Error(_) = &a {
-                            self.stack.push(a);
-                            ip += 1;
-                            continue 'sync_loop;
+                        if let Some(a) = self.stack.last_mut() {
+                            match (a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => *ia = ia.wrapping_sub(ib),
+                                (Object::Float(fa), Object::Float(fb)) => *fa -= fb,
+                                (a_val, b_val) => {
+                                    let result = match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::subtract(a, b),
+                                    };
+                                    *a_val = result;
+                                }
+                            }
                         }
-                        if let Object::Error(_) = &b {
-                            self.stack.push(b);
-                            ip += 1;
-                            continue 'sync_loop;
-                        }
-                        let result = match (&a, &b) {
-                            (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_sub(*ib)),
-                            (Object::Float(fa), Object::Float(fb)) => Object::Float(fa - fb),
-                            _ => ops::arithmetic::subtract(a, b),
-                        };
-                        self.stack.push(result);
                         ip += 1;
                         continue 'sync_loop;
                     }
                     0x22 => { // OpMultiply
                         let b = self.stack.pop().unwrap_or(Object::Null);
-                        let a = self.stack.pop().unwrap_or(Object::Null);
-                        if let Object::Error(_) = &a {
-                            self.stack.push(a);
-                            ip += 1;
-                            continue 'sync_loop;
+                        if let Some(a) = self.stack.last_mut() {
+                            match (a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => *ia = ia.wrapping_mul(ib),
+                                (Object::Float(fa), Object::Float(fb)) => *fa *= fb,
+                                (a_val, b_val) => {
+                                    let result = match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::multiply(a, b),
+                                    };
+                                    *a_val = result;
+                                }
+                            }
                         }
-                        if let Object::Error(_) = &b {
-                            self.stack.push(b);
-                            ip += 1;
-                            continue 'sync_loop;
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x23 => { // OpDivide
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            let result = match (&*a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => {
+                                    if ib == 0 { return Err(RuntimeError::DivisionByZero); }
+                                    Object::Integer(ia / ib)
+                                }
+                                (Object::Float(fa), Object::Float(fb)) => {
+                                    if fb == 0.0 { return Err(RuntimeError::DivisionByZero); }
+                                    Object::Float(fa / fb)
+                                }
+                                (a_val, b_val) => {
+                                    match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::divide(a, b),
+                                    }
+                                }
+                            };
+                            *a = result;
                         }
-                        let result = match (&a, &b) {
-                            (Object::Integer(ia), Object::Integer(ib)) => Object::Integer(ia.wrapping_mul(*ib)),
-                            (Object::Float(fa), Object::Float(fb)) => Object::Float(fa * fb),
-                            _ => ops::arithmetic::multiply(a, b),
-                        };
-                        self.stack.push(result);
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x24 => { // OpModulo
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            let result = match (&*a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => {
+                                    if ib == 0 { return Err(RuntimeError::DivisionByZero); }
+                                    Object::Integer(ia % ib)
+                                }
+                                (a_val, b_val) => {
+                                    match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::modulo(a, b),
+                                    }
+                                }
+                            };
+                            *a = result;
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x25 => { // OpEqual
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            *a = Object::Boolean(*a == b);
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x26 => { // OpNotEqual
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            *a = Object::Boolean(*a != b);
+                        }
                         ip += 1;
                         continue 'sync_loop;
                     }
                     0x27 => { // OpLessThan
                         let b = self.stack.pop().unwrap_or(Object::Null);
-                        let a = self.stack.pop().unwrap_or(Object::Null);
-                        if let Object::Error(_) = &a {
-                            self.stack.push(a);
-                            ip += 1;
-                            continue 'sync_loop;
+                        if let Some(a) = self.stack.last_mut() {
+                            let result = match (&*a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(*ia < ib),
+                                (Object::Float(fa), Object::Float(fb)) => Object::Boolean(*fa < fb),
+                                (a_val, b_val) => {
+                                    match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::less_than(a, b),
+                                    }
+                                }
+                            };
+                            *a = result;
                         }
-                        if let Object::Error(_) = &b {
-                            self.stack.push(b);
-                            ip += 1;
-                            continue 'sync_loop;
-                        }
-                        let result = match (&a, &b) {
-                            (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(ia < ib),
-                            (Object::Float(fa), Object::Float(fb)) => Object::Boolean(fa < fb),
-                            _ => ops::arithmetic::less_than(a, b),
-                        };
-                        self.stack.push(result);
                         ip += 1;
                         continue 'sync_loop;
                     }
+                    0x28 => { // OpGreaterThan
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            let result = match (&*a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(*ia > ib),
+                                (Object::Float(fa), Object::Float(fb)) => Object::Boolean(*fa > fb),
+                                (a_val, b_val) => {
+                                    match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::greater_than(a, b),
+                                    }
+                                }
+                            };
+                            *a = result;
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x29 => { // OpLessEqual
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            let result = match (&*a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(*ia <= ib),
+                                (Object::Float(fa), Object::Float(fb)) => Object::Boolean(*fa <= fb),
+                                (a_val, b_val) => {
+                                    match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::less_equal(a, b),
+                                    }
+                                }
+                            };
+                            *a = result;
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x2A => { // OpGreaterEqual
+                        let b = self.stack.pop().unwrap_or(Object::Null);
+                        if let Some(a) = self.stack.last_mut() {
+                            let result = match (&*a, b) {
+                                (Object::Integer(ia), Object::Integer(ib)) => Object::Boolean(*ia >= ib),
+                                (Object::Float(fa), Object::Float(fb)) => Object::Boolean(*fa >= fb),
+                                (a_val, b_val) => {
+                                    match (a_val.clone(), b_val) {
+                                        (Object::Error(e), _) => return Err(*e),
+                                        (_, Object::Error(e)) => return Err(*e),
+                                        (a, b) => ops::arithmetic::greater_equal(a, b),
+                                    }
+                                }
+                            };
+                            *a = result;
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x2B => { // OpNot
+                        if let Some(a) = self.stack.last_mut() {
+                            let is_truthy = match a {
+                                Object::Boolean(b) => *b,
+                                Object::Null => false,
+                                Object::Integer(i) => *i != 0,
+                                Object::Float(f) => *f != 0.0,
+                                Object::String(s) => !s.is_empty(),
+                                Object::Array(arr) => !arr.is_empty(),
+                                Object::Hash(h) => !h.is_empty(),
+                                _ => true,
+                            };
+                            *a = Object::Boolean(!is_truthy);
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x2C => { // OpNegate
+                        if let Some(a) = self.stack.last_mut() {
+                            match a {
+                                Object::Integer(i) => *i = i.wrapping_neg(),
+                                Object::Float(f) => *f = -*f,
+                                a_val => {
+                                    *a_val = ops::arithmetic::execute_negate(a_val.clone());
+                                }
+                            }
+                        }
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x2D => { // OpGetLen
+                        let a = self.stack.pop().unwrap_or(Object::Null);
+                        let len = match &a {
+                            Object::Array(arr) => arr.len() as i64,
+                            Object::String(s) => s.len() as i64,
+                            Object::Hash(h) => h.len() as i64,
+                            _ => {
+                                return Err(RuntimeError::InvalidOperation(format!("Cannot get length of {}", a.type_name())));
+                            }
+                        };
+                        self.stack.push(Object::Integer(len));
+                        ip += 1;
+                        continue 'sync_loop;
+                    }
+                    0x32 => { // OpJumpIfFalse
+                        let offset = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
+                        let value = self.stack.pop().unwrap_or(Object::Null);
+                        let is_truthy = match value {
+                            Object::Boolean(b) => b,
+                            Object::Null => false,
+                            Object::Integer(i) => i != 0,
+                            Object::Float(f) => f != 0.0,
+                            Object::String(s) => !s.is_empty(),
+                            Object::Array(arr) => !arr.is_empty(),
+                            Object::Hash(h) => !h.is_empty(),
+                            _ => true,
+                        };
+                        if !is_truthy { ip = offset as usize; } else { ip += 3; }
+                        continue 'sync_loop;
+                    }
+                    0x33 => { // OpJumpIfTruthy
+                        let offset = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
+                        let value = self.stack.pop().unwrap_or(Object::Null);
+                        let is_truthy = match value {
+                            Object::Boolean(b) => b,
+                            Object::Null => false,
+                            Object::Integer(i) => i != 0,
+                            Object::Float(f) => f != 0.0,
+                            Object::String(s) => !s.is_empty(),
+                            Object::Array(arr) => !arr.is_empty(),
+                            Object::Hash(h) => !h.is_empty(),
+                            _ => true,
+                        };
+                        if is_truthy { ip = offset as usize; } else { ip += 3; }
+                        continue 'sync_loop;
+                    }
                     0x34 => { // OpPopJumpIfFalse
-                        let offset = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]);
+                        let offset = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
                         let value = match self.stack.pop() {
                             Some(v) => v,
                             None => {
@@ -394,12 +612,6 @@ impl VirtualMachine {
                                 continue 'sync_loop;
                             }
                         };
-                        // If value is an Error, don't jump - propagate it
-                        if let Object::Error(_) = &value {
-                            self.stack.push(value);
-                            ip += 3;
-                            continue 'sync_loop;
-                        }
                         let should_jump = match value {
                             Object::Boolean(b) => !b,
                             Object::Null => true,
@@ -408,6 +620,7 @@ impl VirtualMachine {
                             Object::String(s) => s.is_empty(),
                             Object::Array(a) => a.is_empty(),
                             Object::Hash(h) => h.is_empty(),
+                            Object::Error(e) => return Err(*e),
                             _ => false,
                         };
                         if should_jump {
@@ -418,11 +631,11 @@ impl VirtualMachine {
                         continue 'sync_loop;
                     }
                     0x30 => { // OpJump
-                        ip = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]) as usize;
+                        ip = u16::from_be_bytes([code[ip + 1], code[ip + 2]]) as usize;
                         continue 'sync_loop;
                     }
                     0x31 => { // OpJumpBackward
-                        ip = u16::from_be_bytes([chunk.code[ip + 1], chunk.code[ip + 2]]) as usize;
+                        ip = u16::from_be_bytes([code[ip + 1], code[ip + 2]]) as usize;
                         continue 'sync_loop;
                     }
                     // For all other opcodes, fall through to async dispatcher
@@ -586,7 +799,7 @@ impl VirtualMachine {
             }
             Opcode::OpPop => {
                 if let Some(Object::Error(e)) = ops::stack_vars::execute_pop_check_error(&mut self.stack) {
-                    return Err(e);
+                    return Err(*e);
                 }
                 Ok(ExecResult::Continue)
             }
@@ -753,10 +966,10 @@ impl VirtualMachine {
                     Object::Hash(h) => h.len() as i64,
                     _ => {
                         return Ok(ExecResult::ContinueWith(Object::Error(
-                            RuntimeError::InvalidOperation(format!(
+                            Box::new(RuntimeError::InvalidOperation(format!(
                                 "Cannot get length of {}",
                                 a.type_name()
-                            )),
+                            ))),
                         )));
                     }
                 };
@@ -866,9 +1079,9 @@ impl VirtualMachine {
                     Some(v) => v,
                     None => {
                         return Ok(ExecResult::ContinueWith(Object::Error(
-                            RuntimeError::InvalidOperation(
+                            Box::new(RuntimeError::InvalidOperation(
                                 "Stack underflow on Await".to_string(),
-                            ),
+                            )),
                         )));
                     }
                 };
@@ -883,10 +1096,10 @@ impl VirtualMachine {
                                 f
                             } else {
                                 return Ok(ExecResult::ContinueWith(Object::Error(
-                                    RuntimeError::InvalidOperation(
+                                    Box::new(RuntimeError::InvalidOperation(
                                         "Cannot await a future that has already been awaited"
                                             .to_string(),
-                                    ),
+                                    )),
                                 )));
                             }
                         };
@@ -897,7 +1110,7 @@ impl VirtualMachine {
                                 self.stack.push(obj);
                             }
                             Err(e) => {
-                                self.stack.push(Object::Error(e));
+                                self.stack.push(Object::Error(Box::new(e)));
                             }
                         }
                         Ok(ExecResult::Continue)
@@ -907,10 +1120,10 @@ impl VirtualMachine {
                         Ok(ExecResult::Continue)
                     }
                     _ => Ok(ExecResult::ContinueWith(Object::Error(
-                        RuntimeError::InvalidOperation(format!(
+                        Box::new(RuntimeError::InvalidOperation(format!(
                             "Cannot await non-future type: {}",
                             future_obj.type_name()
-                        )),
+                        ))),
                     ))),
                 }
             }

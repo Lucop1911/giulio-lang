@@ -83,14 +83,14 @@ fn compile_closure_instruction(
     line: u16,
 ) {
     let (chunk, _param_count, local_names) = Compiler::compile_function_body(params, body, false);
-    let fn_obj = Object::Function(
-        params.to_vec(),
-        std::sync::Arc::new(chunk),
-        std::sync::Arc::new(std::sync::Mutex::new(
+    let fn_obj = Object::Function(Box::new(crate::vm::obj::FunctionData {
+        params: params.to_vec(),
+        chunk: std::sync::Arc::new(chunk),
+        env: std::sync::Arc::new(std::sync::Mutex::new(
             crate::vm::runtime::env::Environment::new(),
         )),
         local_names,
-    );
+    }));
 
     let fn_idx = compiler.chunk.add_constant(fn_obj);
     if let Some(fn_idx) = fn_idx {
@@ -108,14 +108,14 @@ fn compile_closure_instruction(
 
 fn compile_async_closure(compiler: &mut Compiler, params: &[Ident], body: &Program, line: u16) {
     let (chunk, _param_count, local_names) = Compiler::compile_function_body(params, body, true);
-    let fn_obj = Object::AsyncFunction(
-        params.to_vec(),
-        std::sync::Arc::new(chunk),
-        std::sync::Arc::new(std::sync::Mutex::new(
+    let fn_obj = Object::AsyncFunction(Box::new(crate::vm::obj::FunctionData {
+        params: params.to_vec(),
+        chunk: std::sync::Arc::new(chunk),
+        env: std::sync::Arc::new(std::sync::Mutex::new(
             crate::vm::runtime::env::Environment::new(),
         )),
         local_names,
-    );
+    }));
 
     let fn_idx = compiler.chunk.add_constant(fn_obj);
     if let Some(fn_idx) = fn_idx {

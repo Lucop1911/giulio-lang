@@ -9,15 +9,15 @@ pub(crate) fn obj_to_float(object: Object) -> Result<f64, Object> {
         Object::Float(f) => Ok(f),
         Object::Integer(i) => Ok(i as f64),
         Object::BigInteger(big) => big.to_f64().ok_or_else(|| {
-            Object::Error(RuntimeError::InvalidOperation(
+            Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "BigInt too large for float".into(),
-            ))
+            )))
         }),
         Object::Error(e) => Err(Object::Error(e)),
-        o => Err(Object::Error(RuntimeError::TypeMismatch {
+        o => Err(Object::Error(Box::new(RuntimeError::TypeMismatch {
             expected: "numeric".into(),
             got: o.type_name(),
-        })),
+        }))),
     }
 }
 

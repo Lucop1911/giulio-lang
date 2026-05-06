@@ -18,9 +18,9 @@ pub fn execute_call(
     argc: usize,
 ) -> Result<ExecResult, RuntimeError> {
     if stack.len() < argc + 1 {
-        stack.push(Object::Error(RuntimeError::InvalidOperation(
+        stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
             "Stack underflow on Call".to_string(),
-        )));
+        ))));
         return Ok(ExecResult::Continue);
     }
 
@@ -31,7 +31,12 @@ pub fn execute_call(
     }
 
     match fn_obj {
-        Object::Function(params, chunk, closure_env, local_names) => {
+        Object::Function(data) => {
+            let params = &data.params;
+            let chunk = &data.chunk;
+            let closure_env = &data.env;
+            let local_names = &data.local_names;
+
             // Function is at fn_idx, arguments are already on stack at fn_idx+1 onwards
             let fn_idx = stack.len() - argc - 1;
             let caller_stack_len = fn_idx; // return value replaces function at this position
@@ -42,7 +47,7 @@ pub fn execute_call(
             stack.resize(slots_base + slot_count, Object::Null);
 
             // Set up environment - read args from their current stack positions
-            let mut new_env = Environment::new_with_outer(Arc::clone(&closure_env));
+            let mut new_env = Environment::new_with_outer(Arc::clone(closure_env));
 
             for (i, param) in params.iter().enumerate() {
                 if i < argc {
@@ -56,16 +61,21 @@ pub fn execute_call(
             }
 
             let frame = CallFrame::new_function(
-                Arc::clone(&chunk),
+                Arc::clone(chunk),
                 slots_base,
                 caller_stack_len,
                 Arc::new(Mutex::new(new_env)),
-                local_names,
+                local_names.clone(),
             );
             frames.push(frame);
             Ok(ExecResult::Continue)
         }
-        Object::AsyncFunction(params, chunk, closure_env, local_names) => {
+        Object::AsyncFunction(data) => {
+            let params = &data.params;
+            let chunk = &data.chunk;
+            let closure_env = &data.env;
+            let local_names = &data.local_names;
+
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
@@ -74,21 +84,25 @@ pub fn execute_call(
                 caller.ip += 2;
             }
 
-            let future = call_async_function_vm(params.to_vec(), chunk, local_names, args, closure_env.clone(), Arc::clone(module_registry), Arc::clone(globals));
+            let future = call_async_function_vm(params.to_vec(), Arc::clone(chunk), local_names.clone(), args, closure_env.clone(), Arc::clone(module_registry), Arc::clone(globals));
             stack.push(Object::Future(Arc::new(Mutex::new(Some(future)))));
             Ok(ExecResult::Continue)
         }
-        Object::BuiltinStd(_name, min_param, max_param, func) => {
+        Object::BuiltinStd(data) => {
+            let min_param = data.min_params;
+            let max_param = data.max_params;
+            let func = data.func;
+
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
             if argc < min_param || argc > max_param {
                 return Ok(ExecResult::ContinueWith(Object::Error(
-                    RuntimeError::WrongNumberOfArguments {
+                    Box::new(RuntimeError::WrongNumberOfArguments {
                         min: min_param,
                         max: max_param,
                         got: argc,
-                    },
+                    }),
                 )));
             }
 
@@ -97,20 +111,24 @@ pub fn execute_call(
                     stack.push(result);
                     Ok(ExecResult::Continue)
                 }
-                Err(e) => Ok(ExecResult::ContinueWith(Object::Error(e))),
+                Err(e) => Ok(ExecResult::ContinueWith(Object::Error(Box::new(e)))),
             }
         }
-        Object::BuiltinStdAsync(_name, min_param, max_param, func) => {
+        Object::BuiltinStdAsync(data) => {
+            let min_param = data.min_params;
+            let max_param = data.max_params;
+            let func = data.func;
+
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
             if argc < min_param || argc > max_param {
                 return Ok(ExecResult::ContinueWith(Object::Error(
-                    RuntimeError::WrongNumberOfArguments {
+                    Box::new(RuntimeError::WrongNumberOfArguments {
                         min: min_param,
                         max: max_param,
                         got: argc,
-                    },
+                    }),
                 )));
             }
 
@@ -120,21 +138,25 @@ pub fn execute_call(
                     Ok(ExecResult::Continue)
                 }
                 Err(e) => {
-                    Ok(ExecResult::ContinueWith(Object::Error(e)))
+                    Ok(ExecResult::ContinueWith(Object::Error(Box::new(e))))
                 }
             }
         }
-        Object::Builtin(_name, min_param, max_param, func) => {
+        Object::Builtin(data) => {
+            let min_param = data.min_params;
+            let max_param = data.max_params;
+            let func = data.func;
+
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
             if argc < min_param || argc > max_param {
                 return Ok(ExecResult::ContinueWith(Object::Error(
-                    RuntimeError::WrongNumberOfArguments {
+                    Box::new(RuntimeError::WrongNumberOfArguments {
                         min: min_param,
                         max: max_param,
                         got: argc,
-                    },
+                    }),
                 )));
             }
 
@@ -144,16 +166,15 @@ pub fn execute_call(
                     Ok(ExecResult::Continue)
                 }
                 Err(e) => Ok(ExecResult::ContinueWith(Object::Error(
-                    RuntimeError::InvalidOperation(e),
+                    Box::new(RuntimeError::InvalidOperation(e)),
                 ))),
             }
         }
         #[cfg(feature = "wasm")]
-        Object::WasmImportedFunction {
-            module_name: _,
-            func_name,
-            instance,
-        } => {
+        Object::WasmImportedFunction(data) => {
+            let func_name = &data.func_name;
+            let instance = &data.instance;
+            
             let args: Vec<Object> = stack.drain(stack.len() - argc..).collect();
             stack.pop();
 
@@ -177,7 +198,7 @@ pub fn execute_call(
 
                             match store_opt.as_mut() {
                                 Some(store) => {
-                                    match wasm_instance.call_func_with_args(store, &func_name, &wasm_args)
+                                    match wasm_instance.call_func_with_args(store, func_name, &wasm_args)
                                     {
                                         Ok(results) => {
                                             use crate::wasm::type_conversions::component_val_to_g;
@@ -194,7 +215,7 @@ pub fn execute_call(
                                                             Ok(ExecResult::Continue)
                                                         }
                                                         Err(e) => {
-                                                            Ok(ExecResult::ContinueWith(Object::Error(e)))
+                                                            Ok(ExecResult::ContinueWith(Object::Error(Box::new(e))))
                                                         }
                                                     }
                                                 }
@@ -209,30 +230,30 @@ pub fn execute_call(
                                             // Put the store back even on error
                                             let mut registry = module_registry.lock().unwrap();
                                             registry.wasm_store = store_opt.take();
-                                            Ok(ExecResult::ContinueWith(Object::Error(e)))
+                                            Ok(ExecResult::ContinueWith(Object::Error(Box::new(e))))
                                         }
                                     }
                                 }
                                 None => Ok(ExecResult::ContinueWith(Object::Error(
-                                    RuntimeError::InvalidOperation(
+                                    Box::new(RuntimeError::InvalidOperation(
                                         "WASM store not available".to_string(),
-                                    ),
+                                    )),
                                 ))),
                             }
                         }
                         None => Ok(ExecResult::ContinueWith(Object::Error(
-                            RuntimeError::InvalidOperation(
+                            Box::new(RuntimeError::InvalidOperation(
                                 "WASM instance has been consumed".to_string(),
-                            ),
+                            )),
                         ))),
                     }
                 }
-                Err(e) => Ok(ExecResult::ContinueWith(Object::Error(e))),
+                Err(e) => Ok(ExecResult::ContinueWith(Object::Error(Box::new(e)))),
             }
         }
         _ => Ok(ExecResult::ContinueWith(Object::Error(
-            RuntimeError::NotCallable(fn_obj.type_name()),
-        ))),
+            Box::new(RuntimeError::NotCallable(fn_obj.type_name()),
+        )))),
     }
 }
 
@@ -242,7 +263,11 @@ pub fn execute_closure(
 ) {
     if let Some(top) = stack.pop() {
         match top {
-            Object::Function(params, chunk, _old_env, local_names) => {
+            Object::Function(data) => {
+                let params = data.params.clone();
+                let chunk = Arc::clone(&data.chunk);
+                let local_names = data.local_names.clone();
+
                 // Only capture names from the *outer* scope, not current local_names.
                 // They are identified by checking what's currently in the caller's frame local_names.
                 let new_env = if let Some(caller) = frames.last() {
@@ -267,14 +292,18 @@ pub fn execute_closure(
                     Environment::new_root()
                 };
 
-                stack.push(Object::Function(
+                stack.push(Object::Function(Box::new(crate::vm::obj::FunctionData {
                     params,
                     chunk,
-                    Arc::new(Mutex::new(new_env)),
+                    env: Arc::new(Mutex::new(new_env)),
                     local_names,
-                ));
+                })));
             }
-            Object::AsyncFunction(params, chunk, _old_env, local_names) => {
+            Object::AsyncFunction(data) => {
+                let params = data.params.clone();
+                let chunk = Arc::clone(&data.chunk);
+                let local_names = data.local_names.clone();
+
                 let new_env = if let Some(caller) = frames.last() {
                     let outer_env = caller.closure_env.clone().unwrap_or_else(|| {
                         Arc::new(Mutex::new(Environment::new_root()))
@@ -292,12 +321,12 @@ pub fn execute_closure(
                 } else {
                     Environment::new()
                 };
-                stack.push(Object::AsyncFunction(
+                stack.push(Object::AsyncFunction(Box::new(crate::vm::obj::FunctionData {
                     params,
                     chunk,
-                    Arc::new(Mutex::new(new_env)),
+                    env: Arc::new(Mutex::new(new_env)),
                     local_names,
-                ));
+                })));
             }
             other => {
                 stack.push(other);
@@ -344,6 +373,8 @@ pub fn call_async_function_vm(
         vm.set_root_local_names(local_names);
         vm.set_root_closure_env(Arc::clone(&globals_with_locals));
 
-        return vm.run(Arc::clone(&chunk)).await;
+        let result = vm.run(Arc::clone(&chunk)).await;
+        // Result is already Result<Object, RuntimeError>, which matches our return type
+        result
     })
 }

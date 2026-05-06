@@ -17,9 +17,9 @@ pub enum MethodCallResult {
 pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
     let field_count = field_count as usize;
     if stack.len() < field_count + 1 {
-        stack.push(Object::Error(RuntimeError::InvalidOperation(
+        stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
             "Stack underflow on BuildStruct".to_string(),
-        )));
+        ))));
         return;
     }
 
@@ -27,9 +27,9 @@ pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
     let name = match name_obj {
         Object::String(s) => s,
         _ => {
-            stack.push(Object::Error(RuntimeError::InvalidOperation(
+            stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Struct name must be a string constant".to_string(),
-            )));
+            ))));
             return;
         }
     };
@@ -41,9 +41,9 @@ pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
         let field_name = match field_name_obj {
             Object::String(s) => s,
             _ => {
-                stack.push(Object::Error(RuntimeError::InvalidOperation(
+                stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                     "Struct field name must be a string".to_string(),
-                )));
+                ))));
                 return;
             }
         };
@@ -61,35 +61,35 @@ pub fn execute_get_field(stack: &mut Vec<Object>) {
     let field_name_obj = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on GetField".to_string(),
-            )))
+            ))))
         }
     };
     let field_name = match field_name_obj {
         Object::String(s) => s,
         _ => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Field name must be a string".to_string(),
-            )))
+            ))))
         }
     };
     let struct_obj = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on GetField".to_string(),
-            )))
+            ))))
         }
     };
 
     let result = match struct_obj {
         Object::Struct(s) => s.fields.get(&field_name).cloned().unwrap_or(Object::Null),
         Object::Module(m) => m.exports.get(&field_name).cloned().unwrap_or(Object::Null),
-        other => Object::Error(RuntimeError::InvalidOperation(format!(
+        other => Object::Error(Box::new(RuntimeError::InvalidOperation(format!(
             "Cannot get field from {}",
             other.type_name(),
-        ))),
+        )))),
     };
 
     stack.push(result);
@@ -99,33 +99,33 @@ pub fn execute_set_field(stack: &mut Vec<Object>) {
     let value = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on SetField".to_string(),
-            )))
+            ))))
         }
     };
     let field_name_obj = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on SetField".to_string(),
-            )))
+            ))))
         }
     };
     let field_name = match field_name_obj {
         Object::String(s) => s,
         _ => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Field name must be a string".to_string(),
-            )))
+            ))))
         }
     };
     let struct_obj = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on SetField".to_string(),
-            )))
+            ))))
         }
     };
 
@@ -134,10 +134,10 @@ pub fn execute_set_field(stack: &mut Vec<Object>) {
             s.fields.insert(field_name, value);
             Object::Struct(s)
         }
-        other => Object::Error(RuntimeError::InvalidOperation(format!(
+        other => Object::Error(Box::new(RuntimeError::InvalidOperation(format!(
             "Cannot set field on {}",
             other.type_name(),
-        ))),
+        )))),
     };
 
     stack.push(result);
@@ -156,9 +156,9 @@ pub fn execute_call_method(
         match stack.pop() {
             Some(v) => args.push(v),
             None => {
-                return Ok(MethodCallResult::Error(Object::Error(
+                return Ok(MethodCallResult::Error(Object::Error(Box::new(
                     RuntimeError::InvalidOperation("Stack underflow: missing argument".to_string()),
-                )))
+                ))))
             }
         }
     }
@@ -168,27 +168,27 @@ pub fn execute_call_method(
     let method_name_obj = match stack.pop() {
         Some(v) => v,
         None => {
-            return Ok(MethodCallResult::Error(Object::Error(
+            return Ok(MethodCallResult::Error(Object::Error(Box::new(
                 RuntimeError::InvalidOperation("Stack underflow: missing method name".to_string()),
-            )))
+            ))))
         }
     };
 
     let method_name = match method_name_obj {
         Object::String(s) => s,
         _ => {
-            return Ok(MethodCallResult::Error(Object::Error(
+            return Ok(MethodCallResult::Error(Object::Error(Box::new(
                 RuntimeError::InvalidOperation("Method name must be a string".to_string()),
-            )))
+            ))))
         }
     };
 
     let struct_obj = match stack.pop() {
         Some(v) => v,
         None => {
-            return Ok(MethodCallResult::Error(Object::Error(
+            return Ok(MethodCallResult::Error(Object::Error(Box::new(
                 RuntimeError::InvalidOperation("Stack underflow: missing object".to_string()),
-            )))
+            ))))
         }
     };
 
@@ -201,9 +201,9 @@ pub fn execute_call_method(
                 }
                 Ok(MethodCallResult::NeedsCall) // caller should dispatch to execute_call
             } else {
-                Ok(MethodCallResult::Error(Object::Error(
+                Ok(MethodCallResult::Error(Object::Error(Box::new(
                     RuntimeError::InvalidOperation(format!("Method '{}' not found", method_name)),
-                )))
+                ))))
             }
         }
         Object::Module(m) => {
@@ -214,12 +214,12 @@ pub fn execute_call_method(
                 }
                 Ok(MethodCallResult::NeedsCall)
             } else {
-                Ok(MethodCallResult::Error(Object::Error(
+                Ok(MethodCallResult::Error(Object::Error(Box::new(
                     RuntimeError::InvalidOperation(format!(
                         "Method '{}' not found on module",
                         method_name
                     )),
-                )))
+                ))))
             }
         }
         _ => {
@@ -233,7 +233,7 @@ pub fn execute_call_method(
                     stack.push(result);
                     Ok(MethodCallResult::Done)
                 }
-                Err(e) => Ok(MethodCallResult::Error(Object::Error(e))),
+                Err(e) => Ok(MethodCallResult::Error(Object::Error(Box::new(e)))),
             }
         }
     }

@@ -77,11 +77,11 @@ impl ModuleRegistry {
 
         let mut exports = HashMap::new();
         for name in &export_names {
-            exports.insert(name.clone(), Object::WasmImportedFunction {
+            exports.insert(name.clone(), Object::WasmImportedFunction(Box::new(crate::vm::obj::WasmFunctionData {
                 module_name: module_name.clone(),
                 func_name: name.clone(),
                 instance: Arc::clone(&instance_arc),
-            });
+            })));
         }
         
         {

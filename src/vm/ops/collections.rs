@@ -7,9 +7,9 @@ use ahash::HashMapExt;
 pub(crate) fn execute_build_array(stack: &mut Vec<Object>, count: u16) {
     let count = count as usize;
     if stack.len() < count {
-        stack.push(Object::Error(RuntimeError::InvalidOperation(
+        stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
             "Stack underflow on BuildArray".to_string(),
-        )));
+        ))));
         return;
     }
     let elements: Vec<Object> = stack.drain(stack.len() - count..).collect();
@@ -19,9 +19,9 @@ pub(crate) fn execute_build_array(stack: &mut Vec<Object>, count: u16) {
 pub(crate) fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
     let pair_count = pair_count as usize;
     if stack.len() < pair_count * 2 {
-        stack.push(Object::Error(RuntimeError::InvalidOperation(
+        stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
             "Stack underflow on BuildHash".to_string(),
-        )));
+        ))));
         return;
     }
 
@@ -41,7 +41,7 @@ pub(crate) fn execute_build_hash(stack: &mut Vec<Object>, pair_count: u16) {
                 return;
             }
             _ => {
-                stack.push(Object::Error(RuntimeError::NotHashable(key.type_name())));
+                stack.push(Object::Error(Box::new(RuntimeError::NotHashable(key.type_name()))));
                 return;
             }
         }
@@ -53,17 +53,17 @@ pub(crate) fn execute_index(stack: &mut Vec<Object>) {
     let index = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on Index".to_string(),
-            )))
+            ))))
         }
     };
     let collection = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on Index".to_string(),
-            )))
+            ))))
         }
     };
 
@@ -71,33 +71,33 @@ pub(crate) fn execute_index(stack: &mut Vec<Object>) {
         Object::Array(arr) => match index {
             Object::Integer(i) => {
                 if i < 0 {
-                    Object::Error(RuntimeError::IndexOutOfBounds {
+                    Object::Error(Box::new(RuntimeError::IndexOutOfBounds {
                         index: i,
                         length: arr.len(),
-                    })
+                    }))
                 } else {
                     let idx = i as usize;
                     if idx >= arr.len() {
-                        Object::Error(RuntimeError::IndexOutOfBounds {
+                        Object::Error(Box::new(RuntimeError::IndexOutOfBounds {
                             index: i,
                             length: arr.len(),
-                        })
+                        }))
                     } else {
                         arr[idx].clone()
                     }
                 }
             }
-            _ => Object::Error(RuntimeError::InvalidOperation(
+            _ => Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Array index must be an integer".to_string(),
-            )),
+            ))),
         },
         Object::Hash(mut hash) => match index {
             Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
                 hash.remove(&index).unwrap_or(Object::Null)
             }
-            _ => Object::Error(RuntimeError::NotHashable(index.type_name())),
+            _ => Object::Error(Box::new(RuntimeError::NotHashable(index.type_name()))),
         },
-        other => Object::Error(RuntimeError::NotIndexable(other.type_name())),
+        other => Object::Error(Box::new(RuntimeError::NotIndexable(other.type_name()))),
     };
 
     stack.push(result);
@@ -107,25 +107,25 @@ pub(crate) fn execute_set_index(stack: &mut Vec<Object>) {
     let value = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on SetIndex".to_string(),
-            )))
+            ))))
         }
     };
     let index = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on SetIndex".to_string(),
-            )))
+            ))))
         }
     };
     let collection = match stack.pop() {
         Some(v) => v,
         None => {
-            return stack.push(Object::Error(RuntimeError::InvalidOperation(
+            return stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Stack underflow on SetIndex".to_string(),
-            )))
+            ))))
         }
     };
 
@@ -133,35 +133,35 @@ pub(crate) fn execute_set_index(stack: &mut Vec<Object>) {
         Object::Array(mut arr) => match index {
             Object::Integer(i) => {
                 if i < 0 {
-                    Object::Error(RuntimeError::IndexOutOfBounds {
+                    Object::Error(Box::new(RuntimeError::IndexOutOfBounds {
                         index: i,
                         length: arr.len(),
-                    })
+                    }))
                 } else {
                     let idx = i as usize;
                     if idx >= arr.len() {
-                        Object::Error(RuntimeError::IndexOutOfBounds {
+                        Object::Error(Box::new(RuntimeError::IndexOutOfBounds {
                             index: i,
                             length: arr.len(),
-                        })
+                        }))
                     } else {
                         arr[idx] = value;
                         Object::Array(arr)
                     }
                 }
             }
-            _ => Object::Error(RuntimeError::InvalidOperation(
+            _ => Object::Error(Box::new(RuntimeError::InvalidOperation(
                 "Array index must be an integer".to_string(),
-            )),
+            ))),
         },
         Object::Hash(mut hash) => match index {
             Object::Integer(_) | Object::Boolean(_) | Object::String(_) => {
                 hash.insert(index, value);
                 Object::Hash(hash)
             }
-            _ => Object::Error(RuntimeError::NotHashable(index.type_name())),
+            _ => Object::Error(Box::new(RuntimeError::NotHashable(index.type_name()))),
         },
-        other => Object::Error(RuntimeError::NotIndexable(other.type_name())),
+        other => Object::Error(Box::new(RuntimeError::NotIndexable(other.type_name()))),
     };
 
     stack.push(result);
