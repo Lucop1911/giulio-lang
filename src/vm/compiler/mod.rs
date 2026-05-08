@@ -31,6 +31,10 @@ use crate::vm::chunk::Chunk;
 use crate::vm::compiler::compute_slots::compute_slots;
 use crate::vm::compiler::compilation_errors::CompilationError;
 use crate::vm::instruction::Instruction;
+use ahash::AHasher;
+use std::hash::BuildHasherDefault;
+
+type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
 /// A forward-jump placeholder that needs backpatching once the target
 /// address is known.
@@ -58,13 +62,10 @@ struct LoopContext {
 /// forward references (if/else, loops, short-circuit operators).
 pub(crate) struct Compiler {
     chunk: Chunk,
-    /// Stack of active loop contexts. The innermost loop is at the back.
     loop_contexts: Vec<LoopContext>,
-    /// Depth counter for nested finally blocks. When > 0, return/throw
-    /// statements need to emit PushFinally instructions.
     finally_depth: usize,
-    /// Compilation error if any occurred during compilation.
     error: Option<CompilationError>,
+    struct_templates: HashMap<String, Object>,
 }
 
 impl Compiler {
@@ -80,6 +81,7 @@ impl Compiler {
             loop_contexts: Vec::new(),
             finally_depth: 0,
             error: None,
+            struct_templates: HashMap::default(),
         };
 
         compiler.compile_program_body(program, false);
@@ -143,6 +145,7 @@ impl Compiler {
             loop_contexts: Vec::new(),
             finally_depth: 0,
             error: None,
+            struct_templates: HashMap::default(),
         };
 
         compiler.compile_program_body(&program, false);

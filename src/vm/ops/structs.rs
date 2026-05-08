@@ -17,27 +17,29 @@ pub enum MethodCallResult {
 
 pub fn execute_build_struct(
     stack: &mut Vec<Object>,
-    globals: &crate::vm::runtime::env::Environment,
     field_count: u8,
 ) {
     let field_count = field_count as usize;
-    if stack.len() < field_count + 1 {
+    if stack.len() < field_count + 2 {
         stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
             "Stack underflow on BuildStruct".to_string(),
         ))));
         return;
     }
 
-    let name_obj = stack.pop().unwrap();
-    let name = match name_obj {
-        Object::String(s) => s,
-        _ => {
+    let template = match stack.pop() {
+        Some(Object::Struct(t)) => t,
+        Some(_) | None => {
             stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
-                "Struct name must be a string constant".to_string(),
+                "Struct template must be a Struct constant".to_string(),
             ))));
             return;
         }
     };
+
+    let name = template.name.clone();
+    let default_fields = &template.fields;
+    let methods = template.methods;
 
     let mut fields = HashMap::new();
     for _ in 0..field_count {
@@ -55,14 +57,9 @@ pub fn execute_build_struct(
         fields.insert(field_name, value);
     }
 
-    // Initialize instance methods and default field values from the template struct.
-    let mut methods = HashMap::new();
-    if let Some(Object::Struct(template)) = globals.get_by_name(&name) {
-        methods = template.methods.clone();
-        for (field_name, value) in &template.fields {
-            if !fields.contains_key(field_name) {
-                fields.insert(field_name.clone(), value.clone());
-            }
+    for (field_name, value) in default_fields {
+        if !fields.contains_key(field_name) {
+            fields.insert(field_name.clone(), value.clone());
         }
     }
 

@@ -71,11 +71,14 @@ pub fn compile_struct_literal(
         compiler.compile_expression(expr, line);
     }
 
-    let name_idx = compiler
-        .chunk
-        .add_constant(Object::String(name.name.clone()));
-    if let Some(name_idx) = name_idx {
-        compiler.emit(Instruction::Constant(name_idx), line);
+    let template_idx = if let Some(template) = compiler.struct_templates.get(&name.name) {
+        compiler.chunk.add_constant(template.clone())
+    } else {
+        None
+    };
+
+    if let Some(idx) = template_idx {
+        compiler.emit(Instruction::Constant(idx), line);
     }
 
     compiler.emit(Instruction::BuildStruct(fields.len() as u8), line);
@@ -157,10 +160,12 @@ pub fn compile_struct_stmt(
         methods: method_map,
     }));
 
-    let struct_idx = compiler.chunk.add_constant(struct_obj);
+    let struct_idx = compiler.chunk.add_constant(struct_obj.clone());
     if let Some(struct_idx) = struct_idx {
         compiler.emit(Instruction::Constant(struct_idx), line);
     }
+
+    compiler.struct_templates.insert(name.name.clone(), struct_obj);
 
     let name_idx = compiler
         .chunk

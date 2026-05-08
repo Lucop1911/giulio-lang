@@ -1144,8 +1144,7 @@ impl VirtualMachine {
             }
             Opcode::OpBuildStruct => {
                 let field_count = read_u8(1);
-                let globals = self.globals.lock().unwrap();
-                ops::structs::execute_build_struct(&mut self.stack, &globals, field_count);
+                ops::structs::execute_build_struct(&mut self.stack, field_count);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpGetField => {
