@@ -21,8 +21,7 @@ use crate::wasm::WasmInstance;
 
 pub type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<AHasher>>;
 
-/// A struct value with named fields and methods.
-/// Boxed to reduce the size of the Object enum.
+/// Struct instance with fields and methods. Boxed to reduce the size of the Object enum.
 #[derive(Clone)]
 pub struct StructObject {
     pub name: String,
@@ -30,8 +29,7 @@ pub struct StructObject {
     pub methods: HashMap<String, Object>,
 }
 
-/// A loaded module with its exported bindings.
-/// Boxed to reduce the size of the Object enum.
+/// Loaded module with its exported bindings.
 #[derive(Clone)]
 pub struct ModuleObject {
     pub name: String,
@@ -99,45 +97,45 @@ pub struct WasmModuleData {
 #[derive(Clone)]
 pub enum Object {
     Integer(i64),
-    /// Boxed to reduce enum size since BigInt can be large.
+    /// Arbitrary-precision integer. Boxed to reduce enum size.
     BigInteger(Box<BigInt>),
     Float(f64),
     Boolean(bool),
     String(String),
-    /// Boxed to reduce enum size (Vec is 24 bytes).
+    /// Dynamic array. Boxed to reduce enum size (Vec is 24 bytes).
     Array(Box<Vec<Object>>),
-    /// Boxed to reduce enum size (HashMap is ~48+ bytes).
+    /// Hash map with Object keys. Boxed to reduce enum size (HashMap is ~48+ bytes).
     Hash(Box<HashMap<Object, Object>>),
     /// User-defined function. Boxed to reduce size.
     Function(Box<FunctionData>),
     /// Async user-defined function. Boxed to reduce size.
     AsyncFunction(Box<FunctionData>),
-    /// Builtin function implemented in Rust (simple variant). Boxed.
+    /// Builtin function implemented in Rust.
     Builtin(Box<BuiltinData>),
-    /// Builtin function with RuntimeError-based error handling. Boxed.
+    /// Builtin function with RuntimeError-based error handling.
     BuiltinStd(Box<BuiltinStdData>),
-    /// Async builtin function. Boxed.
+    /// Async builtin function.
     BuiltinStdAsync(Box<BuiltinStdAsyncData>),
-    /// A function imported from a WASM module. Boxed.
+    /// WASM imported function.
     WasmImportedFunction(Box<WasmFunctionData>),
-    /// A struct value with named fields and methods. Boxed.
+    /// Struct instance with fields and methods.
     Struct(Box<StructObject>),
-    /// A loaded module with its exported bindings. Boxed.
+    /// Loaded module with exported bindings.
     Module(Box<ModuleObject>),
     Null,
-    /// Wraps a value that was returned from a function.
+    /// Wraps a value returned from a function.
     ReturnValue(Box<Object>),
-    /// Boxed to reduce size of Object enum.
+    /// Runtime error. Boxed to reduce enum size.
     Error(Box<RuntimeError>),
-    /// A method bound to a struct instance. Boxed.
+    /// Method bound to a struct instance.
     Method(Box<FunctionData>),
     /// Control-flow sentinel: exits the innermost loop.
     Break,
     /// Control-flow sentinel: skips to the next loop iteration.
     Continue,
-    /// Wraps a value passed to `throw`.
+    /// Value passed to `throw`.
     ThrownValue(Box<Object>),
-    /// An async computation that has not yet been awaited.
+    /// Unresolved async computation.
     Future(
         Arc<
             Mutex<
@@ -153,6 +151,7 @@ pub enum Object {
             >,
         >,
     ),
+    /// Compiled WASM module.
     #[cfg(feature = "wasm")]
     WasmModule(Box<WasmModuleData>),
 }

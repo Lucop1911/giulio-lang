@@ -224,11 +224,9 @@ impl VirtualMachine {
                         continue 'sync_loop;
                     }
                     0x01 => { // OpPop
-                        if let Some(value) = self.stack.pop() {
+                        if let Some(Object::Error(e)) = self.stack.pop() {
                             // If we're popping an error, stop execution
-                            if let Object::Error(e) = value {
-                                return Err(*e);
-                            }
+                            return Err(*e);
                         }
                         ip += 1;
                         continue 'sync_loop;
@@ -296,8 +294,8 @@ impl VirtualMachine {
                     0x13 => { // OpSetGlobal
                         let idx = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
                         let name_obj = &constants[idx as usize];
-                        if let Object::String(name) = name_obj {
-                            if let Some(value) = self.stack.pop() {
+                        if let Object::String(name) = name_obj 
+                            && let Some(value) = self.stack.pop() {
                                 let mut globals = self.globals.lock().unwrap();
                                 let closure_env = frame.closure_env.as_ref();
                                 if let Some(env_arc) = closure_env {
@@ -310,7 +308,6 @@ impl VirtualMachine {
                                 } else {
                                     globals.set_by_name(name, value);
                                 }
-                            }
                         }
                         ip += 3;
                         continue 'sync_loop;
@@ -573,12 +570,12 @@ impl VirtualMachine {
                     }
                     0x32 => { // OpJumpIfFalse
                         let offset = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
-                        let value = self.stack.pop().unwrap_or(Object::Null);
+                        let value = self.stack.last().unwrap_or(&Object::Null);
                         let is_truthy = match value {
-                            Object::Boolean(b) => b,
+                            Object::Boolean(b) => *b,
                             Object::Null => false,
-                            Object::Integer(i) => i != 0,
-                            Object::Float(f) => f != 0.0,
+                            Object::Integer(i) => *i != 0,
+                            Object::Float(f) => *f != 0.0,
                             Object::String(s) => !s.is_empty(),
                             Object::Array(arr) => !arr.is_empty(),
                             Object::Hash(h) => !h.is_empty(),
@@ -589,12 +586,12 @@ impl VirtualMachine {
                     }
                     0x33 => { // OpJumpIfTruthy
                         let offset = u16::from_be_bytes([code[ip + 1], code[ip + 2]]);
-                        let value = self.stack.pop().unwrap_or(Object::Null);
+                        let value = self.stack.last().unwrap_or(&Object::Null);
                         let is_truthy = match value {
-                            Object::Boolean(b) => b,
+                            Object::Boolean(b) => *b,
                             Object::Null => false,
-                            Object::Integer(i) => i != 0,
-                            Object::Float(f) => f != 0.0,
+                            Object::Integer(i) => *i != 0,
+                            Object::Float(f) => *f != 0.0,
                             Object::String(s) => !s.is_empty(),
                             Object::Array(arr) => !arr.is_empty(),
                             Object::Hash(h) => !h.is_empty(),
@@ -1147,7 +1144,8 @@ impl VirtualMachine {
             }
             Opcode::OpBuildStruct => {
                 let field_count = read_u8(1);
-                ops::structs::execute_build_struct(&mut self.stack, field_count);
+                let globals = self.globals.lock().unwrap();
+                ops::structs::execute_build_struct(&mut self.stack, &globals, field_count);
                 Ok(ExecResult::Continue)
             }
             Opcode::OpGetField => {
@@ -1161,13 +1159,13 @@ impl VirtualMachine {
             Opcode::OpCallMethod => {
                 let argc = read_u8(1) as usize;
                 match ops::structs::execute_call_method(&mut self.stack, argc)? {
-                    ops::structs::MethodCallResult::NeedsCall => {
+                    ops::structs::MethodCallResult::NeedsCall(new_argc) => {
                         ops::calls::execute_call(
                             &mut self.stack,
                             &mut self.frames,
                             &self.module_registry,
                             &self.globals,
-                            argc,
+                            new_argc,
                         )
                     }
                     ops::structs::MethodCallResult::Done => {

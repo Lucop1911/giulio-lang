@@ -1,7 +1,7 @@
 //! Collection compilation: arrays, hashes, indexing, struct literals, field access,
 //! method calls, and struct declarations.
 
-use crate::ast::ast::{Expr, Ident};
+use crate::ast::ast::{Expr, Ident, Literal};
 use crate::vm::obj::{Object, StructObject};
 use crate::vm::compiler::Compiler;
 use crate::vm::instruction::Instruction;
@@ -61,15 +61,21 @@ pub fn compile_struct_literal(
     fields: &[(Ident, Expr)],
     line: u16,
 ) {
+    for (ident, expr) in fields {
+        let field_name_idx = compiler
+            .chunk
+            .add_constant(Object::String(ident.name.clone()));
+        if let Some(idx) = field_name_idx {
+            compiler.emit(Instruction::Constant(idx), line);
+        }
+        compiler.compile_expression(expr, line);
+    }
+
     let name_idx = compiler
         .chunk
         .add_constant(Object::String(name.name.clone()));
     if let Some(name_idx) = name_idx {
         compiler.emit(Instruction::Constant(name_idx), line);
-    }
-
-    for (_, expr) in fields {
-        compiler.compile_expression(expr, line);
     }
 
     compiler.emit(Instruction::BuildStruct(fields.len() as u8), line);
@@ -102,16 +108,46 @@ pub fn compile_struct_stmt(
     let mut field_map: HashMap<String, Object> = HashMap::default();
     let mut method_map: HashMap<String, Object> = HashMap::default();
 
-    for (ident, _expr) in fields {
-        compiler.compile_expression(_expr, line);
-        field_map.insert(ident.name.clone(), Object::Null);
+    for (ident, expr) in fields {
+        // Store the default value - will be used when creating instances
+        let value = match expr {
+            Expr::LitExpr(lit) => match lit {
+                Literal::IntLiteral(i) => Object::Integer(*i),
+                Literal::BigIntLiteral(b) => {
+                    Object::BigInteger(Box::new(b.clone()))
+                }
+                Literal::FloatLiteral(f) => Object::Float(*f),
+                Literal::BoolLiteral(b) => Object::Boolean(*b),
+                Literal::StringLiteral(s) => Object::String(s.clone()),
+                Literal::NullLiteral => Object::Null,
+            },
+            _ => Object::Null,
+        };
+        field_map.insert(ident.name.clone(), value);
     }
 
-    for (ident, _expr) in methods {
-        if let Expr::FnExpr { params, body } = _expr {
-            let (_fn_chunk, _param_count, _local_names) =
-                crate::vm::compiler::Compiler::compile_function_body(params, body, false);
-            method_map.insert(ident.name.clone(), Object::Null);
+    for (ident, expr) in methods {
+        if let Expr::FnExpr { params, body } = expr {
+            // Prepend 'this' parameter to the method signature.
+            let mut new_params = vec![Ident {
+                name: "this".to_string(),
+                slot: crate::ast::ast::SlotIndex(0),
+            }];
+            new_params.extend(params.clone());
+
+            let (fn_chunk, _param_count, local_names) =
+                crate::vm::compiler::Compiler::compile_function_body(&new_params, body, false);
+
+            let fn_obj = Object::Function(Box::new(crate::vm::obj::FunctionData {
+                params: new_params,
+                chunk: std::sync::Arc::new(fn_chunk),
+                env: std::sync::Arc::new(std::sync::Mutex::new(
+                    crate::vm::runtime::env::Environment::new(),
+                )),
+                local_names,
+            }));
+
+            method_map.insert(ident.name.clone(), fn_obj);
         }
     }
 

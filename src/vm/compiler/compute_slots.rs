@@ -76,6 +76,14 @@ impl Scope {
                     self.process_expr(index, &running_locals);
                     self.process_expr(value, &running_locals);
                 }
+                Stmt::StructStmt { fields, methods, .. } => {
+                    for (_, expr) in fields {
+                        self.process_expr(expr, &running_locals);
+                    }
+                    for (_, expr) in methods {
+                        self.process_expr(expr, &running_locals);
+                    }
+                }
                 _ => {}
             }
         }
@@ -342,6 +350,14 @@ impl Scope {
                         {
                             trgt.slot = *slot;
                         }
+                    }
+                }
+                Stmt::StructStmt { fields, methods, .. } => {
+                    for (_, expr) in fields {
+                        self.process_expr(expr, &expr_locals);
+                    }
+                    for (_, expr) in methods {
+                        self.process_expr(expr, &expr_locals);
                     }
                 }
                 _ => {}

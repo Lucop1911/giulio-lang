@@ -7,14 +7,19 @@ use ahash::HashMapExt;
 /// Result of method call execution
 pub enum MethodCallResult {
     /// Method needs to be called: its function object is on the stack
-    NeedsCall,
+    /// The usize is the argument count (including `this`)
+    NeedsCall(usize),
     /// Method result is already computed and on the stack
     Done,
     /// Error occurred
     Error(Object),
 }
 
-pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
+pub fn execute_build_struct(
+    stack: &mut Vec<Object>,
+    globals: &crate::vm::runtime::env::Environment,
+    field_count: u8,
+) {
     let field_count = field_count as usize;
     if stack.len() < field_count + 1 {
         stack.push(Object::Error(Box::new(RuntimeError::InvalidOperation(
@@ -50,10 +55,21 @@ pub fn execute_build_struct(stack: &mut Vec<Object>, field_count: u8) {
         fields.insert(field_name, value);
     }
 
+    // Initialize instance methods and default field values from the template struct.
+    let mut methods = HashMap::new();
+    if let Some(Object::Struct(template)) = globals.get_by_name(&name) {
+        methods = template.methods.clone();
+        for (field_name, value) in &template.fields {
+            if !fields.contains_key(field_name) {
+                fields.insert(field_name.clone(), value.clone());
+            }
+        }
+    }
+
     stack.push(Object::Struct(Box::new(StructObject {
         name,
         fields,
-        methods: HashMap::new(),
+        methods,
     })));
 }
 
@@ -196,10 +212,12 @@ pub fn execute_call_method(
         Object::Struct(s) => {
             if let Some(method) = s.methods.get(&method_name) {
                 stack.push(method.clone());
+                // Prepend 'this' (the struct instance) to the argument list.
+                stack.push(struct_obj.clone());
                 for arg in args {
                     stack.push(arg);
                 }
-                Ok(MethodCallResult::NeedsCall) // caller should dispatch to execute_call
+                Ok(MethodCallResult::NeedsCall(argc + 1))
             } else {
                 Ok(MethodCallResult::Error(Object::Error(Box::new(
                     RuntimeError::InvalidOperation(format!("Method '{}' not found", method_name)),
@@ -212,7 +230,7 @@ pub fn execute_call_method(
                 for arg in args {
                     stack.push(arg);
                 }
-                Ok(MethodCallResult::NeedsCall)
+                Ok(MethodCallResult::NeedsCall(argc))
             } else {
                 Ok(MethodCallResult::Error(Object::Error(Box::new(
                     RuntimeError::InvalidOperation(format!(

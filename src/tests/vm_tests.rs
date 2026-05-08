@@ -1463,3 +1463,43 @@ async fn vm_test_modulo_by_zero_error() {
         _ => panic!("Expected DivisionByZero error, got {:?}", evaluated),
     }
 }
+// ─── Structs ──────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn vm_test_struct_method_call() {
+    let input = r#"
+        struct Person {
+            say_hi: fn() { "hi" }
+        }
+        Person.say_hi()
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::String("hi".to_string()));
+}
+
+#[tokio::test]
+async fn vm_test_struct_method_with_this() {
+    let input = r#"
+        struct Person {
+            name: "Luca",
+            say_hi: fn() { "hi " + this.name }
+        }
+        Person.say_hi()
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::String("hi Luca".to_string()));
+}
+
+#[tokio::test]
+async fn vm_test_struct_instance_method_call() {
+    let input = r#"
+        struct Person {
+            name: "",
+            greet: fn() { "Hello, " + this.name }
+        }
+        let p = Person { name: "World" };
+        p.greet()
+    "#;
+    let evaluated = vm_test_helper(input).await;
+    assert_eq!(evaluated, Object::String("Hello, World".to_string()));
+}

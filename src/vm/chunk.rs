@@ -24,11 +24,10 @@ impl LineInfo {
     }
 
     pub fn add_line(&mut self, count: usize, line: u16) {
-        if let Some((_, last_line)) = self.entries.last_mut() {
-            if *last_line == line {
+        if let Some((_, last_line)) = self.entries.last_mut() 
+            && *last_line == line {
                 self.entries.last_mut().unwrap().0 += count as u32;
                 return;
-            }
         }
         self.entries.push((count as u32, line));
     }
