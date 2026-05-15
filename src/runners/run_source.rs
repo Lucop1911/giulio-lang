@@ -69,7 +69,6 @@ pub async fn run_source(input: &str) {
     let result = vm.run(Arc::new(chunk)).await;
 
     match result {
-        Ok(Object::Null) => {}
         Ok(Object::Error(e)) => {
             eprintln!("╭─ Runtime Error ────────────────────────────");
             eprintln!("│");
@@ -77,8 +76,6 @@ pub async fn run_source(input: &str) {
             eprintln!("│");
             eprintln!("╰────────────────────────────────────────────");
         }
-        Ok(Object::String(s)) => print!("{}", s),
-        Ok(other) => println!("{}", other),
         Err(e) => {
             eprintln!("╭─ Runtime Error ────────────────────────────");
             eprintln!("│");
@@ -86,5 +83,6 @@ pub async fn run_source(input: &str) {
             eprintln!("│");
             eprintln!("╰────────────────────────────────────────────");
         }
+        _ => {}
     }
 }
